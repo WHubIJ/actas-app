@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "App de Actas",
+    "slug": "actas-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "La app necesita el micrófono para grabar las reuniones."
+      }
+    },
+    "android": {
+      "permissions": ["RECORD_AUDIO"]
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "La app necesita el micrófono para grabar las reuniones."
+        }
+      ]
+    ]
+  }
+}

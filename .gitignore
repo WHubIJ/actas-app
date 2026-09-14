@@ -1,0 +1,9 @@
+# Secretos - nunca comitear, en ningún subdirectorio
+.env
+.env.local
+application-local.yml
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

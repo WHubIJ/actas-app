@@ -1,0 +1,12 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+*.iml
+.idea/
+.vscode/
+
+application-local.yml
+.env
+*.log

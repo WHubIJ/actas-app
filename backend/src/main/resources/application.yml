@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: actas-app-backend
+
+  datasource:
+    # Credenciales de Supabase (Postgres). No commitear valores reales:
+    # usar variables de entorno o un application-local.yml ignorado por git.
+    url: ${SUPABASE_DB_URL:jdbc:postgresql://localhost:5432/actas_app}
+    username: ${SUPABASE_DB_USER:postgres}
+    password: ${SUPABASE_DB_PASSWORD:}
+
+  jpa:
+    hibernate:
+      ddl-auto: update # cambiar a "validate" cuando haya migraciones formales (Flyway/Liquibase)
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: ${PORT:8080}
+
+# Claves externas (Whisper/OpenAI, Supabase Storage, Firebase Cloud Messaging).
+# Definir como variables de entorno, nunca hardcodeadas.
+actas-app:
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    whisper-model: whisper-1
+  supabase:
+    storage-url: ${SUPABASE_STORAGE_URL:}
+    storage-bucket: ${SUPABASE_STORAGE_BUCKET:audios-reuniones}
+    service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+  firebase:
+    credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+  enlace-compartido:
+    expiracion-horas: 24
+  transcripcion:
+    max-reintentos: 3
+  grabacion:
+    duracion-maxima-minutos: 120
