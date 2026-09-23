@@ -2,6 +2,14 @@ spring:
   application:
     name: actas-app-backend
 
+  # Carga backend/.env si existe (está en .gitignore). Spring Boot NO lee ficheros
+  # .env por su cuenta: sin esta línea, "mvn spring-boot:run" arrancaría con los
+  # valores por defecto de abajo (localhost) en vez de contra Supabase.
+  # "optional:" evita que falle el arranque en entornos sin .env (CI, producción,
+  # donde las credenciales llegan como variables de entorno reales).
+  config:
+    import: optional:file:.env[.properties]
+
   datasource:
     # Credenciales de Supabase (Postgres). No commitear valores reales:
     # usar variables de entorno o un application-local.yml ignorado por git.
@@ -32,6 +40,10 @@ actas-app:
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
   firebase:
     credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+  # Iglesia a la que se asignan las reuniones mientras no exista autenticación.
+  # Cuando llegue la épica de auth, este valor sale del usuario autenticado y
+  # esta propiedad desaparece.
+  iglesia-por-defecto: ${IGLESIA_POR_DEFECTO:Iglesia sin asignar}
   enlace-compartido:
     expiracion-horas: 24
   transcripcion:
