@@ -5,7 +5,9 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
@@ -13,7 +15,9 @@
       }
     },
     "android": {
-      "permissions": ["RECORD_AUDIO"]
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
     },
     "plugins": [
       [
@@ -21,7 +25,8 @@
         {
           "microphonePermission": "La app necesita el micrófono para grabar las reuniones."
         }
-      ]
+      ],
+      "expo-sharing"
     ]
   }
 }

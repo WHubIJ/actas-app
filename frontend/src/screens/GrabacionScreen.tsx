@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { Audio } from 'expo-av';
 import { UploadSimpleIcon } from 'phosphor-react-native';
 import type { RootStackParamList } from '../../App';
 import { ScreenBackground } from '../components/ScreenBackground';
@@ -13,7 +14,32 @@ import { Waveform } from '../components/Waveform';
 import { RecorderControls } from '../components/RecorderControllers';
 import { ProcesandoIA, type Paso } from '../components/ProcesandoIA';
 import { Boton } from '../components/Boton';
+import { Aviso } from '../components/Aviso';
+import { crearReunion, finalizarReunion, registrarClip, ErrorApi } from '../services/api';
+import {
+  pedirPermisoMicrofono,
+  crearGrabacion,
+  detenerGrabacion,
+  descartarGrabacion,
+  ErrorGrabacion,
+  type ClipGrabado,
+} from '../services/grabacionAudio';
+import { subirClipAudio, BUCKET_AUDIOS, ErrorSubidaAudio } from '../services/supabaseClient';
 import { colors, espaciado, textos } from '../theme';
+
+/** Extensión real del archivo grabado (el URI de expo-av no siempre acaba en la extensión "de toda la vida"). */
+function extensionDe(uri: string): string {
+  const coincide = /\.([a-zA-Z0-9]+)(\?.*)?$/.exec(uri);
+  return coincide ? coincide[1] : 'm4a';
+}
+
+/** Mismo patrón que en DetalleActaScreen: solo se confía en el mensaje de nuestros propios errores tipados. */
+function mensajeError(err: unknown, porDefecto: string): string {
+  if (err instanceof ErrorApi || err instanceof ErrorGrabacion || err instanceof ErrorSubidaAudio) {
+    return err.message;
+  }
+  return porDefecto;
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Grabacion'>;
 
@@ -39,6 +65,17 @@ export function GrabacionScreen({ navigation }: Props) {
   const [estado, setEstado] = useState<Estado>('inactivo');
   const [segundos, setSegundos] = useState(0);
   const [pasoActual, setPasoActual] = useState(0);
+  const [reunionId, setReunionId] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // El recorder nativo vive en un ref, no en estado: no es algo que la UI
+  // pinte directamente, y mutarlo no debe disparar un re-render.
+  const grabacionRef = useRef<Audio.Recording | null>(null);
+  // Resultado de detener la grabación, si ya se paró antes de que fallara la
+  // subida o el registro del clip. Así un reintento de "Finalizar" no vuelve
+  // a llamar a stopAndUnloadAsync() sobre un recorder ya liberado.
+  const [clipListo, setClipListo] = useState<ClipGrabado | null>(null);
 
   const aparicion = useRef(new Animated.Value(0)).current;
 
@@ -75,18 +112,90 @@ export function GrabacionScreen({ navigation }: Props) {
     return () => clearInterval(id);
   }, [estado]);
 
-  const iniciar = useCallback(() => {
-    setSegundos(0);
-    setEstado('grabando');
+  /**
+   * Pide permiso de micrófono, crea la reunión en el backend y arranca la
+   * grabación real. Si cualquiera de los tres pasos falla, el estado se
+   * queda en "inactivo" con el motivo real en vez de fingir que empezó.
+   */
+  const iniciar = useCallback(async () => {
+    setError(null);
+    setCargando(true);
+    try {
+      await pedirPermisoMicrofono();
+      const id = await crearReunion();
+      const recording = await crearGrabacion();
+
+      grabacionRef.current = recording;
+      setReunionId(id);
+      setClipListo(null);
+      setSegundos(0);
+      setEstado('grabando');
+    } catch (err) {
+      setError(mensajeError(err, 'No se pudo iniciar la grabación. Inténtalo de nuevo.'));
+    } finally {
+      setCargando(false);
+    }
   }, []);
 
-  const finalizar = useCallback(() => {
-    setPasoActual(0);
-    setEstado('procesando');
-  }, []);
+  const alternarPausa = useCallback(async () => {
+    if (!grabacionRef.current) return;
+    try {
+      if (estado === 'grabando') {
+        await grabacionRef.current.pauseAsync();
+        setEstado('pausado');
+      } else {
+        await grabacionRef.current.startAsync();
+        setEstado('grabando');
+      }
+    } catch {
+      setError('No se pudo pausar la grabación. Tu dispositivo puede no soportarlo.');
+    }
+  }, [estado]);
+
+  /**
+   * Detiene la grabación real, sube el clip a Supabase Storage, lo registra
+   * en el backend (`POST /clips`) y finalmente llama a `POST /finalizar`.
+   * Si algo falla a mitad de camino, el resultado ya parado se guarda en
+   * `clipListo` para que reintentar no vuelva a tocar el recorder nativo.
+   */
+  const finalizar = useCallback(async () => {
+    if (!reunionId) return;
+    setError(null);
+    setCargando(true);
+    try {
+      let clip = clipListo;
+      if (!clip) {
+        if (!grabacionRef.current) throw new Error('No hay ninguna grabación en curso.');
+        clip = await detenerGrabacion(grabacionRef.current);
+        grabacionRef.current = null;
+        setClipListo(clip);
+      }
+
+      const archivo = await fetch(clip.uri).then((r) => r.blob());
+      const ruta = `${reunionId}/clip-1.${extensionDe(clip.uri)}`;
+      const subida = await subirClipAudio(BUCKET_AUDIOS, ruta, archivo);
+      await registrarClip(reunionId, 1, subida.path, clip.duracionSegundos);
+      await finalizarReunion(reunionId);
+
+      setClipListo(null);
+      setPasoActual(0);
+      setEstado('procesando');
+    } catch (err) {
+      setError(mensajeError(err, 'No se pudo finalizar la reunión. Inténtalo de nuevo.'));
+    } finally {
+      setCargando(false);
+    }
+  }, [reunionId, clipListo]);
 
   const descartar = useCallback(() => {
+    if (grabacionRef.current) {
+      descartarGrabacion(grabacionRef.current);
+      grabacionRef.current = null;
+    }
     setSegundos(0);
+    setReunionId(null);
+    setClipListo(null);
+    setError(null);
     setEstado('inactivo');
   }, []);
 
@@ -131,7 +240,7 @@ export function GrabacionScreen({ navigation }: Props) {
                 <Waveform activo={estado === 'grabando'} />
                 <RecorderControls
                   grabando={estado === 'grabando'}
-                  onAlternar={() => setEstado(estado === 'grabando' ? 'pausado' : 'grabando')}
+                  onAlternar={alternarPausa}
                   onDetener={descartar}
                   onMejorar={() => {}}
                 />
@@ -142,20 +251,32 @@ export function GrabacionScreen({ navigation }: Props) {
           </Animated.View>
 
           <View style={styles.acciones}>
+            {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
+
             {estado === 'inactivo' && (
               <>
-                <Boton titulo="Iniciar grabación" onPress={iniciar} />
+                <Boton
+                  titulo={cargando ? 'Iniciando…' : 'Iniciar grabación'}
+                  cargando={cargando}
+                  onPress={iniciar}
+                />
                 <Boton
                   titulo="Importar archivo de audio"
                   variante="secundario"
                   icono={(color, size) => <UploadSimpleIcon size={size} weight="bold" color={color} />}
                   onPress={() => {}}
+                  disabled={cargando}
                 />
               </>
             )}
 
             {(estado === 'grabando' || estado === 'pausado') && (
-              <Boton titulo="Finalizar grabación" variante="secundario" onPress={finalizar} />
+              <Boton
+                titulo={cargando ? 'Finalizando…' : 'Finalizar grabación'}
+                variante="secundario"
+                cargando={cargando}
+                onPress={finalizar}
+              />
             )}
           </View>
         </ScrollView>
