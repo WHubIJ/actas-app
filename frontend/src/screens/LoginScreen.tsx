@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GoogleLogoIcon } from 'phosphor-react-native';
 import { ScreenBackground } from '../components/ScreenBackground';
 import { LogoBadge } from '../components/LogoBadge';
 import { Boton } from '../components/Boton';
 import { Aviso } from '../components/Aviso';
-import { iniciarSesion, registrarse, ErrorAuth } from '../services/authService';
+import { iniciarSesion, registrarse, iniciarSesionConProveedor, ErrorAuth } from '../services/authService';
 import { colors, espaciado, radios, textos, tipografia } from '../theme';
 
 /** Mismo patrón que en las demás pantallas: solo se confía en el mensaje de nuestros propios errores tipados. */
@@ -85,6 +86,19 @@ export function LoginScreen() {
     setRegistrando((r) => !r);
   }, []);
 
+  const continuarConGoogle = useCallback(async () => {
+    setError(null);
+    setAvisoRegistro(null);
+    setCargando(true);
+    try {
+      await iniciarSesionConProveedor('google');
+    } catch (err) {
+      setError(mensajeError(err, 'No se pudo iniciar sesión con Google. Inténtalo de nuevo.'));
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
   return (
     <ScreenBackground>
       <KeyboardAvoidingView
@@ -119,6 +133,20 @@ export function LoginScreen() {
               cargando={cargando}
               disabled={!email || !password}
               onPress={enviar}
+            />
+
+            <View style={styles.separador}>
+              <View style={styles.linea} />
+              <Text style={textos.meta}>O</Text>
+              <View style={styles.linea} />
+            </View>
+
+            <Boton
+              titulo="Continuar con Google"
+              variante="secundario"
+              icono={(color, size) => <GoogleLogoIcon size={size} weight="bold" color={color} />}
+              onPress={continuarConGoogle}
+              disabled={cargando}
             />
 
             <Pressable onPress={alternarModo} disabled={cargando} accessibilityRole="button">
@@ -162,4 +190,6 @@ const styles = StyleSheet.create({
     outlineStyle: 'none',
   } as never,
   enlace: { textAlign: 'center', color: colors.marronClaro },
+  separador: { flexDirection: 'row', alignItems: 'center', gap: espaciado.sm },
+  linea: { flex: 1, height: 1, backgroundColor: colors.borde },
 });

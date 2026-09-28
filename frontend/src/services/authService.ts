@@ -1,3 +1,7 @@
+import { Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import { supabase } from './supabaseClient';
 
 /** La identidad la gestiona Supabase Auth, no el backend (ADR-005). */
@@ -6,6 +10,9 @@ export type CodigoErrorAuth =
   | 'CREDENCIALES_INVALIDAS'
   | 'EMAIL_YA_REGISTRADO'
   | 'ERROR_AUTENTICACION';
+
+/** Cada proveedor se activa por separado en el Dashboard de Supabase (Authentication > Providers). */
+export type ProveedorOAuth = 'google';
 
 /** Error con código para que la UI elija el mensaje, mismo patrón que ErrorApi/ErrorSubidaAudio. */
 export class ErrorAuth extends Error {
@@ -52,4 +59,89 @@ export async function registrarse(email: string, password: string): Promise<void
     }
     throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo crear la cuenta. Inténtalo de nuevo.');
   }
+}
+
+/**
+ * Sesión con el token/código que devuelve el navegador tras el login con el
+ * proveedor. Supabase redirige con el fragmento `#access_token=...` (flujo
+ * implícito) o con `?code=...` (PKCE) según la configuración del proyecto;
+ * `expo-auth-session` parsea ambos formatos por igual (`URLSearchParams` no
+ * lee el fragmento de forma consistente entre plataformas).
+ */
+async function crearSesionDesdeUrl(url: string): Promise<void> {
+  const { params, errorCode } = QueryParams.getQueryParams(url);
+  if (errorCode) {
+    throw new ErrorAuth('ERROR_AUTENTICACION', 'El proveedor no autorizó el inicio de sesión.');
+  }
+
+  if (!supabase) return; // ya se comprobó antes de abrir el navegador
+
+  if (params.access_token && params.refresh_token) {
+    const { error } = await supabase.auth.setSession({
+      access_token: params.access_token,
+      refresh_token: params.refresh_token,
+    });
+    if (error) throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo iniciar sesión. Inténtalo de nuevo.');
+    return;
+  }
+
+  if (params.code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(params.code);
+    if (error) throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo iniciar sesión. Inténtalo de nuevo.');
+  }
+}
+
+/**
+ * Inicia sesión con un proveedor externo (ADR-005). No navega a mano al
+ * terminar: igual que `iniciarSesion`, deja que `App.tsx` reaccione a
+ * `onAuthStateChange` en cuanto Supabase guarda la sesión.
+ *
+ * Dos caminos según la plataforma:
+ * - **Web**: no hay "pestaña actual" distinta de la app, así que se deja que
+ *   Supabase redirija la página entera (sin `skipBrowserRedirect`) y, al
+ *   volver, detecte los tokens de la URL solo (`detectSessionInUrl`, activado
+ *   por defecto). Abrir un popup con `WebBrowser.openAuthSessionAsync` aquí
+ *   falla: `window.open()` necesita ejecutarse en el mismo tick del clic, y
+ *   el `await` de `signInWithOAuth` de por medio rompe ese requisito — el
+ *   navegador lo bloquea como si fuera un popup no solicitado.
+ * - **Nativo (iOS/Android)**: sí hay una app a la que volver, así que se abre
+ *   un navegador efímero (`skipBrowserRedirect: true` +
+ *   `openAuthSessionAsync`) y se recoge el resultado a mano.
+ */
+export async function iniciarSesionConProveedor(proveedor: ProveedorOAuth): Promise<void> {
+  if (!supabase) {
+    throw new ErrorAuth(
+      'SUPABASE_NO_CONFIGURADO',
+      'Supabase no está configurado (faltan EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).',
+    );
+  }
+
+  const redirectUrl = Linking.createURL('auth/callback');
+
+  if (Platform.OS === 'web') {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: proveedor,
+      options: { redirectTo: redirectUrl },
+    });
+    if (error) {
+      throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo iniciar sesión. Inténtalo de nuevo.');
+    }
+    return;
+  }
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: proveedor,
+    options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+  });
+  if (error || !data.url) {
+    throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo iniciar sesión. Inténtalo de nuevo.');
+  }
+
+  const resultado = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+  if (resultado.type !== 'success') {
+    // El usuario cerró el navegador o canceló: no es un error que mostrar.
+    return;
+  }
+
+  await crearSesionDesdeUrl(resultado.url);
 }
