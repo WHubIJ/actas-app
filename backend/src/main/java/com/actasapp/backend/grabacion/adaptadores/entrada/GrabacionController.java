@@ -3,7 +3,10 @@ package com.actasapp.backend.grabacion.adaptadores.entrada;
 import com.actasapp.backend.grabacion.puertos.entrada.FinalizarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.IniciarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.RegistrarClipUseCase;
+import com.actasapp.backend.shared.identidad.ResolverOrganizacionUsuario;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -21,17 +24,20 @@ public class GrabacionController {
     private final IniciarReunionUseCase iniciarReunion;
     private final RegistrarClipUseCase registrarClip;
     private final FinalizarReunionUseCase finalizarReunion;
+    private final ResolverOrganizacionUsuario resolverOrganizacion;
 
-    /** Provisional: mientras no haya un módulo de cuentas real, la organización sale de configuración. */
+    /** Provisional: para usuarios sin membresía (se registraron sin nombrar una organización). */
     private final UUID organizacionPorDefectoId;
 
     public GrabacionController(IniciarReunionUseCase iniciarReunion,
                                 RegistrarClipUseCase registrarClip,
                                 FinalizarReunionUseCase finalizarReunion,
+                                ResolverOrganizacionUsuario resolverOrganizacion,
                                 @Value("${actas-app.organizacion-por-defecto-id}") UUID organizacionPorDefectoId) {
         this.iniciarReunion = iniciarReunion;
         this.registrarClip = registrarClip;
         this.finalizarReunion = finalizarReunion;
+        this.resolverOrganizacion = resolverOrganizacion;
         this.organizacionPorDefectoId = organizacionPorDefectoId;
     }
 
@@ -43,12 +49,18 @@ public class GrabacionController {
      * empieza a grabar directamente, sin pedirle nada al usuario, así que este
      * endpoint tiene que funcionar con una petición vacía. Rellenar los huecos es
      * trabajo del adaptador (traducir la petición), no del caso de uso.
+     *
+     * Si el body no trae organizacionId, se resuelve la del usuario autenticado
+     * (su membresía más antigua); si no tiene ninguna (se registró sin nombrar
+     * una organización), cae en la organización por defecto.
      */
     @PostMapping
-    public Map<String, UUID> iniciar(@RequestBody(required = false) NuevaReunionRequest req) {
+    public Map<String, UUID> iniciar(@RequestBody(required = false) NuevaReunionRequest req,
+                                      @AuthenticationPrincipal Jwt jwt) {
         UUID organizacionId = (req != null && req.organizacionId() != null)
                 ? req.organizacionId()
-                : organizacionPorDefectoId;
+                : resolverOrganizacion.organizacionPrincipalDe(UUID.fromString(jwt.getSubject()))
+                        .orElse(organizacionPorDefectoId);
         UUID equipoId = (req != null) ? req.equipoId() : null;
         LocalDate fecha = (req != null && req.fecha() != null) ? req.fecha() : LocalDate.now();
 

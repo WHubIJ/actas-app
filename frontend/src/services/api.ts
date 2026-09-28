@@ -1,3 +1,5 @@
+import { supabase } from './supabaseClient';
+
 /**
  * Base de la API del backend (Spring Boot). Sin barra final.
  *
@@ -17,6 +19,7 @@ export const hayBackend = API_URL.length > 0;
 export type CodigoErrorApi =
   | 'BACKEND_NO_CONFIGURADO'
   | 'ERROR_RED'
+  | 'NO_AUTENTICADO'
   | 'SOLICITUD_INVALIDA'
   | 'ESTADO_INVALIDO'
   | 'ERROR_INTERNO';
@@ -40,15 +43,26 @@ interface CuerpoErrorBackend {
 /**
  * Llama al backend y traduce la respuesta: éxito tipado o `ErrorApi` con el
  * código que ya manda `GlobalExceptionHandler` en el cuerpo del error.
+ *
+ * Adjunta el token de la sesión de Supabase (ADR-005): el backend ya exige
+ * autenticación en toda la API. Sin sesión, la petición sigue saliendo sin
+ * cabecera y el backend responde `NO_AUTENTICADO` con el mismo formato que
+ * cualquier otro error — no hace falta comprobarlo aquí a mano.
  */
 async function peticion<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
   if (!hayBackend) {
     throw new ErrorApi('BACKEND_NO_CONFIGURADO', 'No hay backend configurado (falta EXPO_PUBLIC_API_URL).');
   }
 
+  const cabeceras = new Headers(opciones.headers);
+  const sesion = supabase ? (await supabase.auth.getSession()).data.session : null;
+  if (sesion?.access_token) {
+    cabeceras.set('Authorization', `Bearer ${sesion.access_token}`);
+  }
+
   let respuesta: Response;
   try {
-    respuesta = await fetch(`${API_URL}${ruta}`, opciones);
+    respuesta = await fetch(`${API_URL}${ruta}`, { ...opciones, headers: cabeceras });
   } catch {
     throw new ErrorApi('ERROR_RED', 'No se pudo contactar con el servidor. Revisa la conexión.');
   }

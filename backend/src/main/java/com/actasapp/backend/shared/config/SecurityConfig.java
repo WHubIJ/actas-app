@@ -16,14 +16,16 @@ import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.http.MediaType;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * Configuración de seguridad PROVISIONAL del Sprint 1.
+ * Configuración de seguridad del Sprint 1.
  *
  * <p>Sin esta clase, el starter de Spring Security aplica su configuración por defecto,
  * pensada para una web con formulario y sesión, que rompe la API de dos formas:
@@ -38,12 +40,10 @@ import java.util.List;
  *       Una API REST consumida desde móvil no tiene estado de sesión.</li>
  * </ol>
  *
- * <p>El decoder de JWT de Supabase Auth (ADR-005) ya está conectado como resource
- * server más abajo, pero {@code /api/**} sigue en {@code permitAll()}: el frontend
- * todavía no tiene un flujo de login que obtenga un token de Supabase, así que exigir
- * autenticación ahora rompería la grabación, que sí funciona hoy. Cuando exista ese
- * flujo, el cambio se limita a este archivo: sustituir el {@code permitAll()} por
- * {@code authenticated()} (o reglas por rol, cuando existan).
+ * <p>Toda petición exige un JWT de Supabase Auth válido (ADR-005): el frontend ya manda
+ * el token de la sesión de Supabase en cada llamada (ver {@code services/api.ts}).
+ * Lo que sigue pendiente es la autorización por rol (quién puede hacer qué dentro de
+ * una organización) — decisión aparte, según ADR-003.
  */
 @Configuration
 public class SecurityConfig implements WebMvcConfigurer {
@@ -53,11 +53,23 @@ public class SecurityConfig implements WebMvcConfigurer {
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/**").permitAll() // TODO: exigir auth cuando el frontend tenga login
-                        .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder)))
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.decoder(jwtDecoder))
+                        .authenticationEntryPoint(entradaNoAutenticado()))
                 .build();
+    }
+
+    /**
+     * Mismo formato {@code {error, mensaje}} que `GlobalExceptionHandler`, para que
+     * el frontend no tenga que distinguir "sin token" de cualquier otro error de la API.
+     */
+    private AuthenticationEntryPoint entradaNoAutenticado() {
+        return (request, response, excepcion) -> {
+            response.setStatus(401);
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.getWriter().write("{\"error\":\"NO_AUTENTICADO\",\"mensaje\":\"Inicia sesión para continuar.\"}");
+        };
     }
 
     /**
