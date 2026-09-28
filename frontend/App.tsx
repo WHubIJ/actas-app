@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, type NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import type { Session } from '@supabase/supabase-js';
 import {
   useFonts,
   Manrope_400Regular,
@@ -17,7 +19,9 @@ import { MisActasScreen } from './src/screens/MisActasScreen';
 import { MiCuentaScreen } from './src/screens/MiCuentaScreen';
 import { GrabacionScreen } from './src/screens/GrabacionScreen';
 import { DetalleActaScreen } from './src/screens/DetalleActaScreen';
+import { LoginScreen } from './src/screens/LoginScreen';
 import { TabBar } from './src/components/TabBar';
+import { supabase, haySupabase } from './src/services/supabaseClient';
 import { colors } from './src/theme';
 
 /** Pestañas de la barra inferior. El FAB central NO es una pestaña. */
@@ -56,10 +60,40 @@ export default function App() {
     Manrope_800ExtraBold,
   });
 
-  // Se pinta el color de fondo mientras cargan las fuentes para evitar el
-  // flash blanco entre el splash y la primera pantalla.
-  if (!fuentesListas) {
+  // undefined = todavía comprobando con Supabase; null = sin sesión.
+  const [sesion, setSesion] = useState<Session | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!haySupabase || !supabase) {
+      // Provisional (ADR-005): el backend tampoco exige auth todavía
+      // (permitAll() en SecurityConfig), así que sin Supabase configurado no
+      // se bloquea la app entera — mismo criterio que hayBackend/haySupabase
+      // en el resto del proyecto.
+      setSesion(null);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => setSesion(data.session));
+
+    const { data: suscripcion } = supabase.auth.onAuthStateChange((_evento, nuevaSesion) => {
+      setSesion(nuevaSesion);
+    });
+    return () => suscripcion.subscription.unsubscribe();
+  }, []);
+
+  // Se pinta el color de fondo mientras cargan las fuentes o se comprueba la
+  // sesión, para evitar el flash blanco (o un parpadeo de login) al arrancar.
+  if (!fuentesListas || sesion === undefined) {
     return <View style={styles.cargando} />;
+  }
+
+  if (haySupabase && !sesion) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <LoginScreen />
+      </SafeAreaProvider>
+    );
   }
 
   return (
