@@ -20,7 +20,7 @@ interface CampoProps {
   valor: string;
   onCambiar: (valor: string) => void;
   secreto?: boolean;
-  tipoTeclado?: 'default' | 'email-address';
+  tipoTeclado?: 'default' | 'email-address' | 'phone-pad';
 }
 
 /** Campo de formulario. Mismo lenguaje visual que Buscador: borde que cambia al enfocar, sin halo de sistema. */
@@ -53,6 +53,9 @@ export function LoginScreen() {
   const [registrando, setRegistrando] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [nombre, setNombre] = useState('');
+  const [organizacionNombre, setOrganizacionNombre] = useState('');
+  const [telefono, setTelefono] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [avisoRegistro, setAvisoRegistro] = useState<string | null>(null);
@@ -63,7 +66,7 @@ export function LoginScreen() {
     setCargando(true);
     try {
       if (registrando) {
-        await registrarse(email, password);
+        await registrarse(email, password, { nombre, organizacionNombre, telefono });
         // Con confirmación de email activada, signUp no deja sesión iniciada
         // todavía: se avisa en vez de fingir que ya se puede entrar.
         setAvisoRegistro('Cuenta creada. Revisa tu email para confirmarla antes de iniciar sesión.');
@@ -78,11 +81,14 @@ export function LoginScreen() {
     } finally {
       setCargando(false);
     }
-  }, [registrando, email, password]);
+  }, [registrando, email, password, nombre, organizacionNombre, telefono]);
 
   const alternarModo = useCallback(() => {
     setError(null);
     setAvisoRegistro(null);
+    setNombre('');
+    setOrganizacionNombre('');
+    setTelefono('');
     setRegistrando((r) => !r);
   }, []);
 
@@ -125,8 +131,26 @@ export function LoginScreen() {
             {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
             {avisoRegistro && <Aviso tono="info" mensaje={avisoRegistro} onCerrar={() => setAvisoRegistro(null)} />}
 
+            {registrando && <Campo etiqueta="Nombre" valor={nombre} onCambiar={setNombre} />}
+
             <Campo etiqueta="Email" valor={email} onCambiar={setEmail} tipoTeclado="email-address" />
             <Campo etiqueta="Contraseña" valor={password} onCambiar={setPassword} secreto />
+
+            {registrando && (
+              <>
+                <Campo
+                  etiqueta="Nombre de la organización (opcional)"
+                  valor={organizacionNombre}
+                  onCambiar={setOrganizacionNombre}
+                />
+                <Campo
+                  etiqueta="Teléfono (opcional)"
+                  valor={telefono}
+                  onCambiar={setTelefono}
+                  tipoTeclado="phone-pad"
+                />
+              </>
+            )}
 
             <Boton
               titulo={cargando ? 'Un momento…' : registrando ? 'Crear cuenta' : 'Iniciar sesión'}

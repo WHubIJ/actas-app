@@ -43,8 +43,22 @@ export async function iniciarSesion(email: string, password: string): Promise<vo
   }
 }
 
-/** Registra una cuenta nueva con email y contraseña. */
-export async function registrarse(email: string, password: string): Promise<void> {
+export interface DatosRegistro {
+  nombre?: string;
+  /** Si se indica, crea una organización nueva con el usuario como OWNER (ver V3__alta_perfil_organizacion.sql). Si no, la reunión sigue usando la organización por defecto. */
+  organizacionNombre?: string;
+  telefono?: string;
+}
+
+/**
+ * Registra una cuenta nueva con email y contraseña. `nombre`/`organizacionNombre`/
+ * `telefono` viajan como metadata de Supabase Auth (`options.data`) y los
+ * recoge un trigger de Postgres al crearse el usuario, no este código: en el
+ * momento del alta todavía no hay sesión (el proyecto exige confirmar el
+ * email antes de emitir un JWT), así que no hay con qué autenticar una
+ * llamada directa a `perfil`/`organizacion`.
+ */
+export async function registrarse(email: string, password: string, datos: DatosRegistro = {}): Promise<void> {
   if (!supabase) {
     throw new ErrorAuth(
       'SUPABASE_NO_CONFIGURADO',
@@ -52,7 +66,17 @@ export async function registrarse(email: string, password: string): Promise<void
     );
   }
 
-  const { error } = await supabase.auth.signUp({ email, password });
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        nombre: datos.nombre || undefined,
+        organizacion_nombre: datos.organizacionNombre || undefined,
+        telefono: datos.telefono || undefined,
+      },
+    },
+  });
   if (error) {
     if (error.message.toLowerCase().includes('already registered')) {
       throw new ErrorAuth('EMAIL_YA_REGISTRADO', 'Ya existe una cuenta con ese email.');
