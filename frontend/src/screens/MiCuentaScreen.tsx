@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
@@ -7,6 +8,7 @@ import {
   GlobeIcon,
   HardDrivesIcon,
   ShieldCheckIcon,
+  SignOutIcon,
   WaveformIcon,
   type Icon,
 } from 'phosphor-react-native';
@@ -14,6 +16,9 @@ import { ScreenBackground } from '../components/ScreenBackground';
 import { TarjetaPerfil } from '../components/TarjetaPerfil';
 import { TarjetaEstadistica } from '../components/TarjetaEstadistica';
 import { FilaAjuste } from '../components/FilaAjuste';
+import { Boton } from '../components/Boton';
+import { Aviso } from '../components/Aviso';
+import { cerrarSesion, ErrorAuth } from '../services/authService';
 import { espaciado, textos } from '../theme';
 
 interface Ajuste {
@@ -69,6 +74,21 @@ const SECCIONES: Seccion[] = [
 export function MiCuentaScreen() {
   const insets = useSafeAreaInsets();
   const altoTabBar = useBottomTabBarHeight();
+  const [cerrandoSesion, setCerrandoSesion] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const manejarCerrarSesion = useCallback(async () => {
+    setError(null);
+    setCerrandoSesion(true);
+    try {
+      await cerrarSesion();
+      // Sin navegar a mano: App.tsx reacciona a onAuthStateChange y muestra LoginScreen.
+    } catch (err) {
+      setError(err instanceof ErrorAuth ? err.message : 'No se pudo cerrar la sesión. Inténtalo de nuevo.');
+    } finally {
+      setCerrandoSesion(false);
+    }
+  }, []);
 
   return (
     <ScreenBackground>
@@ -110,6 +130,17 @@ export function MiCuentaScreen() {
             </View>
           </View>
         ))}
+
+        <View style={styles.seccion}>
+          {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
+          <Boton
+            titulo={cerrandoSesion ? 'Cerrando sesión…' : 'Cerrar sesión'}
+            variante="secundario"
+            icono={(color, size) => <SignOutIcon size={size} weight="bold" color={color} />}
+            cargando={cerrandoSesion}
+            onPress={manejarCerrarSesion}
+          />
+        </View>
       </ScrollView>
     </ScreenBackground>
   );

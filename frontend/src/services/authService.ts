@@ -61,6 +61,16 @@ export async function registrarse(email: string, password: string): Promise<void
   }
 }
 
+/** Cierra la sesión actual. Sin sesión que cerrar si Supabase no está configurado. */
+export async function cerrarSesion(): Promise<void> {
+  if (!supabase) return;
+
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo cerrar la sesión. Inténtalo de nuevo.');
+  }
+}
+
 /**
  * Sesión con el token/código que devuelve el navegador tras el login con el
  * proveedor. Supabase redirige con el fragmento `#access_token=...` (flujo
