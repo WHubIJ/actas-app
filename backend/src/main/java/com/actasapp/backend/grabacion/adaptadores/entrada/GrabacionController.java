@@ -22,20 +22,20 @@ public class GrabacionController {
     private final RegistrarClipUseCase registrarClip;
     private final FinalizarReunionUseCase finalizarReunion;
 
-    /** Provisional: mientras no haya autenticación, la iglesia sale de configuración. */
-    private final String iglesiaPorDefecto;
+    /** Provisional: mientras no haya un módulo de cuentas real, la organización sale de configuración. */
+    private final UUID organizacionPorDefectoId;
 
     public GrabacionController(IniciarReunionUseCase iniciarReunion,
                                 RegistrarClipUseCase registrarClip,
                                 FinalizarReunionUseCase finalizarReunion,
-                                @Value("${actas-app.iglesia-por-defecto}") String iglesiaPorDefecto) {
+                                @Value("${actas-app.organizacion-por-defecto-id}") UUID organizacionPorDefectoId) {
         this.iniciarReunion = iniciarReunion;
         this.registrarClip = registrarClip;
         this.finalizarReunion = finalizarReunion;
-        this.iglesiaPorDefecto = iglesiaPorDefecto;
+        this.organizacionPorDefectoId = organizacionPorDefectoId;
     }
 
-    public record NuevaReunionRequest(String iglesia, LocalDate fecha) {}
+    public record NuevaReunionRequest(UUID organizacionId, UUID equipoId, LocalDate fecha) {}
     public record NuevoClipRequest(int orden, String urlStorage, int duracionSegundos) {}
 
     /**
@@ -46,12 +46,13 @@ public class GrabacionController {
      */
     @PostMapping
     public Map<String, UUID> iniciar(@RequestBody(required = false) NuevaReunionRequest req) {
-        String iglesia = (req != null && req.iglesia() != null && !req.iglesia().isBlank())
-                ? req.iglesia()
-                : iglesiaPorDefecto;
+        UUID organizacionId = (req != null && req.organizacionId() != null)
+                ? req.organizacionId()
+                : organizacionPorDefectoId;
+        UUID equipoId = (req != null) ? req.equipoId() : null;
         LocalDate fecha = (req != null && req.fecha() != null) ? req.fecha() : LocalDate.now();
 
-        UUID id = iniciarReunion.iniciarReunion(iglesia, fecha);
+        UUID id = iniciarReunion.iniciarReunion(organizacionId, equipoId, fecha);
         return Map.of("reunionId", id);
     }
 

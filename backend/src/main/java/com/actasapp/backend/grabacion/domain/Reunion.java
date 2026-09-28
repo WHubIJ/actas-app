@@ -12,14 +12,20 @@ import java.util.UUID;
 public class Reunion {
 
     private final UUID id;
-    private final String iglesia;
+    private final UUID organizacionId;
+    private final UUID equipoId;
     private final LocalDate fecha;
     private boolean finalizada;
     private final List<ClipAudio> clips = new ArrayList<>();
 
-    public Reunion(UUID id, String iglesia, LocalDate fecha) {
+    /** @param equipoId opcional: una reunión puede pertenecer solo a la organización. */
+    public Reunion(UUID id, UUID organizacionId, UUID equipoId, LocalDate fecha) {
+        if (organizacionId == null) {
+            throw new IllegalArgumentException("La reunión debe pertenecer a una organización");
+        }
         this.id = id;
-        this.iglesia = iglesia;
+        this.organizacionId = organizacionId;
+        this.equipoId = equipoId;
         this.fecha = fecha;
         this.finalizada = false;
     }
@@ -28,8 +34,8 @@ public class Reunion {
      * Reconstruye una reunión ya existente desde persistencia, sin pasar por las
      * reglas de negocio de creación (usado solo por el adaptador de repositorio).
      */
-    public static Reunion reconstruir(UUID id, String iglesia, LocalDate fecha, boolean finalizada) {
-        Reunion reunion = new Reunion(id, iglesia, fecha);
+    public static Reunion reconstruir(UUID id, UUID organizacionId, UUID equipoId, LocalDate fecha, boolean finalizada) {
+        Reunion reunion = new Reunion(id, organizacionId, equipoId, fecha);
         reunion.finalizada = finalizada;
         return reunion;
     }
@@ -49,7 +55,8 @@ public class Reunion {
     }
 
     public UUID getId() { return id; }
-    public String getIglesia() { return iglesia; }
+    public UUID getOrganizacionId() { return organizacionId; }
+    public UUID getEquipoId() { return equipoId; }
     public LocalDate getFecha() { return fecha; }
     public boolean isFinalizada() { return finalizada; }
     public List<ClipAudio> getClips() { return List.copyOf(clips); }

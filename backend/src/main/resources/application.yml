@@ -40,10 +40,11 @@ actas-app:
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
   firebase:
     credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
-  # Iglesia a la que se asignan las reuniones mientras no exista autenticación.
-  # Cuando llegue la épica de auth, este valor sale del usuario autenticado y
-  # esta propiedad desaparece.
-  iglesia-por-defecto: ${IGLESIA_POR_DEFECTO:Iglesia sin asignar}
+  # Organización a la que se asignan las reuniones mientras no exista un módulo
+  # de cuentas real (debe existir en la tabla `organizacion`; la siembra
+  # V2__reunion_organizacion.sql). Cuando llegue ese módulo, este valor sale de
+  # la membresía del usuario autenticado y esta propiedad desaparece.
+  organizacion-por-defecto-id: ${ORGANIZACION_POR_DEFECTO_ID:00000000-0000-0000-0000-000000000001}
   enlace-compartido:
     expiracion-horas: 24
   transcripcion:

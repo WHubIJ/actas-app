@@ -7,7 +7,8 @@ export type PlantillaResumen = 'ACTA_FORMAL' | 'RESUMEN_EJECUTIVO' | 'LISTA_ACUE
 
 export interface Reunion {
   id: string;
-  iglesia: string;
+  organizacionId: string;
+  equipoId?: string;
   fecha: string;
   finalizada: boolean;
 }
@@ -26,7 +27,8 @@ export interface ClipAudio {
  * Proyección para la lista de "Mis actas".
  *
  * OJO: `titulo`, `participantes` y `duracionMinutos` NO existen todavía en el
- * backend — `Reunion` solo expone `iglesia`, `fecha` y `finalizada`. El diseño
+ * backend — `Reunion` solo expone `organizacionId`, `equipoId`, `fecha` y
+ * `finalizada`. El diseño
  * los da por hechos, así que o se añaden al dominio de `grabacion` o la lista
  * tendrá que derivarlos (título a partir del resumen, participantes de la
  * transcripción). Decisión pendiente antes de conectar la API.

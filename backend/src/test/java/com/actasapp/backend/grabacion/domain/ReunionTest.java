@@ -14,11 +14,17 @@ import static org.junit.jupiter.api.Assertions.*;
 class ReunionTest {
 
     private Reunion nuevaReunion() {
-        return new Reunion(UUID.randomUUID(), "Iglesia de prueba", LocalDate.now());
+        return new Reunion(UUID.randomUUID(), UUID.randomUUID(), null, LocalDate.now());
     }
 
     private ClipAudio nuevoClip(Reunion reunion, int orden) {
         return new ClipAudio(UUID.randomUUID(), reunion.getId(), orden);
+    }
+
+    @Test
+    void noSePuedeCrearSinOrganizacion() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Reunion(UUID.randomUUID(), null, null, LocalDate.now()));
     }
 
     @Test
@@ -65,7 +71,7 @@ class ReunionTest {
         // A diferencia de finalizar(), reconstruir() viene de BD y puede
         // representar una reunión finalizada sin clips completados persistidos
         // en este objeto (p. ej. si solo se cargó la cabecera).
-        Reunion reunion = Reunion.reconstruir(UUID.randomUUID(), "Iglesia de prueba", LocalDate.now(), true);
+        Reunion reunion = Reunion.reconstruir(UUID.randomUUID(), UUID.randomUUID(), null, LocalDate.now(), true);
 
         assertTrue(reunion.isFinalizada());
         assertTrue(reunion.getClips().isEmpty());

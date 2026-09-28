@@ -28,7 +28,8 @@ public class ReunionRepositorioAdapter implements ReunionRepositorioPuerto {
     @Override
     public Reunion guardar(Reunion reunion) {
         ReunionJpaEntity entity = new ReunionJpaEntity(
-                reunion.getId(), reunion.getIglesia(), reunion.getFecha(), reunion.isFinalizada());
+                reunion.getId(), reunion.getOrganizacionId(), reunion.getEquipoId(),
+                reunion.getFecha(), reunion.isFinalizada());
 
         List<ClipAudioJpaEntity> clipsEntity = reunion.getClips().stream()
                 .map(c -> new ClipAudioJpaEntity(c.getId(), entity, c.getOrden(),
@@ -46,7 +47,8 @@ public class ReunionRepositorioAdapter implements ReunionRepositorioPuerto {
     }
 
     private Reunion aDominio(ReunionJpaEntity entity) {
-        Reunion reunion = Reunion.reconstruir(entity.getId(), entity.getIglesia(), entity.getFecha(), entity.isFinalizada());
+        Reunion reunion = Reunion.reconstruir(entity.getId(), entity.getOrganizacionId(), entity.getEquipoId(),
+                entity.getFecha(), entity.isFinalizada());
         for (ClipAudioJpaEntity c : entity.getClips()) {
             ClipAudio clip = new ClipAudio(c.getId(), entity.getId(), c.getOrden());
             if (c.getEstadoSubida() == EstadoSubida.COMPLETADO) {

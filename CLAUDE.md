@@ -115,10 +115,7 @@ Ver `frontend/CLAUDE.md` (reglas no negociables, estructura de pantallas y servi
 
 Detalle completo en `docs/01-Domain/modelo.md` (ojo: ese doc apunta a un paquete
 `backend/.../model/` que no existe; las entidades reales viven en
-`<modulo>/domain/` de cada módulo). **Desactualizado respecto a ADR-003**: sigue
-documentando `Reunion.iglesia` como `String`; el modelo real pasa a
-`organizacionId` + `equipoId` opcional, pendiente de reflejar ahí cuando se
-implemente el refactor.
+`<modulo>/domain/` de cada módulo).
 
 Reglas de negocio clave:
 

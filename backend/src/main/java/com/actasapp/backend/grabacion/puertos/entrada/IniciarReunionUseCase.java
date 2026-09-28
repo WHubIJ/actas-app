@@ -5,5 +5,6 @@ import java.util.UUID;
 
 public interface IniciarReunionUseCase {
 
-    UUID iniciarReunion(String iglesia, LocalDate fecha);
+    /** @param equipoId opcional: una reunión puede pertenecer solo a la organización. */
+    UUID iniciarReunion(UUID organizacionId, UUID equipoId, LocalDate fecha);
 }

@@ -60,7 +60,9 @@ Los `.gitkeep` marcan los paquetes ya previstos pero vacíos.
 
 `GrabacionController` bajo `/api/reuniones`:
 
-- `POST /api/reuniones` → `{reunionId}` — inicia una reunión (`iglesia`, `fecha`)
+- `POST /api/reuniones` → `{reunionId}` — inicia una reunión (`organizacionId`
+  opcional — si se omite, usa `actas-app.organizacion-por-defecto-id` —,
+  `equipoId` opcional, `fecha`)
 - `POST /api/reuniones/{reunionId}/clips` → `{clipId}` — registra la *referencia* a
   un clip ya subido por el frontend (`orden`, `urlStorage`, `duracionSegundos`)
 - `POST /api/reuniones/{reunionId}/finalizar` — marca finalizada y dispara el evento

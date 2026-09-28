@@ -7,7 +7,8 @@ Definido durante el "grooming" del Sprint 1. Ver entidades reales en
 
 Una reunión de junta directiva grabada.
 
-- `iglesia`
+- `organizacionId`
+- `equipoId` (opcional — ver ADR-003)
 - `fecha`
 - `finalizada` — marcado manualmente por el usuario, dispara la transcripción (Épica 2)
 - `transcripcionCombinada` — texto final tras unir todos los clips con IA (Épica 3)
