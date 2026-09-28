@@ -1,16 +1,19 @@
 # Visión
 
-App móvil para grabar, transcribir y resumir reuniones de junta directiva de iglesia,
-generando un acta que se puede compartir por cualquier canal.
+App móvil para grabar, transcribir y resumir reuniones de junta directiva u otros
+órganos de gobierno, generando un acta que se puede compartir por cualquier canal.
+Nombre de producto: **MeetingAI**.
 
 ## Para quién
 
-Iglesias que necesitan levantar actas de sus reuniones de junta directiva sin depender
-de que alguien transcriba y redacte manualmente.
+Cualquier organización con reuniones periódicas que necesita levantar actas sin
+depender de que alguien transcriba y redacte manualmente: iglesias (vertical
+piloto), asociaciones, ONGs, cooperativas, pequeñas empresas. Ver ADR-003 para el
+modelo de datos (organización / equipo / membresía) que sostiene este alcance.
 
 ## Modelo de negocio
 
-Mensualidad por iglesia.
+Mensualidad por organización.
 
 ## Naturaleza del proyecto
 

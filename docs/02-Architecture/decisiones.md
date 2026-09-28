@@ -54,3 +54,25 @@ sin que `grabacion` necesite conocer la existencia de `transcripcion`.
 | `transcripcion` | Dominio y puertos definidos; adaptadores pendientes (Épica 2) |
 | `resumen` | Dominio y puertos definidos; adaptadores pendientes (Épica 3) |
 | `compartir` | Puerto de entrada definido; resto pendiente (Épica 4) |
+
+## Modelo multi-tenant y pivote a MeetingAI (ADR-003)
+
+`Reunion.iglesia` (String) se reemplaza por una relación real a `organizacion`,
+con `equipo` opcional dentro de ella:
+
+```
+organizacion → membresia (usuario + rol OWNER/ADMIN/MIEMBRO)
+             → equipo (opcional) → miembro_equipo (rol LIDER/MIEMBRO)
+```
+
+El producto se renombra a **MeetingAI**: cualquier organización con reuniones
+periódicas es cliente potencial, no solo iglesias (que quedan como vertical
+piloto). La lógica de aplicación de permisos por rol queda pendiente de un ADR
+posterior; el modelo de datos ya la contempla.
+
+## Migraciones con Flyway (ADR-004)
+
+El esquema deja de generarse solo con `ddl-auto: update`. Se gestiona con
+migraciones versionadas en `backend/src/main/resources/db/migration/`
+(`V1__esquema_inicial.sql`, ...), y `ddl-auto` pasa a `validate`: Hibernate solo
+verifica que las entidades JPA coinciden con lo que Flyway ya aplicó.
