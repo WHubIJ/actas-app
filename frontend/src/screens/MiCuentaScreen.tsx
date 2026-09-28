@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import {
@@ -19,7 +19,8 @@ import { FilaAjuste } from '../components/FilaAjuste';
 import { Boton } from '../components/Boton';
 import { Aviso } from '../components/Aviso';
 import { cerrarSesion, ErrorAuth } from '../services/authService';
-import { espaciado, textos } from '../theme';
+import { obtenerCuenta, ErrorApi, type Cuenta } from '../services/api';
+import { colors, espaciado, textos } from '../theme';
 
 interface Ajuste {
   id: string;
@@ -34,16 +35,7 @@ interface Seccion {
   ajustes: Ajuste[];
 }
 
-/**
- * Los datos de perfil y las métricas son de ejemplo: el backend aún no tiene
- * autenticación (fuera de alcance del Sprint 1) ni endpoint de estadísticas.
- */
-const PERFIL = {
-  nombre: 'Ana Martínez',
-  email: 'ana.martinez@empresa.com',
-  plan: 'Plan Pro',
-};
-
+/** Las métricas siguen siendo de ejemplo: no hay endpoint de estadísticas todavía. */
 const ESTADISTICAS = [
   { id: 'reuniones', valor: '24', etiqueta: 'Reuniones' },
   { id: 'grabadas', valor: '18h', etiqueta: 'Grabadas' },
@@ -76,6 +68,23 @@ export function MiCuentaScreen() {
   const altoTabBar = useBottomTabBarHeight();
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cuenta, setCuenta] = useState<Cuenta | null>(null);
+  const [errorCuenta, setErrorCuenta] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    obtenerCuenta()
+      .then((c) => {
+        if (!cancelado) setCuenta(c);
+      })
+      .catch((err) => {
+        if (cancelado) return;
+        setErrorCuenta(err instanceof ErrorApi ? err.message : 'No se pudo cargar tu cuenta.');
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   const manejarCerrarSesion = useCallback(async () => {
     setError(null);
@@ -106,7 +115,22 @@ export function MiCuentaScreen() {
       >
         <Text style={textos.display}>Mi cuenta</Text>
 
-        <TarjetaPerfil {...PERFIL} onEditar={() => {}} />
+        {errorCuenta && <Aviso tono="error" mensaje={errorCuenta} onCerrar={() => setErrorCuenta(null)} />}
+
+        {cuenta ? (
+          <TarjetaPerfil
+            nombre={cuenta.nombre || cuenta.email?.split('@')[0] || 'Usuario'}
+            email={cuenta.email ?? ''}
+            plan={cuenta.plan ?? cuenta.organizacionNombre ?? 'Sin organización'}
+            onEditar={() => {}}
+          />
+        ) : (
+          !errorCuenta && (
+            <View style={styles.cargandoCuenta}>
+              <ActivityIndicator color={colors.marronClaro} />
+            </View>
+          )
+        )}
 
         <View style={styles.estadisticas}>
           {ESTADISTICAS.map((e) => (
@@ -151,6 +175,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: espaciado.xl,
     gap: espaciado.xl,
   },
+  cargandoCuenta: { height: 94, alignItems: 'center', justifyContent: 'center' },
   estadisticas: { flexDirection: 'row', gap: espaciado.md },
   seccion: { gap: espaciado.md },
   filas: { gap: espaciado.sm },

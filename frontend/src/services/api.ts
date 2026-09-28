@@ -112,3 +112,20 @@ export async function registrarClip(
 export async function finalizarReunion(reunionId: string): Promise<void> {
   await peticion<void>(`/api/reuniones/${reunionId}/finalizar`, { method: 'POST' });
 }
+
+/**
+ * Perfil y organización del usuario autenticado. `nombre`/`organizacionNombre`/
+ * `plan` pueden ser `null`: son opcionales en el registro (ver LoginScreen) o
+ * el usuario no pertenece a ninguna organización todavía.
+ */
+export interface Cuenta {
+  nombre: string | null;
+  email: string | null;
+  organizacionNombre: string | null;
+  plan: string | null;
+}
+
+/** Corresponde a `GET /api/cuenta` (ver CuentaController). */
+export async function obtenerCuenta(): Promise<Cuenta> {
+  return peticion<Cuenta>('/api/cuenta');
+}
