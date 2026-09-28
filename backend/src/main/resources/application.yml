@@ -19,7 +19,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update # cambiar a "validate" cuando haya migraciones formales (Flyway/Liquibase)
+      ddl-auto: validate # el esquema lo gestiona Flyway (ADR-004), Hibernate solo verifica
     show-sql: true
     properties:
       hibernate:

@@ -39,6 +39,16 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Migraciones de esquema versionadas (ADR-004) -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
         <!-- Validación de DTOs -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
