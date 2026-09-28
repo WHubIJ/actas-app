@@ -55,10 +55,18 @@ avance más.
   coste a un momento con datos reales en producción, donde migrar es más caro y
   arriesgado.
 - **Multi-tenancy vía Row Level Security (RLS) de Postgres/Supabase** en vez de
-  filtrado a nivel de aplicación: descartado por ahora. RLS de Supabase se apoya
-  en `auth.uid()` de Supabase Auth, y ADR-001 ya decidió autenticación propia en
-  Spring Boot, no Supabase Auth. Se reevaluará si en el futuro se adopta
-  Supabase Auth.
+  filtrado a nivel de aplicación: descartado. En su momento se descartaba porque
+  RLS se apoya en `auth.uid()` de Supabase Auth, y ADR-001 había decidido
+  autenticación propia en Spring Boot. Tras adoptar Supabase Auth (ADR-005) se
+  reevaluó como quedó pendiente, y se descarta de todos modos, por un motivo
+  distinto: el backend sigue siendo el único que habla con Postgres, y lo hace
+  con credenciales de servicio, no con el token del usuario final — RLS solo
+  protege cuando quien consulta la base de datos es directamente el usuario
+  autenticado. Mientras el móvil pase siempre por la API de Spring Boot (y no
+  hable con Postgres directo, como sí hace hoy con Storage), el filtrado por
+  organización y rol sigue viviendo en la capa de aplicación. Se reevaluaría de
+  nuevo si en el futuro el frontend accediera a estas tablas directamente vía
+  el cliente de Supabase.
 - **Organización sin equipos** (solo organización + usuario, sin subdivisión):
   descartado porque ya hay un caso de uso claro — comités o áreas distintas
   dentro de la misma organización que graban reuniones separadas.
