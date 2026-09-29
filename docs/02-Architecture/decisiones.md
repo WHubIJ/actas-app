@@ -7,8 +7,8 @@ en `docs/ADRs/`.
 
 Backend Java + Spring Boot, base de datos Supabase (Postgres), storage de audios
 en Supabase Storage, autenticación propia en Spring Boot, frontend React (Expo),
-transcripción/resumen vía Whisper/OpenAI, notificaciones push vía Firebase Cloud
-Messaging.
+transcripción/resumen vía Mistral (Voxtral Mini Transcribe V2 — ver ADR-006),
+notificaciones push vía Firebase Cloud Messaging.
 
 ## Arquitectura del backend (ADR-002)
 
@@ -37,7 +37,7 @@ Cada módulo sigue la misma estructura interna:
 ├── servicio/                 → implementa los puertos de entrada, orquesta el dominio
 └── adaptadores/
     ├── entrada/               → Controllers REST
-    └── salida/                → implementaciones concretas (JPA, Supabase, Whisper...)
+    └── salida/                → implementaciones concretas (JPA, Supabase, Mistral...)
 ```
 
 **Comunicación entre módulos:** eventos internos de Spring
