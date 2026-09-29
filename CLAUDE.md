@@ -34,7 +34,7 @@ aprender bien cada pieza del stack sobre la velocidad de entrega (ver
 | Storage de audios | Supabase Storage | Subida directa desde el frontend, sin pasar por el backend |
 | Autenticación | Propia, en Spring Boot | No se usa Supabase Auth. Aún sin implementar |
 | Frontend | React Native + Expo SDK 57 (TypeScript strict) | Navegación con React Navigation (native-stack) |
-| Transcripción y resumen | API externa (Whisper / OpenAI) | Llamada desde el backend |
+| Transcripción y resumen | API externa (Mistral: Voxtral Mini Transcribe V2 + resumen, mismo proveedor) | Llamada desde el backend (ver ADR-006) |
 | Generación de archivos | Backend (iText 7 para PDF, Apache POI para Word) | Transcripción solo en PDF. Resumen en PDF, Word o MD |
 | Compartir acta | Share sheet nativo del móvil (`expo-sharing`) | Cubre WhatsApp, Gmail, Telegram, etc. sin integrar cada app por separado. Opción adicional de enlace hosted con expiración de 24h |
 | Notificaciones | Firebase Cloud Messaging / `expo-notifications` | Aviso al completar la transcripción |
