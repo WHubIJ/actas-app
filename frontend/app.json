@@ -22,7 +22,7 @@
     },
     "plugins": [
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "La app necesita el micrófono para grabar las reuniones."
         }

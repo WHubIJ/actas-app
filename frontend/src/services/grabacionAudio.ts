@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { requestRecordingPermissionsAsync, setAudioModeAsync, type AudioRecorder } from 'expo-audio';
 
 export type CodigoErrorGrabacion = 'PERMISO_DENEGADO' | 'GRABACION_FALLIDA';
 
@@ -15,8 +15,8 @@ export class ErrorGrabacion extends Error {
 
 /** Pide permiso de micrófono; lanza si el usuario lo deniega. */
 export async function pedirPermisoMicrofono(): Promise<void> {
-  const { status } = await Audio.requestPermissionsAsync();
-  if (status !== 'granted') {
+  const { granted } = await requestRecordingPermissionsAsync();
+  if (!granted) {
     throw new ErrorGrabacion(
       'PERMISO_DENEGADO',
       'Necesitamos permiso de micrófono para grabar la reunión.',
@@ -25,16 +25,17 @@ export async function pedirPermisoMicrofono(): Promise<void> {
 }
 
 /**
- * Prepara y arranca una grabación nueva. `allowsRecordingIOS` hay que
- * activarlo en el modo de audio antes de grabar o iOS lo rechaza en
- * silencio; `playsInSilentModeIOS` evita que el interruptor de silencio del
- * dispositivo corte la grabación a medias.
+ * Prepara y arranca el `recorder` recibido (creado con `useAudioRecorder` en
+ * el componente — expo-audio no expone forma de crear uno fuera de un hook).
+ * `allowsRecording` hay que activarlo en el modo de audio antes de grabar o
+ * iOS lo rechaza en silencio; `playsInSilentMode` evita que el interruptor
+ * de silencio del dispositivo corte la grabación a medias.
  */
-export async function crearGrabacion(): Promise<Audio.Recording> {
-  await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+export async function iniciarGrabacion(recorder: AudioRecorder): Promise<void> {
+  await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
   try {
-    const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-    return recording;
+    await recorder.prepareToRecordAsync();
+    recorder.record();
   } catch {
     throw new ErrorGrabacion(
       'GRABACION_FALLIDA',
@@ -48,14 +49,20 @@ export interface ClipGrabado {
   duracionSegundos: number;
 }
 
-/** Detiene la grabación y libera el recorder. Solo se puede llamar una vez por `Recording`. */
-export async function detenerGrabacion(recording: Audio.Recording): Promise<ClipGrabado> {
-  const estado = await recording.stopAndUnloadAsync();
-  const uri = recording.getURI();
+/**
+ * Detiene la grabación y lee la duración final. El mismo `recorder` se
+ * reutiliza para la siguiente grabación (se vuelve a preparar en
+ * `iniciarGrabacion`), a diferencia de expo-av donde cada `Recording` era de
+ * un solo uso.
+ */
+export async function detenerGrabacion(recorder: AudioRecorder): Promise<ClipGrabado> {
+  await recorder.stop();
+  const uri = recorder.uri;
   if (!uri) {
     throw new ErrorGrabacion('GRABACION_FALLIDA', 'La grabación no produjo ningún archivo de audio.');
   }
-  return { uri, duracionSegundos: Math.round((estado.durationMillis ?? 0) / 1000) };
+  const { durationMillis } = recorder.getStatus();
+  return { uri, duracionSegundos: Math.round(durationMillis / 1000) };
 }
 
 /**
@@ -63,9 +70,9 @@ export async function detenerGrabacion(recording: Audio.Recording): Promise<Clip
  * Ignora el error si el recorder ya estaba parado: aquí solo importa liberar
  * el micrófono, no el resultado.
  */
-export async function descartarGrabacion(recording: Audio.Recording): Promise<void> {
+export async function descartarGrabacion(recorder: AudioRecorder): Promise<void> {
   try {
-    await recording.stopAndUnloadAsync();
+    await recorder.stop();
   } catch {
     // Ya estaba parada o nunca llegó a arrancar: no hay nada que limpiar.
   }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { Audio } from 'expo-av';
+import { useAudioRecorder, RecordingPresets } from 'expo-audio';
 import { UploadSimpleIcon } from 'phosphor-react-native';
 import type { RootStackParamList } from '../../App';
 import { ScreenBackground } from '../components/ScreenBackground';
@@ -18,7 +18,7 @@ import { Aviso } from '../components/Aviso';
 import { crearReunion, finalizarReunion, registrarClip, ErrorApi } from '../services/api';
 import {
   pedirPermisoMicrofono,
-  crearGrabacion,
+  iniciarGrabacion,
   detenerGrabacion,
   descartarGrabacion,
   ErrorGrabacion,
@@ -27,7 +27,7 @@ import {
 import { subirClipAudio, BUCKET_AUDIOS, ErrorSubidaAudio } from '../services/supabaseClient';
 import { colors, espaciado, textos } from '../theme';
 
-/** Extensión real del archivo grabado (el URI de expo-av no siempre acaba en la extensión "de toda la vida"). */
+/** Extensión real del archivo grabado (el URI de expo-audio no siempre acaba en la extensión "de toda la vida"). */
 function extensionDe(uri: string): string {
   const coincide = /\.([a-zA-Z0-9]+)(\?.*)?$/.exec(uri);
   return coincide ? coincide[1] : 'm4a';
@@ -69,12 +69,13 @@ export function GrabacionScreen({ navigation }: Props) {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // El recorder nativo vive en un ref, no en estado: no es algo que la UI
-  // pinte directamente, y mutarlo no debe disparar un re-render.
-  const grabacionRef = useRef<Audio.Recording | null>(null);
+  // useAudioRecorder crea el recorder una vez al montar el componente y lo
+  // libera al desmontar; expo-audio no ofrece forma de crearlo fuera de un
+  // hook, así que ya no vive en un ref creado bajo demanda como con expo-av.
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   // Resultado de detener la grabación, si ya se paró antes de que fallara la
   // subida o el registro del clip. Así un reintento de "Finalizar" no vuelve
-  // a llamar a stopAndUnloadAsync() sobre un recorder ya liberado.
+  // a llamar a recorder.stop() sobre una grabación que ya se detuvo.
   const [clipListo, setClipListo] = useState<ClipGrabado | null>(null);
 
   const aparicion = useRef(new Animated.Value(0)).current;
@@ -123,9 +124,8 @@ export function GrabacionScreen({ navigation }: Props) {
     try {
       await pedirPermisoMicrofono();
       const id = await crearReunion();
-      const recording = await crearGrabacion();
+      await iniciarGrabacion(recorder);
 
-      grabacionRef.current = recording;
       setReunionId(id);
       setClipListo(null);
       setSegundos(0);
@@ -135,22 +135,21 @@ export function GrabacionScreen({ navigation }: Props) {
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [recorder]);
 
   const alternarPausa = useCallback(async () => {
-    if (!grabacionRef.current) return;
     try {
       if (estado === 'grabando') {
-        await grabacionRef.current.pauseAsync();
+        recorder.pause();
         setEstado('pausado');
       } else {
-        await grabacionRef.current.startAsync();
+        recorder.record();
         setEstado('grabando');
       }
     } catch {
       setError('No se pudo pausar la grabación. Tu dispositivo puede no soportarlo.');
     }
-  }, [estado]);
+  }, [estado, recorder]);
 
   /**
    * Detiene la grabación real, sube el clip a Supabase Storage, lo registra
@@ -165,9 +164,7 @@ export function GrabacionScreen({ navigation }: Props) {
     try {
       let clip = clipListo;
       if (!clip) {
-        if (!grabacionRef.current) throw new Error('No hay ninguna grabación en curso.');
-        clip = await detenerGrabacion(grabacionRef.current);
-        grabacionRef.current = null;
+        clip = await detenerGrabacion(recorder);
         setClipListo(clip);
       }
 
@@ -185,19 +182,16 @@ export function GrabacionScreen({ navigation }: Props) {
     } finally {
       setCargando(false);
     }
-  }, [reunionId, clipListo]);
+  }, [reunionId, clipListo, recorder]);
 
   const descartar = useCallback(() => {
-    if (grabacionRef.current) {
-      descartarGrabacion(grabacionRef.current);
-      grabacionRef.current = null;
-    }
+    descartarGrabacion(recorder);
     setSegundos(0);
     setReunionId(null);
     setClipListo(null);
     setError(null);
     setEstado('inactivo');
-  }, []);
+  }, [recorder]);
 
   const estiloAnimado = {
     opacity: aparicion,

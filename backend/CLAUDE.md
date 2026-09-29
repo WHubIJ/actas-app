@@ -72,8 +72,10 @@ Los `.gitkeep` marcan los paquetes ya previstos pero vacíos.
 `GlobalExceptionHandler` a `ErrorApi`). El flujo completo:
 
 1. `iniciar()` pide permiso de micrófono (`grabacionAudio.ts`, envuelve
-   `expo-av`), crea la reunión y arranca la grabación real.
-2. `alternarPausa()` llama a `pauseAsync()`/`startAsync()` del recorder nativo.
+   `expo-audio` — migrado desde `expo-av`, retirado de Expo Go en SDKs
+   recientes), crea la reunión y arranca la grabación real.
+2. `alternarPausa()` llama a `pause()`/`record()` del recorder nativo
+   (`useAudioRecorder` de `expo-audio`, creado una vez por pantalla).
 3. `finalizar()` para la grabación, sube el archivo a Supabase Storage
    (`supabaseClient.ts`, función `subirClipAudio`), registra el clip
    (`POST /clips`) y por último llama a `POST /finalizar`. Si falla a mitad

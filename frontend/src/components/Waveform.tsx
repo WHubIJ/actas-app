@@ -18,8 +18,8 @@ const SEPARACION_BARRAS = 3;
  * pseudoaleatorias con una semilla fija por barra, de modo que el patrón es
  * estable entre renders y no "salta" al cambiar de estado.
  *
- * Cuando la Épica 1 conecte `expo-av`, sustituir `amplitudes` por el metering
- * real y mantener el resto del componente igual.
+ * Cuando la Épica 1 conecte `expo-audio`, sustituir `amplitudes` por el
+ * metering real y mantener el resto del componente igual.
  */
 export function Waveform({ activo, barras = 28, altura = 46 }: Props) {
   const valores = useRef<Animated.Value[]>(
