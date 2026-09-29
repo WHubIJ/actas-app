@@ -28,6 +28,13 @@ spring:
 server:
   port: ${PORT:8080}
 
+# TEMPORAL: reactivado para ver si las peticiones del móvil llegan siquiera
+# al backend tras el cambio a JWKS (2026-09-29). Revertir al terminar.
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: TRACE
+
 # Claves externas (Whisper/OpenAI, Supabase Storage, Firebase Cloud Messaging).
 # Definir como variables de entorno, nunca hardcodeadas.
 actas-app:
@@ -38,15 +45,13 @@ actas-app:
     storage-url: ${SUPABASE_STORAGE_URL:}
     storage-bucket: ${SUPABASE_STORAGE_BUCKET:audios-reuniones}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
-    # Secreto HS256 compartido de Supabase Auth (Project Settings > API > JWT
-    # Secret), usado para validar los JWT que emite (ADR-005). El valor de abajo
-    # es SOLO para desarrollo local: cualquier JWT real de Supabase falla la
-    # validación contra él, lo que es correcto mientras /api/** siga en
-    # permitAll(). En producción llega por SUPABASE_JWT_SECRET.
-    # OJO: esto asume el secreto compartido "legacy" de Supabase, no las claves
-    # de firma asimétricas (JWKS) más nuevas; si el proyecto las adopta, este
-    # decoder cambia a jwt-set-uri en vez de una clave HMAC.
-    jwt-secret: ${SUPABASE_JWT_SECRET:cambia-este-secreto-en-produccion-por-uno-real-de-32-bytes-o-mas}
+    # URL base del proyecto: de aquí sale el endpoint JWKS que valida los JWT
+    # de Supabase Auth (ver jwks-uri más abajo y SecurityConfig, ADR-005).
+    url: ${SUPABASE_URL:}
+    # Este proyecto firma con claves asimétricas (ES256), publicadas en este
+    # endpoint JWKS — confirmado el 2026-09-29 tras ver "Another algorithm
+    # expected" al intentar validar con el secreto compartido HS256 legacy.
+    jwks-uri: ${SUPABASE_JWKS_URI:${actas-app.supabase.url}/auth/v1/.well-known/jwks.json}
   firebase:
     credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
   # Organización a la que se asignan las reuniones mientras no exista un módulo

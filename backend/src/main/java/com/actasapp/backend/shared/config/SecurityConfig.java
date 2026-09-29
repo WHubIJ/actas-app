@@ -13,15 +13,13 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -53,7 +51,12 @@ public class SecurityConfig implements WebMvcConfigurer {
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> auth
+                        // El preflight CORS del navegador (OPTIONS) no manda el JWT: sin este
+                        // permitAll, Spring Security lo rechaza con 401 antes de que llegue la
+                        // petición real, y el navegador la aborta como fallo de CORS.
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.decoder(jwtDecoder))
                         .authenticationEntryPoint(entradaNoAutenticado()))
@@ -73,17 +76,15 @@ public class SecurityConfig implements WebMvcConfigurer {
     }
 
     /**
-     * Valida JWT de Supabase Auth firmados con HS256 (secreto compartido "legacy"
-     * de Supabase, no las claves JWKS asimétricas más nuevas — ver comentario en
-     * application.yml). Comprueba también que el claim {@code aud} sea
-     * "authenticated", como emite Supabase para usuarios con sesión.
+     * Valida JWT de Supabase Auth contra el JWKS del proyecto (claves de firma
+     * asimétricas, ES256 — confirmado el 2026-09-29: este proyecto ya no usa el
+     * secreto compartido HS256 "legacy"). Comprueba también que el claim
+     * {@code aud} sea "authenticated", como emite Supabase para usuarios con
+     * sesión.
      */
     @Bean
-    public JwtDecoder jwtDecoder(@Value("${actas-app.supabase.jwt-secret}") String secreto) {
-        SecretKeySpec clave = new SecretKeySpec(secreto.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(clave)
-                .macAlgorithm(MacAlgorithm.HS256)
-                .build();
+    public JwtDecoder jwtDecoder(@Value("${actas-app.supabase.jwks-uri}") String jwksUri) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwksUri).build();
 
         OAuth2TokenValidator<Jwt> expiracionYNoAntesDe = JwtValidators.createDefault();
         OAuth2TokenValidator<Jwt> audienciaAuthenticated = new JwtClaimValidator<List<String>>(
