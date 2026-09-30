@@ -13,10 +13,12 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.config.Customizer;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 
@@ -51,6 +53,12 @@ public class SecurityConfig implements WebMvcConfigurer {
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Sin esto, un 401/403 que la cadena de seguridad escribe directamente
+                // (antes de llegar al DispatcherServlet) no lleva cabeceras CORS: el
+                // navegador lo descarta como fallo de red y oculta el error real de auth
+                // (visto el 2026-09-30 al depurar el JWT: el 401 llegaba, pero el
+                // frontend solo veía "No se pudo contactar con el servidor").
+                .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
                         // El preflight CORS del navegador (OPTIONS) no manda el JWT: sin este
                         // permitAll, Spring Security lo rechaza con 401 antes de que llegue la
@@ -84,7 +92,12 @@ public class SecurityConfig implements WebMvcConfigurer {
      */
     @Bean
     public JwtDecoder jwtDecoder(@Value("${actas-app.supabase.jwks-uri}") String jwksUri) {
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwksUri).build();
+        // withJwkSetUri(...) sin más asume RS256 aunque el JWKS solo publique claves
+        // ES256 — el decoder rechazaba el JWT con "Another algorithm expected" incluso
+        // con la clave correcta ya resuelta. Hay que declarar el algoritmo explícitamente.
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwksUri)
+                .jwsAlgorithm(SignatureAlgorithm.ES256)
+                .build();
 
         OAuth2TokenValidator<Jwt> expiracionYNoAntesDe = JwtValidators.createDefault();
         OAuth2TokenValidator<Jwt> audienciaAuthenticated = new JwtClaimValidator<List<String>>(

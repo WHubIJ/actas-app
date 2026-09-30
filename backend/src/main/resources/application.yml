@@ -28,13 +28,6 @@ spring:
 server:
   port: ${PORT:8080}
 
-# TEMPORAL: reactivado para ver si las peticiones del móvil llegan siquiera
-# al backend tras el cambio a JWKS (2026-09-29). Revertir al terminar.
-logging:
-  level:
-    org.springframework.security: DEBUG
-    org.springframework.security.oauth2: TRACE
-
 # Claves externas (Whisper/OpenAI, Supabase Storage, Firebase Cloud Messaging).
 # Definir como variables de entorno, nunca hardcodeadas.
 actas-app:
