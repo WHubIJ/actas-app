@@ -11,6 +11,9 @@ export interface Reunion {
   equipoId?: string;
   fecha: string;
   finalizada: boolean;
+  /** Opcionales: capturados a mano en NuevaGrabacionScreen antes de grabar. */
+  titulo?: string;
+  participantes?: string[];
 }
 
 export interface ClipAudio {

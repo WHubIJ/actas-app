@@ -83,7 +83,7 @@ export function MisActasScreen() {
         ListHeaderComponent={
           <View style={styles.cabecera}>
             <Text style={textos.display}>Mis actas</Text>
-            <TarjetaNuevaGrabacion onPress={() => navigation.navigate('Grabacion')} />
+            <TarjetaNuevaGrabacion onPress={() => navigation.navigate('NuevaGrabacion')} />
             <Buscador valor={busqueda} onCambiar={setBusqueda} />
             <ChipsFiltro filtros={FILTROS} activo={filtro} onSeleccionar={setFiltro} />
           </View>
@@ -114,7 +114,7 @@ export function MisActasScreen() {
               icono={MicrophoneIcon}
               titulo="Aún no tienes actas"
               descripcion="Graba tu primera reunión y la IA generará la transcripción y el acta por ti."
-              accion={{ titulo: 'Grabar mi primera reunión', onPress: () => navigation.navigate('Grabacion') }}
+              accion={{ titulo: 'Grabar mi primera reunión', onPress: () => navigation.navigate('NuevaGrabacion') }}
             />
           )
         }

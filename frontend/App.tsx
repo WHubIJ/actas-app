@@ -17,6 +17,7 @@ import {
 
 import { MisActasScreen } from './src/screens/MisActasScreen';
 import { MiCuentaScreen } from './src/screens/MiCuentaScreen';
+import { NuevaGrabacionScreen } from './src/screens/NuevaGrabacionScreen';
 import { GrabacionScreen } from './src/screens/GrabacionScreen';
 import { DetalleActaScreen } from './src/screens/DetalleActaScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -33,7 +34,9 @@ export type TabParamList = {
 
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
-  Grabacion: { reunionId?: string } | undefined;
+  NuevaGrabacion: undefined;
+  /** reunionId ya existe: lo crea NuevaGrabacionScreen antes de navegar aquí. */
+  Grabacion: { reunionId: string };
   DetalleActa: { actaId: string };
 };
 
@@ -52,7 +55,7 @@ function Pestanas() {
   return (
     <Tab.Navigator
       screenOptions={{ headerShown: false }}
-      tabBar={(props) => <TabBar {...props} onGrabar={() => props.navigation.navigate('Grabacion')} />}
+      tabBar={(props) => <TabBar {...props} onGrabar={() => props.navigation.navigate('NuevaGrabacion')} />}
     >
       <Tab.Screen name="Inicio" component={MisActasScreen} options={{ title: 'Inicio' }} />
       <Tab.Screen name="Cuenta" component={MiCuentaScreen} options={{ title: 'Cuenta' }} />
@@ -122,6 +125,11 @@ export default function App() {
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Tabs" component={Pestanas} />
+          <Stack.Screen
+            name="NuevaGrabacion"
+            component={NuevaGrabacionScreen}
+            options={{ animation: 'slide_from_bottom' }}
+          />
           <Stack.Screen
             name="Grabacion"
             component={GrabacionScreen}

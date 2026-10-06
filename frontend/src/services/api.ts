@@ -84,9 +84,17 @@ async function peticion<T>(ruta: string, opciones: RequestInit = {}): Promise<T>
   return cuerpo as T;
 }
 
-/** Crea una reunión. Corresponde a `POST /api/reuniones` (ver GrabacionController). */
-export async function crearReunion(): Promise<string> {
-  const { reunionId } = await peticion<{ reunionId: string }>('/api/reuniones', { method: 'POST' });
+/**
+ * Crea una reunión. Corresponde a `POST /api/reuniones` (ver GrabacionController).
+ * `titulo` y `participantes` son opcionales: se capturan en NuevaGrabacionScreen
+ * antes de empezar a grabar.
+ */
+export async function crearReunion(titulo?: string, participantes?: string[]): Promise<string> {
+  const { reunionId } = await peticion<{ reunionId: string }>('/api/reuniones', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ titulo, participantes }),
+  });
   return reunionId;
 }
 

@@ -15,7 +15,7 @@ import { RecorderControls } from '../components/RecorderControllers';
 import { ProcesandoIA, type Paso } from '../components/ProcesandoIA';
 import { Boton } from '../components/Boton';
 import { Aviso } from '../components/Aviso';
-import { crearReunion, finalizarReunion, registrarClip, ErrorApi } from '../services/api';
+import { finalizarReunion, registrarClip, ErrorApi } from '../services/api';
 import {
   pedirPermisoMicrofono,
   iniciarGrabacion,
@@ -60,12 +60,12 @@ const PASOS: Paso[] = [
 /** Ritmo del checklist simulado. Sustituir por el progreso real del backend. */
 const MS_POR_PASO = 1800;
 
-export function GrabacionScreen({ navigation }: Props) {
+export function GrabacionScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
+  const { reunionId } = route.params;
   const [estado, setEstado] = useState<Estado>('inactivo');
   const [segundos, setSegundos] = useState(0);
   const [pasoActual, setPasoActual] = useState(0);
-  const [reunionId, setReunionId] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,19 +114,18 @@ export function GrabacionScreen({ navigation }: Props) {
   }, [estado]);
 
   /**
-   * Pide permiso de micrófono, crea la reunión en el backend y arranca la
-   * grabación real. Si cualquiera de los tres pasos falla, el estado se
-   * queda en "inactivo" con el motivo real en vez de fingir que empezó.
+   * Pide permiso de micrófono y arranca la grabación real. La reunión ya
+   * existe (la crea NuevaGrabacionScreen antes de navegar aquí); si el
+   * permiso falla, el estado se queda en "inactivo" con el motivo real en
+   * vez de fingir que empezó.
    */
   const iniciar = useCallback(async () => {
     setError(null);
     setCargando(true);
     try {
       await pedirPermisoMicrofono();
-      const id = await crearReunion();
       await iniciarGrabacion(recorder);
 
-      setReunionId(id);
       setClipListo(null);
       setSegundos(0);
       setEstado('grabando');
@@ -158,7 +157,6 @@ export function GrabacionScreen({ navigation }: Props) {
    * `clipListo` para que reintentar no vuelva a tocar el recorder nativo.
    */
   const finalizar = useCallback(async () => {
-    if (!reunionId) return;
     setError(null);
     setCargando(true);
     try {
@@ -187,7 +185,6 @@ export function GrabacionScreen({ navigation }: Props) {
   const descartar = useCallback(() => {
     descartarGrabacion(recorder);
     setSegundos(0);
-    setReunionId(null);
     setClipListo(null);
     setError(null);
     setEstado('inactivo');
