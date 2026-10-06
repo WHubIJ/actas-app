@@ -29,17 +29,23 @@ public class ReunionJpaEntity {
 
     private boolean finalizada;
 
+    private String titulo;
+
     @OneToMany(mappedBy = "reunion", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClipAudioJpaEntity> clips = new ArrayList<>();
 
+    @OneToMany(mappedBy = "reunion", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ParticipanteReunionJpaEntity> participantes = new ArrayList<>();
+
     protected ReunionJpaEntity() {} // requerido por JPA
 
-    public ReunionJpaEntity(UUID id, UUID organizacionId, UUID equipoId, LocalDate fecha, boolean finalizada) {
+    public ReunionJpaEntity(UUID id, UUID organizacionId, UUID equipoId, LocalDate fecha, boolean finalizada, String titulo) {
         this.id = id;
         this.organizacionId = organizacionId;
         this.equipoId = equipoId;
         this.fecha = fecha;
         this.finalizada = finalizada;
+        this.titulo = titulo;
     }
 
     public UUID getId() { return id; }
@@ -47,6 +53,9 @@ public class ReunionJpaEntity {
     public UUID getEquipoId() { return equipoId; }
     public LocalDate getFecha() { return fecha; }
     public boolean isFinalizada() { return finalizada; }
+    public String getTitulo() { return titulo; }
     public List<ClipAudioJpaEntity> getClips() { return clips; }
     public void setClips(List<ClipAudioJpaEntity> clips) { this.clips = clips; }
+    public List<ParticipanteReunionJpaEntity> getParticipantes() { return participantes; }
+    public void setParticipantes(List<ParticipanteReunionJpaEntity> participantes) { this.participantes = participantes; }
 }

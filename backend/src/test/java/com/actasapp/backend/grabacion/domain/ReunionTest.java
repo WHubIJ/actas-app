@@ -3,6 +3,7 @@ package com.actasapp.backend.grabacion.domain;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -71,7 +72,7 @@ class ReunionTest {
         // A diferencia de finalizar(), reconstruir() viene de BD y puede
         // representar una reunión finalizada sin clips completados persistidos
         // en este objeto (p. ej. si solo se cargó la cabecera).
-        Reunion reunion = Reunion.reconstruir(UUID.randomUUID(), UUID.randomUUID(), null, LocalDate.now(), true);
+        Reunion reunion = Reunion.reconstruir(UUID.randomUUID(), UUID.randomUUID(), null, LocalDate.now(), true, null, List.of());
 
         assertTrue(reunion.isFinalizada());
         assertTrue(reunion.getClips().isEmpty());
@@ -95,5 +96,36 @@ class ReunionTest {
 
         assertThrows(UnsupportedOperationException.class,
                 () -> reunion.getClips().add(nuevoClip(reunion, 2)));
+    }
+
+    @Test
+    void sinTituloNiParticipantesQuedanVaciosNoNulos() {
+        Reunion reunion = nuevaReunion();
+
+        assertNull(reunion.getTitulo());
+        assertTrue(reunion.getParticipantes().isEmpty());
+    }
+
+    @Test
+    void tituloEnBlancoSeNormalizaANulo() {
+        Reunion reunion = new Reunion(UUID.randomUUID(), UUID.randomUUID(), null, LocalDate.now(), "   ", List.of());
+
+        assertNull(reunion.getTitulo());
+    }
+
+    @Test
+    void tituloYParticipantesSeRecortanAlCrear() {
+        Reunion reunion = new Reunion(UUID.randomUUID(), UUID.randomUUID(), null, LocalDate.now(),
+                "  Junta mensual  ", List.of(" Ana ", "", "  ", "Pedro"));
+
+        assertEquals("Junta mensual", reunion.getTitulo());
+        assertEquals(List.of("Ana", "Pedro"), reunion.getParticipantes());
+    }
+
+    @Test
+    void getParticipantesDevuelveUnaListaInmutable() {
+        Reunion reunion = new Reunion(UUID.randomUUID(), UUID.randomUUID(), null, LocalDate.now(), null, List.of("Ana"));
+
+        assertThrows(UnsupportedOperationException.class, () -> reunion.getParticipantes().add("Pedro"));
     }
 }

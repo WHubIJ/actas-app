@@ -29,13 +29,18 @@ public class ReunionRepositorioAdapter implements ReunionRepositorioPuerto {
     public Reunion guardar(Reunion reunion) {
         ReunionJpaEntity entity = new ReunionJpaEntity(
                 reunion.getId(), reunion.getOrganizacionId(), reunion.getEquipoId(),
-                reunion.getFecha(), reunion.isFinalizada());
+                reunion.getFecha(), reunion.isFinalizada(), reunion.getTitulo());
 
         List<ClipAudioJpaEntity> clipsEntity = reunion.getClips().stream()
                 .map(c -> new ClipAudioJpaEntity(c.getId(), entity, c.getOrden(),
                         c.getUrlStorage(), c.getDuracionSegundos(), c.getEstadoSubida()))
                 .toList();
         entity.setClips(new ArrayList<>(clipsEntity));
+
+        List<ParticipanteReunionJpaEntity> participantesEntity = reunion.getParticipantes().stream()
+                .map(nombre -> new ParticipanteReunionJpaEntity(UUID.randomUUID(), entity, nombre))
+                .toList();
+        entity.setParticipantes(new ArrayList<>(participantesEntity));
 
         jpaRepository.save(entity);
         return reunion;
@@ -54,8 +59,11 @@ public class ReunionRepositorioAdapter implements ReunionRepositorioPuerto {
     }
 
     private Reunion aDominio(ReunionJpaEntity entity) {
+        List<String> participantes = entity.getParticipantes().stream()
+                .map(ParticipanteReunionJpaEntity::getNombre)
+                .toList();
         Reunion reunion = Reunion.reconstruir(entity.getId(), entity.getOrganizacionId(), entity.getEquipoId(),
-                entity.getFecha(), entity.isFinalizada());
+                entity.getFecha(), entity.isFinalizada(), entity.getTitulo(), participantes);
         for (ClipAudioJpaEntity c : entity.getClips()) {
             ClipAudio clip = new ClipAudio(c.getId(), entity.getId(), c.getOrden());
             if (c.getEstadoSubida() == EstadoSubida.COMPLETADO) {

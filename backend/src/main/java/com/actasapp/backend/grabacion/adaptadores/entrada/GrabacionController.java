@@ -50,14 +50,16 @@ public class GrabacionController {
         this.organizacionPorDefectoId = organizacionPorDefectoId;
     }
 
-    public record NuevaReunionRequest(UUID organizacionId, UUID equipoId, LocalDate fecha) {}
+    public record NuevaReunionRequest(UUID organizacionId, UUID equipoId, LocalDate fecha, String titulo, List<String> participantes) {}
     public record NuevoClipRequest(int orden, String urlStorage, int duracionSegundos) {}
 
     /**
-     * `titulo` y `participantes` son placeholders: esos datos los generará la IA en las
-     * épicas de transcripción/resumen (todavía sin implementar), no algo que capture
-     * `grabacion`. `estadoTranscripcion` se omite a propósito por el mismo motivo — no es
-     * este módulo quien debe reportar un estado que pertenece a `transcripcion`.
+     * `titulo` y `participantes` los captura el usuario a mano en NuevaGrabacionScreen
+     * antes de grabar (opcionales); si faltan, se usa el placeholder de fecha / lista
+     * vacía. La IA de las épicas de transcripción/resumen los sobrescribirá más
+     * adelante, pero eso no le concierne a este módulo. `estadoTranscripcion` se omite
+     * a propósito por el mismo motivo — no es este módulo quien debe reportar un
+     * estado que pertenece a `transcripcion`.
      */
     public record ReunionResumenResponse(
             UUID id, LocalDate fecha, boolean finalizada, int duracionMinutos,
@@ -82,8 +84,10 @@ public class GrabacionController {
                         .orElse(organizacionPorDefectoId);
         UUID equipoId = (req != null) ? req.equipoId() : null;
         LocalDate fecha = (req != null && req.fecha() != null) ? req.fecha() : LocalDate.now();
+        String titulo = (req != null) ? req.titulo() : null;
+        List<String> participantes = (req != null && req.participantes() != null) ? req.participantes() : List.of();
 
-        UUID id = iniciarReunion.iniciarReunion(organizacionId, equipoId, fecha);
+        UUID id = iniciarReunion.iniciarReunion(organizacionId, equipoId, fecha, titulo, participantes);
         return Map.of("reunionId", id);
     }
 
@@ -117,9 +121,11 @@ public class GrabacionController {
         int duracionMinutos = reunion.getClips().stream()
                 .mapToInt(c -> c.getDuracionSegundos() != null ? c.getDuracionSegundos() : 0)
                 .sum() / 60;
-        String titulo = "Reunión del " + reunion.getFecha().format(FORMATO_FECHA_TITULO_PROVISIONAL);
+        String titulo = reunion.getTitulo() != null
+                ? reunion.getTitulo()
+                : "Reunión del " + reunion.getFecha().format(FORMATO_FECHA_TITULO_PROVISIONAL);
         return new ReunionResumenResponse(
                 reunion.getId(), reunion.getFecha(), reunion.isFinalizada(), duracionMinutos,
-                titulo, List.of());
+                titulo, reunion.getParticipantes());
     }
 }

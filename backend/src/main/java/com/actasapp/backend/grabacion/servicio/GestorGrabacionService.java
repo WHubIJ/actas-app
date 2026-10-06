@@ -33,8 +33,8 @@ public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarC
     }
 
     @Override
-    public UUID iniciarReunion(UUID organizacionId, UUID equipoId, LocalDate fecha) {
-        Reunion reunion = new Reunion(UUID.randomUUID(), organizacionId, equipoId, fecha);
+    public UUID iniciarReunion(UUID organizacionId, UUID equipoId, LocalDate fecha, String titulo, List<String> participantes) {
+        Reunion reunion = new Reunion(UUID.randomUUID(), organizacionId, equipoId, fecha, titulo, participantes);
         return reunionRepositorio.guardar(reunion).getId();
     }
 
