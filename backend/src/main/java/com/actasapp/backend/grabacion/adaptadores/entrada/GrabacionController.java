@@ -1,5 +1,7 @@
 package com.actasapp.backend.grabacion.adaptadores.entrada;
 
+import com.actasapp.backend.grabacion.domain.Reunion;
+import com.actasapp.backend.grabacion.puertos.entrada.ConsultarReunionesUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.FinalizarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.IniciarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.RegistrarClipUseCase;
@@ -10,6 +12,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,9 +25,12 @@ import java.util.UUID;
 @RequestMapping("/api/reuniones")
 public class GrabacionController {
 
+    private static final DateTimeFormatter FORMATO_FECHA_TITULO_PROVISIONAL = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private final IniciarReunionUseCase iniciarReunion;
     private final RegistrarClipUseCase registrarClip;
     private final FinalizarReunionUseCase finalizarReunion;
+    private final ConsultarReunionesUseCase consultarReuniones;
     private final ResolverOrganizacionUsuario resolverOrganizacion;
 
     /** Provisional: para usuarios sin membresía (se registraron sin nombrar una organización). */
@@ -32,17 +39,29 @@ public class GrabacionController {
     public GrabacionController(IniciarReunionUseCase iniciarReunion,
                                 RegistrarClipUseCase registrarClip,
                                 FinalizarReunionUseCase finalizarReunion,
+                                ConsultarReunionesUseCase consultarReuniones,
                                 ResolverOrganizacionUsuario resolverOrganizacion,
                                 @Value("${actas-app.organizacion-por-defecto-id}") UUID organizacionPorDefectoId) {
         this.iniciarReunion = iniciarReunion;
         this.registrarClip = registrarClip;
         this.finalizarReunion = finalizarReunion;
+        this.consultarReuniones = consultarReuniones;
         this.resolverOrganizacion = resolverOrganizacion;
         this.organizacionPorDefectoId = organizacionPorDefectoId;
     }
 
     public record NuevaReunionRequest(UUID organizacionId, UUID equipoId, LocalDate fecha) {}
     public record NuevoClipRequest(int orden, String urlStorage, int duracionSegundos) {}
+
+    /**
+     * `titulo` y `participantes` son placeholders: esos datos los generará la IA en las
+     * épicas de transcripción/resumen (todavía sin implementar), no algo que capture
+     * `grabacion`. `estadoTranscripcion` se omite a propósito por el mismo motivo — no es
+     * este módulo quien debe reportar un estado que pertenece a `transcripcion`.
+     */
+    public record ReunionResumenResponse(
+            UUID id, LocalDate fecha, boolean finalizada, int duracionMinutos,
+            String titulo, List<String> participantes) {}
 
     /**
      * Crea una reunión. El body es opcional: al pulsar "Iniciar grabación" la app
@@ -77,5 +96,30 @@ public class GrabacionController {
     @PostMapping("/{reunionId}/finalizar")
     public void finalizar(@PathVariable UUID reunionId) {
         finalizarReunion.finalizarReunion(reunionId);
+    }
+
+    /** Solo reuniones finalizadas: mientras se graba no hay acta que listar todavía. */
+    @GetMapping
+    public List<ReunionResumenResponse> listar(@AuthenticationPrincipal Jwt jwt) {
+        UUID organizacionId = resolverOrganizacion.organizacionPrincipalDe(UUID.fromString(jwt.getSubject()))
+                .orElse(organizacionPorDefectoId);
+        return consultarReuniones.listarFinalizadasPorOrganizacion(organizacionId).stream()
+                .map(this::aResumen)
+                .toList();
+    }
+
+    @GetMapping("/{reunionId}")
+    public ReunionResumenResponse detalle(@PathVariable UUID reunionId) {
+        return aResumen(consultarReuniones.buscarPorId(reunionId));
+    }
+
+    private ReunionResumenResponse aResumen(Reunion reunion) {
+        int duracionMinutos = reunion.getClips().stream()
+                .mapToInt(c -> c.getDuracionSegundos() != null ? c.getDuracionSegundos() : 0)
+                .sum() / 60;
+        String titulo = "Reunión del " + reunion.getFecha().format(FORMATO_FECHA_TITULO_PROVISIONAL);
+        return new ReunionResumenResponse(
+                reunion.getId(), reunion.getFecha(), reunion.isFinalizada(), duracionMinutos,
+                titulo, List.of());
     }
 }

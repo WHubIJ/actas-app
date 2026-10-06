@@ -46,6 +46,13 @@ public class ReunionRepositorioAdapter implements ReunionRepositorioPuerto {
         return jpaRepository.findById(id).map(this::aDominio);
     }
 
+    @Override
+    public List<Reunion> buscarPorOrganizacion(UUID organizacionId) {
+        return jpaRepository.findByOrganizacionIdOrderByFechaDesc(organizacionId).stream()
+                .map(this::aDominio)
+                .toList();
+    }
+
     private Reunion aDominio(ReunionJpaEntity entity) {
         Reunion reunion = Reunion.reconstruir(entity.getId(), entity.getOrganizacionId(), entity.getEquipoId(),
                 entity.getFecha(), entity.isFinalizada());

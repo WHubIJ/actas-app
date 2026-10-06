@@ -2,6 +2,7 @@ package com.actasapp.backend.grabacion.servicio;
 
 import com.actasapp.backend.grabacion.domain.ClipAudio;
 import com.actasapp.backend.grabacion.domain.Reunion;
+import com.actasapp.backend.grabacion.puertos.entrada.ConsultarReunionesUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.FinalizarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.IniciarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.RegistrarClipUseCase;
@@ -11,6 +12,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -19,7 +21,8 @@ import java.util.UUID;
  * esos viven en los adaptadores.
  */
 @Service
-public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarClipUseCase, FinalizarReunionUseCase {
+public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarClipUseCase, FinalizarReunionUseCase,
+        ConsultarReunionesUseCase {
 
     private final ReunionRepositorioPuerto reunionRepositorio;
     private final ApplicationEventPublisher eventos;
@@ -58,5 +61,18 @@ public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarC
 
         // Desacopla grabación de transcripción: el módulo de transcripción escucha este evento.
         eventos.publishEvent(new ReunionFinalizadaEvent(reunionId));
+    }
+
+    @Override
+    public List<Reunion> listarFinalizadasPorOrganizacion(UUID organizacionId) {
+        return reunionRepositorio.buscarPorOrganizacion(organizacionId).stream()
+                .filter(Reunion::isFinalizada)
+                .toList();
+    }
+
+    @Override
+    public Reunion buscarPorId(UUID reunionId) {
+        return reunionRepositorio.buscarPorId(reunionId)
+                .orElseThrow(() -> new IllegalArgumentException("Reunión no encontrada: " + reunionId));
     }
 }
