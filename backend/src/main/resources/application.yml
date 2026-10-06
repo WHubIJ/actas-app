@@ -28,15 +28,17 @@ spring:
 server:
   port: ${PORT:8080}
 
-# Claves externas (Whisper/OpenAI, Supabase Storage, Firebase Cloud Messaging).
+# Claves externas (Mistral, Supabase Storage, Firebase Cloud Messaging).
 # Definir como variables de entorno, nunca hardcodeadas.
 actas-app:
-  openai:
-    api-key: ${OPENAI_API_KEY:}
-    whisper-model: whisper-1
+  mistral:
+    api-key: ${MISTRAL_API_KEY:}
+    modelo-transcripcion: voxtral-mini-latest
   supabase:
     storage-url: ${SUPABASE_STORAGE_URL:}
-    storage-bucket: ${SUPABASE_STORAGE_BUCKET:audios-reuniones}
+    # Bucket real del proyecto (confirmado el 2026-10-06 al arreglar el RLS);
+    # "audios-reuniones" nunca existió, era un placeholder sin corregir.
+    storage-bucket: ${SUPABASE_STORAGE_BUCKET:meeting_audio}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
     # URL base del proyecto: de aquí sale el endpoint JWKS que valida los JWT
     # de Supabase Auth (ver jwks-uri más abajo y SecurityConfig, ADR-005).
