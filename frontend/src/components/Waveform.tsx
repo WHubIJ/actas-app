@@ -46,12 +46,12 @@ export function Waveform({ activo, barras = 28, altura = 46 }: Props) {
             toValue: activo ? 1 : 0,
             duration: activo ? 320 + (i % 5) * 90 : 260,
             delay: activo ? (i % 7) * 45 : 0,
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
           Animated.timing(valor, {
             toValue: activo ? 0.28 : 0,
             duration: activo ? 380 + (i % 4) * 70 : 0,
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
         ]),
       ),
@@ -62,22 +62,36 @@ export function Waveform({ activo, barras = 28, altura = 46 }: Props) {
 
   return (
     <View style={[styles.fila, { height: altura }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {valores.map((valor, i) => (
-        <Animated.View
-          key={i}
-          style={[
-            styles.barra,
-            {
-              backgroundColor: activo ? colors.acento : colors.textoTerciario,
-              opacity: activo ? 1 : 0.55,
-              height: valor.interpolate({
-                inputRange: [0, 1],
-                outputRange: [GROSOR_BARRA, Math.max(GROSOR_BARRA, altura * amplitudes[i])],
-              }),
-            },
-          ]}
-        />
-      ))}
+      {valores.map((valor, i) => {
+        // La altura de cada barra es estática (no animada) para poder escalarla
+        // con `transform`, que sí corre en el hilo nativo. Animar `height`
+        // directamente obliga a `useNativeDriver: false`, lo que con 28 barras
+        // en bucle saturaba el hilo de JS y hacía que el cronómetro (que
+        // depende de ese mismo hilo) pareciera congelado en dispositivos reales.
+        const alturaBarra = Math.max(GROSOR_BARRA, altura * amplitudes[i]);
+        const escalaReposo = GROSOR_BARRA / alturaBarra;
+        return (
+          <Animated.View
+            key={i}
+            style={[
+              styles.barra,
+              {
+                height: alturaBarra,
+                backgroundColor: activo ? colors.acento : colors.textoTerciario,
+                opacity: activo ? 1 : 0.55,
+                transform: [
+                  {
+                    scaleY: valor.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [escalaReposo, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+        );
+      })}
     </View>
   );
 }
