@@ -1,5 +1,6 @@
 package com.actasapp.backend.transcripcion.domain;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -54,6 +55,27 @@ public class Transcripcion {
     public void registrarIntentoFallido(int maxIntentos) {
         this.intentos++;
         this.estado = this.intentos >= maxIntentos ? EstadoTranscripcion.FALLIDA : EstadoTranscripcion.PENDIENTE;
+    }
+
+    /**
+     * Colapsa el estado de todos los clips de una reunión en uno solo, para
+     * listados que necesitan un único badge por reunión (Mis Actas). Un fallo
+     * permanente domina sobre el resto: si un clip agotó sus reintentos, el
+     * texto de la reunión nunca se podrá combinar completo aunque los demás
+     * clips hayan terminado bien.
+     */
+    public static EstadoTranscripcion agregar(List<Transcripcion> transcripciones) {
+        if (transcripciones.isEmpty()) return EstadoTranscripcion.PENDIENTE;
+        if (transcripciones.stream().anyMatch(t -> t.estado == EstadoTranscripcion.FALLIDA)) {
+            return EstadoTranscripcion.FALLIDA;
+        }
+        if (transcripciones.stream().anyMatch(t -> t.estado == EstadoTranscripcion.EN_PROCESO)) {
+            return EstadoTranscripcion.EN_PROCESO;
+        }
+        if (transcripciones.stream().anyMatch(t -> t.estado == EstadoTranscripcion.PENDIENTE)) {
+            return EstadoTranscripcion.PENDIENTE;
+        }
+        return EstadoTranscripcion.COMPLETADA;
     }
 
     public UUID getClipId() { return clipId; }

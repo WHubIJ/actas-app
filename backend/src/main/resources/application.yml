@@ -34,6 +34,7 @@ actas-app:
   mistral:
     api-key: ${MISTRAL_API_KEY:}
     modelo-transcripcion: voxtral-mini-latest
+    modelo-combinacion: mistral-small-latest
   supabase:
     storage-url: ${SUPABASE_STORAGE_URL:}
     # Bucket real del proyecto (confirmado el 2026-10-06 al arreglar el RLS);

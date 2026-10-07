@@ -2,6 +2,7 @@ package com.actasapp.backend.transcripcion.domain;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -73,5 +74,57 @@ class TranscripcionTest {
         assertEquals(EstadoTranscripcion.FALLIDA, t.getEstado());
         assertEquals(3, t.getIntentos());
         assertNull(t.getTexto());
+    }
+
+    private Transcripcion conEstado(EstadoTranscripcion estado) {
+        Transcripcion t = nuevaTranscripcion();
+        if (estado == EstadoTranscripcion.EN_PROCESO) {
+            t.marcarEnProceso();
+        } else if (estado == EstadoTranscripcion.COMPLETADA) {
+            t.marcarCompletada("texto");
+        } else if (estado == EstadoTranscripcion.FALLIDA) {
+            t.registrarIntentoFallido(1);
+        }
+        return t;
+    }
+
+    @Test
+    void agregarSinClipsEsPendiente() {
+        assertEquals(EstadoTranscripcion.PENDIENTE, Transcripcion.agregar(List.of()));
+    }
+
+    @Test
+    void agregarTodosCompletadosEsCompletada() {
+        List<Transcripcion> clips = List.of(conEstado(EstadoTranscripcion.COMPLETADA), conEstado(EstadoTranscripcion.COMPLETADA));
+
+        assertEquals(EstadoTranscripcion.COMPLETADA, Transcripcion.agregar(clips));
+    }
+
+    @Test
+    void agregarConUnFallidoEsFallidaAunqueOtroEsteCompletado() {
+        List<Transcripcion> clips = List.of(conEstado(EstadoTranscripcion.COMPLETADA), conEstado(EstadoTranscripcion.FALLIDA));
+
+        assertEquals(EstadoTranscripcion.FALLIDA, Transcripcion.agregar(clips));
+    }
+
+    @Test
+    void agregarConUnoEnProcesoEsEnProcesoAunqueOtroEsteCompletado() {
+        List<Transcripcion> clips = List.of(conEstado(EstadoTranscripcion.COMPLETADA), conEstado(EstadoTranscripcion.EN_PROCESO));
+
+        assertEquals(EstadoTranscripcion.EN_PROCESO, Transcripcion.agregar(clips));
+    }
+
+    @Test
+    void agregarConUnoPendienteYRestoCompletadosEsPendiente() {
+        List<Transcripcion> clips = List.of(conEstado(EstadoTranscripcion.COMPLETADA), conEstado(EstadoTranscripcion.PENDIENTE));
+
+        assertEquals(EstadoTranscripcion.PENDIENTE, Transcripcion.agregar(clips));
+    }
+
+    @Test
+    void agregarFallidaDominaSobreEnProceso() {
+        List<Transcripcion> clips = List.of(conEstado(EstadoTranscripcion.EN_PROCESO), conEstado(EstadoTranscripcion.FALLIDA));
+
+        assertEquals(EstadoTranscripcion.FALLIDA, Transcripcion.agregar(clips));
     }
 }
