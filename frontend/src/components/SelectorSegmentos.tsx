@@ -30,6 +30,18 @@ export function SelectorSegmentos<T extends string>({ segmentos, activo, onSelec
   const indice = Math.max(0, segmentos.findIndex((s) => s.id === activo));
   const posicion = useRef(new Animated.Value(0)).current;
 
+  // Un valor de escala por segmento para el feedback táctil (mismo muelle que
+  // `PressableEscala`). No se usa `PressableEscala` aquí porque su `style` se
+  // aplica a una vista interior, no al `Pressable` que mide el layout, y
+  // rompería el `flex: 1` con el que cada segmento reparte el ancho de la pista.
+  const escalas = useRef(new Map(segmentos.map((s) => [s.id, new Animated.Value(1)]))).current;
+
+  const animarEscala = (id: T, hacia: number) => {
+    const valor = escalas.get(id);
+    if (!valor) return;
+    Animated.spring(valor, { toValue: hacia, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
+  };
+
   // `layout.width` incluye el padding (RN usa border-box), así que hay que
   // descontarlo para que el indicador case con los segmentos, que se reparten
   // la caja de contenido.
@@ -65,23 +77,27 @@ export function SelectorSegmentos<T extends string>({ segmentos, activo, onSelec
           <Pressable
             key={segmento.id}
             onPress={() => onSeleccionar(segmento.id)}
+            onPressIn={() => animarEscala(segmento.id, 0.96)}
+            onPressOut={() => animarEscala(segmento.id, 1)}
             style={styles.segmento}
             accessibilityRole="tab"
             accessibilityLabel={segmento.etiqueta}
             accessibilityState={{ selected: seleccionado }}
           >
-            <Text
-              style={[
-                styles.texto,
-                {
-                  color: seleccionado ? colors.textoPrincipal : colors.textoSecundario,
-                  fontFamily: seleccionado ? tipografia.familia.bold : tipografia.familia.medium,
-                },
-              ]}
-              numberOfLines={1}
-            >
-              {segmento.etiqueta}
-            </Text>
+            <Animated.View style={{ transform: [{ scale: escalas.get(segmento.id)! }] }}>
+              <Text
+                style={[
+                  styles.texto,
+                  {
+                    color: seleccionado ? colors.textoPrincipal : colors.textoSecundario,
+                    fontFamily: seleccionado ? tipografia.familia.bold : tipografia.familia.medium,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {segmento.etiqueta}
+              </Text>
+            </Animated.View>
           </Pressable>
         );
       })}

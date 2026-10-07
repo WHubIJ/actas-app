@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
@@ -95,10 +95,29 @@ export function DetalleActaScreen({ route, navigation }: Props) {
   const [errorCompartir, setErrorCompartir] = useState<string | null>(null);
 
   const aparicion = useRef(new Animated.Value(0)).current;
+  // Lo que de verdad pinta el panel va un paso por detrás de `pestana` /
+  // `resumen` / `generando`: si se usaran directamente, React ya habría
+  // cambiado de contenido en el mismo render en que cambia cualquiera de los
+  // tres, y el fundido que viene después solo haría parpadear lo ya cambiado.
+  const [vista, setVista] = useState({ pestana, resumen, generando });
+  const montada = useRef(false);
 
   useEffect(() => {
-    aparicion.setValue(0);
-    Animated.timing(aparicion, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+    if (!montada.current) {
+      montada.current = true;
+      Animated.timing(aparicion, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      return;
+    }
+    Animated.timing(aparicion, {
+      toValue: 0,
+      duration: 160,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      setVista({ pestana, resumen, generando });
+      Animated.timing(aparicion, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    });
   }, [pestana, resumen, generando, aparicion]);
 
   /**
@@ -187,17 +206,17 @@ export function DetalleActaScreen({ route, navigation }: Props) {
           <SelectorSegmentos segmentos={PESTANAS} activo={pestana} onSeleccionar={setPestana} />
 
           <Animated.View style={[styles.panel, { opacity: aparicion }]}>
-            {pestana === 'resumen' && (
+            {vista.pestana === 'resumen' && (
               <PanelResumen
                 estadoTranscripcion={acta.estadoTranscripcion}
-                generando={generando}
-                resumen={resumen}
+                generando={vista.generando}
+                resumen={vista.resumen}
                 onGenerar={() => setHojaPlantillas(true)}
                 onVerTranscripcion={() => setPestana('transcripcion')}
               />
             )}
 
-            {pestana === 'transcripcion' && (
+            {vista.pestana === 'transcripcion' && (
               <PanelTranscripcion estado={acta.estadoTranscripcion} intervenciones={acta.intervenciones} />
             )}
           </Animated.View>

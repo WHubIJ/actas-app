@@ -39,15 +39,33 @@ export function HojaOpciones<T extends string>({
 }: Props<T>) {
   const insets = useSafeAreaInsets();
   const entrada = useRef(new Animated.Value(0)).current;
+  // Un valor de entrada por opción, para escalonar su aparición en vez de que
+  // toda la lista aparezca de golpe.
+  const entradaOpciones = useRef(new Map(opciones.map((o) => [o.id, new Animated.Value(0)]))).current;
 
   useEffect(() => {
     Animated.timing(entrada, {
       toValue: visible ? 1 : 0,
       duration: visible ? 260 : 180,
-      easing: visible ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [visible, entrada]);
+
+    if (visible) {
+      opciones.forEach((o) => entradaOpciones.get(o.id)?.setValue(0));
+      Animated.stagger(
+        40,
+        opciones.map((o) =>
+          Animated.timing(entradaOpciones.get(o.id)!, {
+            toValue: 1,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ),
+      ).start();
+    }
+  }, [visible, entrada, opciones, entradaOpciones]);
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onCerrar}>
@@ -78,38 +96,48 @@ export function HojaOpciones<T extends string>({
           {opciones.map((opcion) => {
             const activa = opcion.id === seleccionada;
             const Icono = opcion.icono;
+            const entradaOpcion = entradaOpciones.get(opcion.id)!;
             return (
-              <PressableEscala
+              <Animated.View
                 key={opcion.id}
-                onPress={() => onSeleccionar(opcion.id)}
-                escala={0.98}
-                style={[styles.opcion, activa && styles.opcionActiva]}
-                accessibilityLabel={opcion.titulo}
-                accessibilityState={{ selected: activa }}
+                style={{
+                  opacity: entradaOpcion,
+                  transform: [
+                    { translateY: entradaOpcion.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
+                  ],
+                }}
               >
-                {Icono && (
-                  <View style={styles.icono}>
-                    <Icono size={19} weight="regular" color={colors.marronClaro} />
-                  </View>
-                )}
-
-                <View style={styles.cuerpo}>
-                  <Text style={styles.opcionTitulo} numberOfLines={1}>
-                    {opcion.titulo}
-                  </Text>
-                  {opcion.descripcion && (
-                    <Text style={textos.meta} numberOfLines={2}>
-                      {opcion.descripcion}
-                    </Text>
+                <PressableEscala
+                  onPress={() => onSeleccionar(opcion.id)}
+                  escala={0.98}
+                  style={[styles.opcion, activa && styles.opcionActiva]}
+                  accessibilityLabel={opcion.titulo}
+                  accessibilityState={{ selected: activa }}
+                >
+                  {Icono && (
+                    <View style={styles.icono}>
+                      <Icono size={19} weight="regular" color={colors.marronClaro} />
+                    </View>
                   )}
-                </View>
 
-                {activa && (
-                  <View style={styles.check}>
-                    <CheckIcon size={13} weight="bold" color={colors.textoInverso} />
+                  <View style={styles.cuerpo}>
+                    <Text style={styles.opcionTitulo} numberOfLines={1}>
+                      {opcion.titulo}
+                    </Text>
+                    {opcion.descripcion && (
+                      <Text style={textos.meta} numberOfLines={2}>
+                        {opcion.descripcion}
+                      </Text>
+                    )}
                   </View>
-                )}
-              </PressableEscala>
+
+                  {activa && (
+                    <View style={styles.check}>
+                      <CheckIcon size={13} weight="bold" color={colors.textoInverso} />
+                    </View>
+                  )}
+                </PressableEscala>
+              </Animated.View>
             );
           })}
         </View>

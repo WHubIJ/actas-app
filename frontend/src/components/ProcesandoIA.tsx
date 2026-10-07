@@ -26,6 +26,9 @@ const GROSOR_ANILLO = 3;
  */
 export function ProcesandoIA({ pasos, pasoActual }: Props) {
   const giro = useRef(new Animated.Value(0)).current;
+  // Un valor de entrada por paso, para que el checklist aparezca escalonado
+  // en vez de de golpe. Se crea una sola vez: `pasos` no cambia tras montar.
+  const entradaPasos = useRef(pasos.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
     const animacion = Animated.loop(
@@ -39,6 +42,15 @@ export function ProcesandoIA({ pasos, pasoActual }: Props) {
     animacion.start();
     return () => animacion.stop();
   }, [giro]);
+
+  useEffect(() => {
+    Animated.stagger(
+      50,
+      entradaPasos.map((valor) =>
+        Animated.timing(valor, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ),
+    ).start();
+  }, [entradaPasos]);
 
   const radio = (TAMANO_ANILLO - GROSOR_ANILLO) / 2;
   const perimetro = 2 * Math.PI * radio;
@@ -86,12 +98,21 @@ export function ProcesandoIA({ pasos, pasoActual }: Props) {
 
       <View style={styles.lista}>
         {pasos.map((paso, i) => (
-          <PasoProceso
+          <Animated.View
             key={paso.id}
-            texto={paso.texto}
-            estado={estadoDe(i)}
-            atenuacion={i <= pasoActual ? 1 : Math.max(0.35, 1 - (i - pasoActual) * 0.28)}
-          />
+            style={{
+              opacity: entradaPasos[i],
+              transform: [
+                { translateY: entradaPasos[i].interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
+              ],
+            }}
+          >
+            <PasoProceso
+              texto={paso.texto}
+              estado={estadoDe(i)}
+              atenuacion={i <= pasoActual ? 1 : Math.max(0.35, 1 - (i - pasoActual) * 0.28)}
+            />
+          </Animated.View>
         ))}
       </View>
     </View>

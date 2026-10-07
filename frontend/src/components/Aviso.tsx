@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Pressable } from 'react-native';
 import { InfoIcon, WarningCircleIcon, XIcon } from 'phosphor-react-native';
 import { colors, espaciado, radios, tipografia } from '../theme';
 
@@ -29,6 +29,17 @@ export function Aviso({ tono, mensaje, onCerrar }: Props) {
     Animated.spring(entrada, { toValue: 1, useNativeDriver: true, speed: 18, bounciness: 6 }).start();
   }, [mensaje, entrada]);
 
+  // Anima la salida antes de llamar a `onCerrar`: si se desmontara sin esto,
+  // el aviso desaparecería de golpe en vez de con el mismo cuidado que su entrada.
+  const cerrar = () => {
+    Animated.timing(entrada, {
+      toValue: 0,
+      duration: 150,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => onCerrar?.());
+  };
+
   const Icono = tono === 'error' ? WarningCircleIcon : InfoIcon;
 
   return (
@@ -40,7 +51,8 @@ export function Aviso({ tono, mensaje, onCerrar }: Props) {
         {
           opacity: entrada,
           transform: [
-            { translateY: entrada.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
+            { translateY: entrada.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+            { scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
           ],
         },
       ]}
@@ -49,7 +61,7 @@ export function Aviso({ tono, mensaje, onCerrar }: Props) {
       <Text style={[styles.texto, { color }]}>{mensaje}</Text>
 
       {onCerrar && (
-        <Pressable onPress={onCerrar} hitSlop={10} accessibilityLabel="Cerrar aviso">
+        <Pressable onPress={cerrar} hitSlop={10} accessibilityLabel="Cerrar aviso">
           <XIcon size={14} weight="bold" color={color} />
         </Pressable>
       )}

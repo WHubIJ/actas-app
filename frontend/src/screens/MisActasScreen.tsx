@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -64,10 +64,46 @@ export function MisActasScreen() {
 
   const hayBusquedaActiva = busqueda.trim().length > 0 || filtro !== 'todas';
 
+  // La lista que de verdad se renderiza va un paso por detrás de `actas`: si
+  // se sustituyera al instante (como hacía la versión anterior), React ya
+  // habría pintado el contenido nuevo en el mismo render en que cambia el
+  // filtro, y el fundido que viene después solo haría parpadear ese contenido
+  // ya cambiado — nunca se vería una transición entre el antes y el después.
+  // Aquí primero se funde a 0 lo que hay, solo entonces se sustituye, y recién
+  // ahí se funde a 1 lo nuevo.
+  const [actasVisibles, setActasVisibles] = useState(actas);
+  const aparicion = useRef(new Animated.Value(1)).current;
+  const montada = useRef(false);
+
+  useEffect(() => {
+    if (!montada.current) {
+      montada.current = true;
+      return;
+    }
+    Animated.timing(aparicion, {
+      toValue: 0,
+      duration: 160,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      // Si se interrumpió (el filtro cambió otra vez a mitad del fundido), la
+      // siguiente ejecución de este efecto ya se encarga con el valor más
+      // reciente — sustituir aquí con datos ya obsoletos pisaría ese cambio.
+      if (!finished) return;
+      setActasVisibles(actas);
+      Animated.timing(aparicion, {
+        toValue: 1,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [actas, aparicion]);
+
   return (
     <ScreenBackground>
       <FlatList
-        data={actas}
+        data={actasVisibles}
         keyExtractor={(acta) => acta.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -89,34 +125,38 @@ export function MisActasScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <TarjetaActa
-            acta={item}
-            onPress={() => navigation.navigate('DetalleActa', { actaId: item.id })}
-          />
+          <Animated.View style={{ opacity: aparicion }}>
+            <TarjetaActa
+              acta={item}
+              onPress={() => navigation.navigate('DetalleActa', { actaId: item.id })}
+            />
+          </Animated.View>
         )}
         ItemSeparatorComponent={() => <View style={styles.separador} />}
         ListEmptyComponent={
-          hayBusquedaActiva ? (
-            <EstadoVacio
-              icono={MagnifyingGlassIcon}
-              titulo="Sin resultados"
-              descripcion="No hay actas que coincidan con tu búsqueda. Prueba con otro término o quita los filtros."
-              accion={{
-                titulo: 'Quitar filtros',
-                onPress: () => {
-                  setBusqueda('');
-                  setFiltro('todas');
-                },
-              }}
-            />
-          ) : (
-            <EstadoVacio
-              icono={MicrophoneIcon}
-              titulo="Aún no tienes actas"
-              descripcion="Graba tu primera reunión y la IA generará la transcripción y el acta por ti."
-              accion={{ titulo: 'Grabar mi primera reunión', onPress: () => navigation.navigate('NuevaGrabacion') }}
-            />
-          )
+          <Animated.View style={{ opacity: aparicion }}>
+            {hayBusquedaActiva ? (
+              <EstadoVacio
+                icono={MagnifyingGlassIcon}
+                titulo="Sin resultados"
+                descripcion="No hay actas que coincidan con tu búsqueda. Prueba con otro término o quita los filtros."
+                accion={{
+                  titulo: 'Quitar filtros',
+                  onPress: () => {
+                    setBusqueda('');
+                    setFiltro('todas');
+                  },
+                }}
+              />
+            ) : (
+              <EstadoVacio
+                icono={MicrophoneIcon}
+                titulo="Aún no tienes actas"
+                descripcion="Graba tu primera reunión y la IA generará la transcripción y el acta por ti."
+                accion={{ titulo: 'Grabar mi primera reunión', onPress: () => navigation.navigate('NuevaGrabacion') }}
+              />
+            )}
+          </Animated.View>
         }
       />
     </ScreenBackground>
