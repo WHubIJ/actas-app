@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, type NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -23,8 +22,8 @@ import { DetalleActaScreen } from './src/screens/DetalleActaScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { RegistroScreen } from './src/screens/RegistroScreen';
 import { TabBar } from './src/components/TabBar';
+import { PantallaCarga } from './src/components/PantallaCarga';
 import { supabase, haySupabase } from './src/services/supabaseClient';
-import { colors } from './src/theme';
 
 /** Pestañas de la barra inferior. El FAB central NO es una pestaña. */
 export type TabParamList = {
@@ -102,10 +101,10 @@ export default function App() {
     return () => suscripcion.subscription.unsubscribe();
   }, []);
 
-  // Se pinta el color de fondo mientras cargan las fuentes o se comprueba la
-  // sesión, para evitar el flash blanco (o un parpadeo de login) al arrancar.
+  // Mientras cargan las fuentes o se comprueba la sesión, para evitar el
+  // flash blanco (o un parpadeo de login) al arrancar.
   if (!fuentesListas || sesion === undefined) {
-    return <View style={styles.cargando} />;
+    return <PantallaCarga />;
   }
 
   if (haySupabase && !sesion) {
@@ -143,7 +142,3 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  cargando: { flex: 1, backgroundColor: colors.crema },
-});

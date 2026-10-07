@@ -5,6 +5,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GoogleLogoIcon } from 'phosphor-react-native';
 import { ScreenBackground } from '../components/ScreenBackground';
+import { PantallaCarga } from '../components/PantallaCarga';
 import { LogoBadge } from '../components/LogoBadge';
 import { Boton } from '../components/Boton';
 import { Aviso } from '../components/Aviso';
@@ -28,12 +29,17 @@ export function LoginScreen() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [avisoRegistro, setAvisoRegistro] = useState<string | null>(route.params?.avisoRegistro ?? null);
+  // Credenciales aceptadas: el tramo entre eso y que App.tsx cambie de stack
+  // (al reaccionar a onAuthStateChange) queda cubierto por PantallaCarga en
+  // vez de volver al formulario con el botón ya sin "cargando".
+  const [sesionIniciada, setSesionIniciada] = useState(false);
 
   const enviar = useCallback(async () => {
     setError(null);
     setCargando(true);
     try {
       await iniciarSesion(email, password);
+      setSesionIniciada(true);
       // Sin navegar a mano: App.tsx escucha el cambio de sesión de Supabase
       // y muestra la app principal en cuanto onAuthStateChange dispare.
     } catch (err) {
@@ -54,6 +60,10 @@ export function LoginScreen() {
       setCargando(false);
     }
   }, []);
+
+  if (sesionIniciada) {
+    return <PantallaCarga titulo="Iniciando sesión…" subtitulo="Te llevamos a Mis Actas" />;
+  }
 
   return (
     <ScreenBackground>

@@ -4,14 +4,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { MagnifyingGlassIcon, MicrophoneIcon } from 'phosphor-react-native';
+import { MagnifyingGlassIcon, MicrophoneIcon, WarningCircleIcon } from 'phosphor-react-native';
 import type { RootStackParamList } from '../../App';
 import { ScreenBackground } from '../components/ScreenBackground';
+import { PantallaCarga } from '../components/PantallaCarga';
 import { TarjetaNuevaGrabacion } from '../components/TarjetaNuevaGrabacion';
 import { Buscador } from '../components/Buscador';
 import { ChipsFiltro, type Filtro } from '../components/ChipsFiltro';
 import { TarjetaActa } from '../components/TarjetaActa';
 import { EstadoVacio } from '../components/EstadoVacio';
+import { obtenerActas, hayBackend, ErrorApi } from '../services/api';
 import { ACTAS_EJEMPLO } from '../mocks/actas';
 import { espaciado, textos } from '../theme';
 import type { ActaResumen } from '../types';
@@ -51,16 +53,40 @@ export function MisActasScreen() {
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<IdFiltro>('todas');
 
+  // Sin backend configurado, mismo patrón que el resto de la app: mock
+  // directo, sin pantalla de carga ni error de por medio (ver hayBackend).
+  const [actasBackend, setActasBackend] = useState<ActaResumen[] | null>(hayBackend ? null : ACTAS_EJEMPLO);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
+
+  useEffect(() => {
+    if (!hayBackend) return;
+    let cancelado = false;
+    obtenerActas()
+      .then((actas) => {
+        if (cancelado) return;
+        setActasBackend(actas);
+        setErrorCarga(null);
+      })
+      .catch((err) => {
+        if (cancelado) return;
+        setErrorCarga(err instanceof ErrorApi ? err.message : 'No se pudieron cargar tus actas.');
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [intento]);
+
   const actas = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
-    const porFiltro = aplicarFiltro(ACTAS_EJEMPLO, filtro);
+    const porFiltro = aplicarFiltro(actasBackend ?? [], filtro);
     if (!termino) return porFiltro;
     return porFiltro.filter(
       (a) =>
         a.titulo.toLowerCase().includes(termino) ||
         a.participantes.some((p) => p.toLowerCase().includes(termino)),
     );
-  }, [busqueda, filtro]);
+  }, [actasBackend, busqueda, filtro]);
 
   const hayBusquedaActiva = busqueda.trim().length > 0 || filtro !== 'todas';
 
@@ -99,6 +125,25 @@ export function MisActasScreen() {
       }).start();
     });
   }, [actas, aparicion]);
+
+  if (actasBackend === null && !errorCarga) {
+    return <PantallaCarga titulo="Cargando tus actas…" />;
+  }
+
+  if (actasBackend === null && errorCarga) {
+    return (
+      <ScreenBackground>
+        <View style={[styles.errorCarga, { paddingTop: Math.max(insets.top, espaciado.lg) }]}>
+          <EstadoVacio
+            icono={WarningCircleIcon}
+            titulo="No se pudieron cargar tus actas"
+            descripcion={errorCarga}
+            accion={{ titulo: 'Reintentar', onPress: () => setIntento((n) => n + 1) }}
+          />
+        </View>
+      </ScreenBackground>
+    );
+  }
 
   return (
     <ScreenBackground>
@@ -167,4 +212,5 @@ const styles = StyleSheet.create({
   contenido: { paddingHorizontal: espaciado.xl },
   cabecera: { gap: espaciado.lg, marginBottom: espaciado.xl },
   separador: { height: espaciado.md },
+  errorCarga: { flex: 1, justifyContent: 'center' },
 });

@@ -1,3 +1,14 @@
+const MESES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+/** `"2026-09-12"` (ISO, como la manda el backend) → `"12 septiembre 2026"`. */
+export function formatearFecha(fechaIso: string): string {
+  const [anio, mes, dia] = fechaIso.split('-').map(Number);
+  return `${dia} ${MESES[mes - 1]} ${anio}`;
+}
+
 /** `125` → `"02:05"`; a partir de una hora, `"1:02:05"`. */
 export function formatearDuracion(segundos: number): string {
   const total = Math.max(0, Math.floor(segundos));

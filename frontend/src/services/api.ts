@@ -1,4 +1,6 @@
 import { supabase } from './supabaseClient';
+import { formatearFecha } from '../utils/formato';
+import type { ActaResumen, EstadoTranscripcion } from '../types';
 
 /**
  * Base de la API del backend (Spring Boot). Sin barra final.
@@ -119,6 +121,53 @@ export async function registrarClip(
 /** Marca la reunión como finalizada. Corresponde a `POST /api/reuniones/{id}/finalizar`. */
 export async function finalizarReunion(reunionId: string): Promise<void> {
   await peticion<void>(`/api/reuniones/${reunionId}/finalizar`, { method: 'POST' });
+}
+
+interface ReunionResumenBackend {
+  id: string;
+  /** ISO `yyyy-MM-dd`, tal cual lo serializa Jackson para un `LocalDate`. */
+  fecha: string;
+  finalizada: boolean;
+  duracionMinutos: number;
+  titulo: string;
+  participantes: string[];
+}
+
+/** Corresponde a `GET /api/reuniones` (solo reuniones finalizadas, ver GrabacionController). */
+async function obtenerReunionesFinalizadas(): Promise<ReunionResumenBackend[]> {
+  return peticion<ReunionResumenBackend[]>('/api/reuniones');
+}
+
+/**
+ * Corresponde a `GET /api/transcripcion/estados`. En lote: una sola petición
+ * para toda la lista, no una por tarjeta.
+ */
+async function obtenerEstadosTranscripcion(
+  reunionIds: string[],
+): Promise<Record<string, EstadoTranscripcion>> {
+  if (reunionIds.length === 0) return {};
+  const query = reunionIds.map(encodeURIComponent).join(',');
+  return peticion<Record<string, EstadoTranscripcion>>(`/api/transcripcion/estados?reunionIds=${query}`);
+}
+
+/**
+ * Proyección para "Mis actas": combina `GET /api/reuniones` con el estado de
+ * transcripción, que vive en otro módulo y por tanto es una llamada aparte
+ * (ver TranscripcionController — `grabacion` no puede depender de `transcripcion`).
+ * Si una reunión todavía no tiene registro de transcripción, se asume `PENDIENTE`
+ * (el caso normal justo tras finalizar, antes de que el listener la procese).
+ */
+export async function obtenerActas(): Promise<ActaResumen[]> {
+  const reuniones = await obtenerReunionesFinalizadas();
+  const estados = await obtenerEstadosTranscripcion(reuniones.map((r) => r.id));
+  return reuniones.map((r) => ({
+    id: r.id,
+    titulo: r.titulo,
+    fecha: formatearFecha(r.fecha),
+    duracionMinutos: r.duracionMinutos,
+    participantes: r.participantes,
+    estadoTranscripcion: estados[r.id] ?? 'PENDIENTE',
+  }));
 }
 
 /**
