@@ -48,7 +48,7 @@ export class ErrorSubidaAudio extends Error {
  * `remove()` no da error si no hay nada que borrar, así que es seguro
  * llamarlo también en la primera subida.
  */
-export async function subirClipAudio(bucket: string, path: string, file: Blob) {
+export async function subirClipAudio(bucket: string, path: string, file: ArrayBuffer, contentType: string) {
   if (!supabase) {
     throw new ErrorSubidaAudio(
       'SUPABASE_NO_CONFIGURADO',
@@ -59,6 +59,7 @@ export async function subirClipAudio(bucket: string, path: string, file: Blob) {
   await supabase.storage.from(bucket).remove([path]);
 
   const { data, error } = await supabase.storage.from(bucket).upload(path, file, {
+    contentType,
     upsert: false,
   });
   if (error) {

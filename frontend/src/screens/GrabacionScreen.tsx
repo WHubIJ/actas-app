@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
+import { File } from 'expo-file-system';
 import { UploadSimpleIcon } from 'phosphor-react-native';
 import type { RootStackParamList } from '../../App';
 import { ScreenBackground } from '../components/ScreenBackground';
@@ -79,16 +80,33 @@ export function GrabacionScreen({ navigation, route }: Props) {
   const [clipListo, setClipListo] = useState<ClipGrabado | null>(null);
 
   const aparicion = useRef(new Animated.Value(0)).current;
+  // Qué rama de contenido se pinta dentro del bloque animado. Va un paso por
+  // detrás de `estado`: si se usara `estado` directamente, React ya habría
+  // cambiado de rama en el mismo render en que cambia el estado, y el fundido
+  // que viene después solo haría parpadear el contenido ya cambiado.
+  const [estadoVisible, setEstadoVisible] = useState<Estado>('inactivo');
+  const montada = useRef(false);
 
   // Fundido entre estados: sin esto el salto de "grabando" a "procesando" es
   // un corte seco que da sensación de error.
   useEffect(() => {
-    aparicion.setValue(0);
+    if (!montada.current) {
+      montada.current = true;
+      Animated.timing(aparicion, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      return;
+    }
     Animated.timing(aparicion, {
-      toValue: 1,
-      duration: 260,
+      toValue: 0,
+      duration: 160,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start();
+    }).start(({ finished }) => {
+      // Si se interrumpió (el estado cambió otra vez a mitad del fundido), la
+      // siguiente ejecución de este efecto ya se encarga del valor más reciente.
+      if (!finished) return;
+      setEstadoVisible(estado);
+      Animated.timing(aparicion, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    });
   }, [estado, aparicion]);
 
   // Cronómetro: solo corre mientras se graba de verdad.
@@ -166,9 +184,13 @@ export function GrabacionScreen({ navigation, route }: Props) {
         setClipListo(clip);
       }
 
-      const archivo = await fetch(clip.uri).then((r) => r.blob());
-      const ruta = `${reunionId}/clip-1.${extensionDe(clip.uri)}`;
-      const subida = await subirClipAudio(BUCKET_AUDIOS, ruta, archivo);
+      // fetch(uri).blob() no lee los bytes reales del archivo en React Native
+      // (produce un Blob vacío/con placeholder de texto, bug conocido del
+      // polyfill) — File.arrayBuffer() sí lee el archivo nativo tal cual.
+      const extension = extensionDe(clip.uri);
+      const archivo = await new File(clip.uri).arrayBuffer();
+      const ruta = `${reunionId}/clip-1.${extension}`;
+      const subida = await subirClipAudio(BUCKET_AUDIOS, ruta, archivo, `audio/${extension}`);
       await registrarClip(reunionId, 1, subida.path, clip.duracionSegundos);
       await finalizarReunion(reunionId);
 
@@ -208,7 +230,7 @@ export function GrabacionScreen({ navigation, route }: Props) {
           showsVerticalScrollIndicator={false}
         >
           <Animated.View style={[styles.centro, estiloAnimado]}>
-            {estado === 'inactivo' && (
+            {estadoVisible === 'inactivo' && (
               <>
                 <MicPulse />
                 <View style={styles.encabezado}>
@@ -220,7 +242,7 @@ export function GrabacionScreen({ navigation, route }: Props) {
               </>
             )}
 
-            {(estado === 'grabando' || estado === 'pausado') && (
+            {(estadoVisible === 'grabando' || estadoVisible === 'pausado') && (
               <>
                 <EstadoPill
                   texto={estado === 'grabando' ? 'Grabando' : 'En pausa'}
@@ -238,7 +260,7 @@ export function GrabacionScreen({ navigation, route }: Props) {
               </>
             )}
 
-            {estado === 'procesando' && <ProcesandoIA pasos={PASOS} pasoActual={pasoActual} />}
+            {estadoVisible === 'procesando' && <ProcesandoIA pasos={PASOS} pasoActual={pasoActual} />}
           </Animated.View>
 
           <View style={styles.acciones}>
