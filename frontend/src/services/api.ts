@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 import { formatearFecha } from '../utils/formato';
-import type { ActaResumen, EstadoTranscripcion } from '../types';
+import type { ActaDetalle, ActaResumen, EstadoTranscripcion } from '../types';
 
 /**
  * Base de la API del backend (Spring Boot). Sin barra final.
@@ -168,6 +168,37 @@ export async function obtenerActas(): Promise<ActaResumen[]> {
     participantes: r.participantes,
     estadoTranscripcion: estados[r.id] ?? 'PENDIENTE',
   }));
+}
+
+/** Corresponde a `GET /api/reuniones/{id}`. */
+async function obtenerReunionPorId(reunionId: string): Promise<ReunionResumenBackend> {
+  return peticion<ReunionResumenBackend>(`/api/reuniones/${reunionId}`);
+}
+
+/**
+ * Proyección para el detalle de una acta. `intervenciones` y `resumen`
+ * quedan vacíos a propósito, no por un bug: ni el texto de transcripción
+ * (falta el endpoint — el texto combinado existe en BD pero no hay forma de
+ * pedirlo por HTTP todavía) ni el resumen (Épica 3 no está implementada)
+ * se pueden traer del backend hoy. `DetalleActaScreen` lo trata como
+ * "no disponible todavía", no como contenido vacío real.
+ */
+export async function obtenerActaDetalle(reunionId: string): Promise<ActaDetalle> {
+  const [reunion, estados] = await Promise.all([
+    obtenerReunionPorId(reunionId),
+    obtenerEstadosTranscripcion([reunionId]),
+  ]);
+  return {
+    id: reunion.id,
+    titulo: reunion.titulo,
+    fecha: formatearFecha(reunion.fecha),
+    duracionMinutos: reunion.duracionMinutos,
+    participantes: reunion.participantes,
+    estadoTranscripcion: estados[reunion.id] ?? 'PENDIENTE',
+    intervenciones: [],
+    resumen: null,
+    plantillaResumen: null,
+  };
 }
 
 /**

@@ -14,6 +14,7 @@ import {
 } from 'phosphor-react-native';
 import type { RootStackParamList } from '../../App';
 import { ScreenBackground } from '../components/ScreenBackground';
+import { PantallaCarga } from '../components/PantallaCarga';
 import { Header } from '../components/Header';
 import { BadgeEstado } from '../components/BadgeEstado';
 import { AvatarStack } from '../components/AvatarStack';
@@ -25,10 +26,12 @@ import { Boton } from '../components/Boton';
 import { HojaOpciones, type OpcionHoja } from '../components/HojaOpciones';
 import { Aviso } from '../components/Aviso';
 import { buscarActa } from '../mocks/actas';
+import { obtenerActaDetalle, hayBackend, ErrorApi } from '../services/api';
 import { compartirActa, ErrorCompartir } from '../services/compartirService';
 import { formatearMinutos } from '../utils/formato';
 import { colors, espaciado, radios, sombras, textos } from '../theme';
 import type {
+  ActaDetalle,
   EstadoTranscripcion,
   FormatoArchivo,
   IntervencionTranscripcion,
@@ -83,10 +86,35 @@ const MS_GENERACION = 2200;
 
 export function DetalleActaScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const acta = buscarActa(route.params.actaId);
+  const { actaId } = route.params;
+
+  // Sin backend configurado, mismo patrón que el resto de la app: mock
+  // directo y síncrono, sin pantalla de carga ni error de por medio.
+  const actaInicial = hayBackend ? null : (buscarActa(actaId) ?? null);
+  const [acta, setActa] = useState<ActaDetalle | null>(actaInicial);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
+
+  useEffect(() => {
+    if (!hayBackend) return;
+    let cancelado = false;
+    obtenerActaDetalle(actaId)
+      .then((detalle) => {
+        if (cancelado) return;
+        setActa(detalle);
+        setErrorCarga(null);
+      })
+      .catch((err) => {
+        if (cancelado) return;
+        setErrorCarga(err instanceof ErrorApi ? err.message : 'No se pudo cargar el acta.');
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [actaId, intento]);
 
   const [pestana, setPestana] = useState<Pestana>('resumen');
-  const [resumen, setResumen] = useState<SeccionResumen[] | null>(acta?.resumen ?? null);
+  const [resumen, setResumen] = useState<SeccionResumen[] | null>(actaInicial?.resumen ?? null);
   const [generando, setGenerando] = useState(false);
   const [hojaPlantillas, setHojaPlantillas] = useState(false);
   const [hojaFormatos, setHojaFormatos] = useState(false);
@@ -162,7 +190,28 @@ export function DetalleActaScreen({ route, navigation }: Props) {
     }, MS_GENERACION);
   }, []);
 
-  // El acta no existe: solo puede pasar con un enlace profundo caducado.
+  if (!acta && errorCarga) {
+    return (
+      <ScreenBackground>
+        <View style={[styles.raiz, { paddingTop: Math.max(insets.top, espaciado.md) + espaciado.sm }]}>
+          <Header onBack={() => navigation.goBack()} onOptions={() => {}} />
+          <EstadoVacio
+            icono={WarningCircleIcon}
+            titulo="No se pudo cargar el acta"
+            descripcion={errorCarga}
+            accion={{ titulo: 'Reintentar', onPress: () => setIntento((n) => n + 1) }}
+          />
+        </View>
+      </ScreenBackground>
+    );
+  }
+
+  if (!acta && hayBackend) {
+    return <PantallaCarga titulo="Cargando acta…" />;
+  }
+
+  // Ni hay backend ni el mock conoce este id: solo puede pasar con un enlace
+  // profundo caducado.
   if (!acta) {
     return (
       <ScreenBackground>
@@ -356,6 +405,18 @@ function PanelTranscripcion({
         icono={ArrowClockwiseIcon}
         titulo="Transcripción en curso"
         descripcion="Los clips se procesan en orden. Te avisaremos en cuanto el texto esté listo."
+      />
+    );
+  }
+
+  // El texto ya existe en el backend, pero esta pantalla todavía no tiene
+  // forma de pedirlo dividido por interviniente — no es un vacío real.
+  if (intervenciones.length === 0) {
+    return (
+      <EstadoVacio
+        icono={WaveformIcon}
+        titulo="Transcripción lista"
+        descripcion="El texto ya está disponible, pero esta pantalla todavía no sabe mostrarlo aquí."
       />
     );
   }
