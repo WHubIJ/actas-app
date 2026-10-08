@@ -13,4 +13,15 @@ import java.util.UUID;
 public interface ConsultarEstadoTranscripcionUseCase {
 
     Map<UUID, EstadoTranscripcion> estadosDeReuniones(List<UUID> reunionIds);
+
+    /**
+     * Detalle de una reunión concreta: estado agregado (mismo cálculo que
+     * {@link #estadosDeReuniones}) y el texto combinado, si ya existe (solo
+     * cuando todos los clips terminaron COMPLETADA — ver GestorTranscripcionService).
+     */
+    TranscripcionDetalle detalleDe(UUID reunionId);
+
+    /** @param texto null si todavía no hay transcripción combinada para esta reunión. */
+    record TranscripcionDetalle(EstadoTranscripcion estado, String texto) {
+    }
 }

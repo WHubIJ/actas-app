@@ -134,6 +134,15 @@ public class GestorTranscripcionService implements TranscribirReunionUseCase, Co
                 id -> Transcripcion.agregar(transcripcionRepositorio.buscarPorReunion(id))));
     }
 
+    @Override
+    public TranscripcionDetalle detalleDe(UUID reunionId) {
+        EstadoTranscripcion estado = Transcripcion.agregar(transcripcionRepositorio.buscarPorReunion(reunionId));
+        String texto = transcripcionCombinadaRepositorio.buscarPorReunion(reunionId)
+                .map(TranscripcionCombinada::getTexto)
+                .orElse(null);
+        return new TranscripcionDetalle(estado, texto);
+    }
+
     private void esperarAntesDeReintentar(int intento) {
         if (intento >= ESPERA_ENTRE_REINTENTOS_MS.length) return;
         try {
