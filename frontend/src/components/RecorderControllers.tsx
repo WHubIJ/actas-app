@@ -1,9 +1,7 @@
-import { View, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { PauseIcon, PlayIcon, SparkleIcon, StopIcon } from 'phosphor-react-native';
-import { CircleIconButton } from './CircleButtonIcon';
+import { View } from 'react-native';
+import { Pause, Play, Sparkles, Square } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeProvider';
 import { PressableEscala } from './PressableEscala';
-import { colors, espaciado, radios, sombras } from '../theme';
 
 interface Props {
   /** `true` muestra pausa (se está grabando); `false` muestra reanudar. */
@@ -22,51 +20,48 @@ const TAMANO_PRINCIPAL = 80;
  * acción que se pulsa a ciegas, sin mirar la pantalla.
  */
 export function RecorderControls({ grabando, onDetener, onAlternar, onMejorar }: Props) {
+  const t = useTheme();
+  const secundario = {
+    width: TAMANO_SECUNDARIO,
+    height: TAMANO_SECUNDARIO,
+    borderRadius: t.radius.full,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    backgroundColor: t.colors.surface,
+    borderWidth: 1,
+    borderColor: t.colors.borderStrong,
+  };
+
   return (
-    <View style={styles.fila}>
-      <CircleIconButton onPress={onDetener} size={TAMANO_SECUNDARIO} accessibilityLabel="Detener">
-        <StopIcon size={18} weight="fill" color={colors.marron} />
-      </CircleIconButton>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: t.spacing[6] }}>
+      <PressableEscala onPress={onDetener} escala={0.92} accessibilityLabel="Detener" style={secundario}>
+        <Square size={18} color={t.colors.text} strokeWidth={2} fill={t.colors.text} />
+      </PressableEscala>
 
       <PressableEscala
         onPress={onAlternar}
         escala={0.93}
         accessibilityLabel={grabando ? 'Pausar grabación' : 'Reanudar grabación'}
+        style={{
+          width: TAMANO_PRINCIPAL,
+          height: TAMANO_PRINCIPAL,
+          borderRadius: t.radius.full,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: t.colors.brand,
+          boxShadow: t.shadows.md,
+        }}
       >
-        <LinearGradient
-          colors={[...colors.marronGradiente]}
-          start={{ x: 0.15, y: 0 }}
-          end={{ x: 0.85, y: 1 }}
-          style={styles.botonPrincipal}
-        >
-          {grabando ? (
-            <PauseIcon size={30} weight="fill" color={colors.textoInverso} />
-          ) : (
-            <PlayIcon size={30} weight="fill" color={colors.textoInverso} />
-          )}
-        </LinearGradient>
+        {grabando ? (
+          <Pause size={30} color={t.colors.onBrand} strokeWidth={2} fill={t.colors.onBrand} />
+        ) : (
+          <Play size={30} color={t.colors.onBrand} strokeWidth={2} fill={t.colors.onBrand} />
+        )}
       </PressableEscala>
 
-      <CircleIconButton onPress={onMejorar} size={TAMANO_SECUNDARIO} accessibilityLabel="Mejorar audio">
-        <SparkleIcon size={20} weight="regular" color={colors.marronClaro} />
-      </CircleIconButton>
+      <PressableEscala onPress={onMejorar} escala={0.92} accessibilityLabel="Mejorar audio" style={secundario}>
+        <Sparkles size={20} color={t.colors.text2} strokeWidth={1.8} />
+      </PressableEscala>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  fila: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: espaciado.xl,
-  },
-  botonPrincipal: {
-    width: TAMANO_PRINCIPAL,
-    height: TAMANO_PRINCIPAL,
-    borderRadius: radios.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...sombras.flotante,
-  },
-});

@@ -1,17 +1,13 @@
 import { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
+import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { GoogleLogoIcon } from 'phosphor-react-native';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { PantallaCarga } from '../components/PantallaCarga';
-import { LogoBadge } from '../components/LogoBadge';
-import { Boton } from '../components/Boton';
-import { Aviso } from '../components/Aviso';
-import { CampoFormulario } from '../components/CampoFormulario';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text, Button, Input, AppIcon, PanelProductoAuth, Aviso, PantallaCarga } from '../../components/ui';
 import { iniciarSesion, iniciarSesionConProveedor, ErrorAuth } from '../services/authService';
-import { colors, espaciado, textos } from '../theme';
 import type { AuthStackParamList } from '../../App';
 
 /** Mismo patrón que en las demás pantallas: solo se confía en el mensaje de nuestros propios errores tipados. */
@@ -21,11 +17,17 @@ function mensajeError(err: unknown, porDefecto: string): string {
 }
 
 export function LoginScreen() {
+  const t = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
   const route = useRoute<RouteProp<AuthStackParamList, 'Login'>>();
+  const { width } = useWindowDimensions();
+  // `bp-tablet`: por debajo, sidebar colapsada / una columna (ver tokens.json).
+  const esEscritorio = width >= t.size.bpTablet;
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [verPassword, setVerPassword] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [avisoRegistro, setAvisoRegistro] = useState<string | null>(route.params?.avisoRegistro ?? null);
@@ -65,90 +67,139 @@ export function LoginScreen() {
     return <PantallaCarga titulo="Iniciando sesión…" subtitulo="Te llevamos a Mis Actas" />;
   }
 
-  return (
-    <ScreenBackground>
-      <KeyboardAvoidingView
-        style={styles.raiz}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={[
-            styles.contenido,
-            { paddingTop: Math.max(insets.top, espaciado.xxl) + espaciado.xxl, paddingBottom: insets.bottom + espaciado.xxl },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+  const formulario = (
+    <View style={{ width: '100%', maxWidth: 380, gap: t.spacing[4] }}>
+      <View style={{ alignItems: esEscritorio ? 'flex-start' : 'center', gap: t.spacing[3] }}>
+        <AppIcon size={esEscritorio ? 28 : 64} />
+        <Text
+          variant="heading"
+          style={{
+            fontSize: 28,
+            lineHeight: 34,
+            letterSpacing: -0.84,
+            textAlign: esEscritorio ? 'left' : 'center',
+          }}
         >
-          <View style={styles.encabezado}>
-            <LogoBadge size={56} />
-            <Text style={textos.display}>MeetingAI</Text>
-            <Text style={[textos.apoyo, styles.centrado]}>Inicia sesión para continuar</Text>
+          Inicia sesión
+        </Text>
+        <Text variant="caption" color="text2" style={{ textAlign: esEscritorio ? 'left' : 'center', marginTop: -t.spacing[1] }}>
+          Reuniones y actas de tu organización
+        </Text>
+      </View>
+
+      {(error || avisoRegistro) && (
+        <View style={{ gap: t.spacing[2] }}>
+          {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
+          {avisoRegistro && <Aviso tono="info" mensaje={avisoRegistro} onCerrar={() => setAvisoRegistro(null)} />}
+        </View>
+      )}
+
+      <View style={{ gap: t.spacing[4] }}>
+        <Input
+          label="Correo electrónico"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="tu@email.com"
+          icon={(c) => <Mail size={18} color={c} />}
+        />
+        <View style={{ gap: t.spacing[2] }}>
+          <Input
+            label="Contraseña"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!verPassword}
+            placeholder="••••••••"
+            icon={(c) => <Lock size={18} color={c} />}
+            right={
+              <Pressable
+                onPress={() => setVerPassword((v) => !v)}
+                hitSlop={8}
+                accessibilityLabel={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {verPassword ? <EyeOff size={18} color={t.colors.text2} /> : <Eye size={18} color={t.colors.text2} />}
+              </Pressable>
+            }
+          />
+          {/* Sin flujo de recuperación todavía — visible porque el diseño lo pide,
+              sin acción real hasta que exista la pantalla. */}
+          <Pressable accessibilityRole="button" style={{ alignSelf: 'flex-end' }}>
+            <Text variant="label" color="brandStrong">
+              ¿Olvidaste tu contraseña?
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <Button
+        label={cargando ? 'Un momento…' : 'Iniciar sesión'}
+        size="xl"
+        fullWidth
+        loading={cargando}
+        disabled={!email || !password}
+        onPress={enviar}
+      />
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[3] }}>
+        <View style={{ flex: 1, height: 1, backgroundColor: t.colors.border }} />
+        <Text variant="caption" color="text2">
+          o
+        </Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: t.colors.border }} />
+      </View>
+
+      <Button
+        label="Continuar con Google"
+        variant="secondary"
+        size="xl"
+        fullWidth
+        icon={(c) => <GoogleLogoIcon size={18} weight="bold" color={c} />}
+        onPress={continuarConGoogle}
+        disabled={cargando}
+      />
+
+      <Pressable onPress={() => navigation.navigate('Registro')} disabled={cargando} accessibilityRole="button">
+        <Text variant="caption" color="text2" style={{ textAlign: 'center' }}>
+          ¿No tienes cuenta?{' '}
+          <Text variant="label" color="brandStrong">
+            Crear cuenta
+          </Text>
+        </Text>
+      </Pressable>
+    </View>
+  );
+
+  return (
+    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {esEscritorio ? (
+          <View style={{ flex: 1, flexDirection: 'row' }}>
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: t.spacing[12] }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {formulario}
+            </ScrollView>
+            <PanelProductoAuth />
           </View>
-
-          <View style={styles.formulario}>
-            {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
-            {avisoRegistro && (
-              <Aviso tono="info" mensaje={avisoRegistro} onCerrar={() => setAvisoRegistro(null)} />
-            )}
-
-            <CampoFormulario
-              etiqueta="Email"
-              valor={email}
-              onCambiar={setEmail}
-              tipoTeclado="email-address"
-              placeholder="tu@email.com"
-            />
-            <CampoFormulario
-              etiqueta="Contraseña"
-              valor={password}
-              onCambiar={setPassword}
-              secreto
-              placeholder="••••••••"
-            />
-
-            <Boton
-              titulo={cargando ? 'Un momento…' : 'Iniciar sesión'}
-              cargando={cargando}
-              disabled={!email || !password}
-              onPress={enviar}
-            />
-
-            <View style={styles.separador}>
-              <View style={styles.linea} />
-              <Text style={textos.meta}>O</Text>
-              <View style={styles.linea} />
-            </View>
-
-            <Boton
-              titulo="Continuar con Google"
-              variante="secundario"
-              icono={(color, size) => <GoogleLogoIcon size={size} weight="bold" color={color} />}
-              onPress={continuarConGoogle}
-              disabled={cargando}
-            />
-
-            <Pressable onPress={() => navigation.navigate('Registro')} disabled={cargando} accessibilityRole="button">
-              <Text style={[textos.accion, styles.enlace]}>¿No tienes cuenta? Crea una</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
+        ) : (
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: t.spacing[6],
+              paddingTop: insets.top + t.spacing[10],
+              paddingBottom: insets.bottom + t.spacing[8],
+            }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {formulario}
+          </ScrollView>
+        )}
       </KeyboardAvoidingView>
-    </ScreenBackground>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  raiz: { flex: 1 },
-  contenido: {
-    flexGrow: 1,
-    paddingHorizontal: espaciado.xxl,
-    justifyContent: 'center',
-    gap: espaciado.xxxl,
-  },
-  encabezado: { alignItems: 'center', gap: espaciado.md },
-  centrado: { textAlign: 'center' },
-  formulario: { gap: espaciado.lg },
-  enlace: { textAlign: 'center', color: colors.marronClaro },
-  separador: { flexDirection: 'row', alignItems: 'center', gap: espaciado.sm },
-  linea: { flex: 1, height: 1, backgroundColor: colors.borde },
-});

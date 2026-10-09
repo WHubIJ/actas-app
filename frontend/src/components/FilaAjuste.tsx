@@ -1,66 +1,49 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { CaretRightIcon, type Icon } from 'phosphor-react-native';
+import { View } from 'react-native';
+import { ChevronRight, type LucideIcon } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text } from '../../components/ui';
 import { PressableEscala } from './PressableEscala';
-import { colors, espaciado, radios, sombras, textos, tipografia } from '../theme';
 
 interface Props {
-  icono: Icon;
+  icono: LucideIcon;
   titulo: string;
   descripcion: string;
   onPress?: () => void;
 }
 
-/** Fila navegable de los bloques de ajustes de "Mi cuenta". */
+/** Fila navegable dentro de un bloque `.ma-settings` (ver MiCuentaScreen): sin borde propio, el contenedor ya lo pone. */
 export function FilaAjuste({ icono: Icono, titulo, descripcion, onPress }: Props) {
+  const t = useTheme();
   return (
     <PressableEscala
       onPress={onPress}
       escala={0.98}
-      style={styles.fila}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[3], padding: t.spacing[3], paddingHorizontal: 14 }}
       accessibilityLabel={`${titulo}. ${descripcion}`}
     >
-      <View style={styles.icono}>
-        <Icono size={19} weight="regular" color={colors.marronClaro} />
+      <View
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: t.radius.md,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: t.colors.surface2,
+        }}
+      >
+        <Icono size={18} color={t.colors.text2} strokeWidth={1.8} />
       </View>
 
-      <View style={styles.cuerpo}>
-        <Text style={styles.titulo} numberOfLines={1}>
+      <View style={{ flex: 1, gap: 1 }}>
+        <Text variant="bodyStrong" numberOfLines={1}>
           {titulo}
         </Text>
-        <Text style={styles.descripcion} numberOfLines={1}>
+        <Text variant="caption" color="text2" numberOfLines={1}>
           {descripcion}
         </Text>
       </View>
 
-      <CaretRightIcon size={15} weight="bold" color={colors.textoTerciario} />
+      <ChevronRight size={18} color={t.colors.text2} strokeWidth={2} />
     </PressableEscala>
   );
 }
-
-const styles = StyleSheet.create({
-  fila: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaciado.lg,
-    padding: espaciado.lg,
-    borderRadius: radios.xl,
-    backgroundColor: colors.superficie,
-    borderWidth: 1,
-    borderColor: colors.borde,
-    ...sombras.tarjeta,
-  },
-  icono: {
-    width: 40,
-    height: 40,
-    borderRadius: radios.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.superficieHundida,
-  },
-  cuerpo: { flex: 1, gap: 1 },
-  titulo: {
-    ...textos.accion,
-    fontFamily: tipografia.familia.bold,
-  },
-  descripcion: textos.meta,
-});

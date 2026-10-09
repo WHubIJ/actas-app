@@ -1,16 +1,20 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { HouseIcon, MicrophoneIcon, UserIcon, type Icon } from 'phosphor-react-native';
+import { House, User, Mic, type LucideIcon } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text } from '../../components/ui';
 import { PressableEscala } from './PressableEscala';
-import { colors, espaciado, radios, sombras, tipografia } from '../theme';
 
-/** Iconos por ruta. Una ruta sin entrada aquí cae a `HouseIcon`. */
-const ICONOS: Record<string, Icon> = {
-  Inicio: HouseIcon,
-  Cuenta: UserIcon,
+/** Iconos por ruta. Una ruta sin entrada aquí cae a `House`. */
+const ICONOS: Record<string, LucideIcon> = {
+  Inicio: House,
+  Cuenta: User,
 };
+
+const TAMANO_FAB = 60;
+/** Cuánto sobresale el FAB por encima del propio borde superior de la barra (ver `top` más abajo). `useBottomTabBarHeight()` no lo cuenta: las pantallas con scroll deben sumarlo a su `paddingBottom` o el FAB tapa el último elemento. */
+export const ALTURA_FAB_SOBRESALIENTE = 26;
 
 interface Props extends BottomTabBarProps {
   /** Acción del botón central; no es una pestaña, es un atajo a la grabación. */
@@ -23,13 +27,14 @@ interface Props extends BottomTabBarProps {
  * tabBar por defecto obliga a una pantalla fantasma y a interceptar su evento.
  */
 export function TabBar({ state, descriptors, navigation, onGrabar }: Props) {
+  const t = useTheme();
   const insets = useSafeAreaInsets();
 
   const pestanas = state.routes.map((route, index) => {
     const { options } = descriptors[route.key];
     const etiqueta = options.title ?? route.name;
     const activo = state.index === index;
-    const Icono = ICONOS[route.name] ?? HouseIcon;
+    const Icono = ICONOS[route.name] ?? House;
 
     const alPulsar = () => {
       const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -43,24 +48,19 @@ export function TabBar({ state, descriptors, navigation, onGrabar }: Props) {
         key={route.key}
         onPress={alPulsar}
         escala={0.9}
-        style={styles.pestana}
+        style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: t.spacing[1] }}
         accessibilityRole="tab"
         accessibilityState={{ selected: activo }}
         accessibilityLabel={etiqueta}
       >
-        <Icono
-          size={22}
-          weight={activo ? 'fill' : 'regular'}
-          color={activo ? colors.textoPrincipal : colors.textoTerciario}
-        />
+        <Icono size={24} color={activo ? t.colors.brand : t.colors.text2} strokeWidth={1.8} />
         <Text
-          style={[
-            styles.etiqueta,
-            {
-              color: activo ? colors.textoPrincipal : colors.textoTerciario,
-              fontFamily: activo ? tipografia.familia.bold : tipografia.familia.medium,
-            },
-          ]}
+          style={{
+            fontFamily: 'Geist_500Medium',
+            fontSize: 10.5,
+            lineHeight: 12,
+            color: activo ? t.colors.text : t.colors.text2,
+          }}
         >
           {etiqueta}
         </Text>
@@ -73,72 +73,46 @@ export function TabBar({ state, descriptors, navigation, onGrabar }: Props) {
   const mitad = Math.ceil(pestanas.length / 2);
   const fila = [
     ...pestanas.slice(0, mitad),
-    <View key="hueco" style={styles.hueco} />,
+    <View key="hueco" style={{ width: 96 }} />,
     ...pestanas.slice(mitad),
   ];
 
   return (
-    <View style={[styles.contenedor, { paddingBottom: Math.max(insets.bottom, espaciado.md) }]}>
-      <View style={styles.fila}>{fila}</View>
+    <View
+      style={{
+        paddingTop: t.spacing[2],
+        paddingHorizontal: t.spacing[2],
+        paddingBottom: Math.max(insets.bottom, t.spacing[2]) + t.spacing[6],
+        backgroundColor: t.colors.surface,
+        borderTopWidth: 1,
+        borderTopColor: t.colors.border,
+      }}
+    >
+      <View style={{ flexDirection: 'row' }}>{fila}</View>
 
-      <View style={styles.fabEnvoltura} pointerEvents="box-none">
-        <PressableEscala onPress={onGrabar} escala={0.9} accessibilityLabel="Nueva grabación">
-          <LinearGradient
-            colors={[...colors.marronGradiente]}
-            start={{ x: 0.15, y: 0 }}
-            end={{ x: 0.85, y: 1 }}
-            style={styles.fab}
-          >
-            <MicrophoneIcon size={24} weight="fill" color={colors.textoInverso} />
-          </LinearGradient>
+      <View
+        style={{ position: 'absolute', left: '50%', top: -ALTURA_FAB_SOBRESALIENTE, marginLeft: -TAMANO_FAB / 2 }}
+        pointerEvents="box-none"
+      >
+        <PressableEscala
+          onPress={onGrabar}
+          escala={0.9}
+          accessibilityLabel="Nueva grabación"
+          style={{
+            width: TAMANO_FAB,
+            height: TAMANO_FAB,
+            borderRadius: t.radius.full,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: t.colors.brand,
+            // Anillo contra el fondo de PÁGINA (no el de la propia barra), para
+            // que el FAB se lea flotando por encima del borde superior.
+            boxShadow: `0 0 0 6px ${t.colors.bg}, ${t.shadows.md}`,
+          }}
+        >
+          <Mic size={26} color={t.colors.onBrand} strokeWidth={1.8} />
         </PressableEscala>
       </View>
     </View>
   );
 }
-
-const TAMANO_FAB = 58;
-
-const styles = StyleSheet.create({
-  contenedor: {
-    paddingTop: espaciado.md,
-    paddingHorizontal: espaciado.xl,
-    backgroundColor: colors.superficie,
-    borderTopWidth: 1,
-    borderTopColor: colors.borde,
-  },
-  fila: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  hueco: { width: TAMANO_FAB + espaciado.lg },
-  pestana: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: espaciado.xs,
-    minWidth: 76,
-    paddingVertical: espaciado.xs,
-  },
-  etiqueta: {
-    fontSize: tipografia.tamano.xxs + 1,
-    letterSpacing: 0.1,
-  },
-  fabEnvoltura: {
-    position: 'absolute',
-    top: -TAMANO_FAB / 2.4,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  fab: {
-    width: TAMANO_FAB,
-    height: TAMANO_FAB,
-    borderRadius: radios.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: colors.superficie,
-    ...sombras.flotante,
-  },
-});

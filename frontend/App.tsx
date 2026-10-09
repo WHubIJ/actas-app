@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer, type NavigatorScreenParams } from '@react-navigation/native';
+import * as SplashScreen from 'expo-splash-screen';
+import {
+  NavigationContainer,
+  DefaultTheme,
+  DarkTheme,
+  type NavigatorScreenParams,
+  type Theme as NavTheme,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { Session } from '@supabase/supabase-js';
-import {
-  useFonts,
-  Manrope_400Regular,
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-  Manrope_800ExtraBold,
-} from '@expo-google-fonts/manrope';
 
 import { MisActasScreen } from './src/screens/MisActasScreen';
 import { MiCuentaScreen } from './src/screens/MiCuentaScreen';
@@ -22,8 +21,13 @@ import { DetalleActaScreen } from './src/screens/DetalleActaScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { RegistroScreen } from './src/screens/RegistroScreen';
 import { TabBar } from './src/components/TabBar';
-import { PantallaCarga } from './src/components/PantallaCarga';
 import { supabase, haySupabase } from './src/services/supabaseClient';
+import { ThemeProvider, useAppFonts, useTheme } from './theme/ThemeProvider';
+
+// Se oculta a mano cuando fuentes + sesión están listas (ver `App`). Llamarlo
+// en el cuerpo del módulo, no en un efecto: tiene que ganar la carrera contra
+// el auto-hide nativo, que puede disparar antes de que monte el primer componente.
+SplashScreen.preventAutoHideAsync();
 
 /** Pestañas de la barra inferior. El FAB central NO es una pestaña. */
 export type TabParamList = {
@@ -71,14 +75,60 @@ function Autenticacion() {
   );
 }
 
+/**
+ * Separado de `App` para poder llamar `useTheme()`: el provider no puede
+ * envolverse a sí mismo, así que todo lo que lee el tema vive un nivel por
+ * debajo de donde se monta `<ThemeProvider>`.
+ */
+function Raiz({ sesion }: { sesion: Session | null }) {
+  const t = useTheme();
+
+  // Colores de fondo/texto/borde de React Navigation en los dos temas, para
+  // que las transiciones entre pantallas no muestren un fondo blanco de
+  // fábrica mientras el modo oscuro está activo.
+  const temaNavegacion: NavTheme = {
+    ...(t.mode === 'dark' ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(t.mode === 'dark' ? DarkTheme.colors : DefaultTheme.colors),
+      background: t.colors.bg,
+      card: t.colors.surface,
+      text: t.colors.text,
+      border: t.colors.border,
+      primary: t.colors.brand,
+    },
+  };
+
+  return (
+    <SafeAreaProvider>
+      <StatusBar style={t.mode === 'dark' ? 'light' : 'dark'} />
+      <NavigationContainer theme={temaNavegacion}>
+        {haySupabase && !sesion ? (
+          <Autenticacion />
+        ) : (
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Tabs" component={Pestanas} />
+            <Stack.Screen
+              name="NuevaGrabacion"
+              component={NuevaGrabacionScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="Grabacion"
+              component={GrabacionScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+            {/* El detalle entra de lado: es navegación jerárquica desde la lista,
+                no una tarea modal como la grabación. */}
+            <Stack.Screen name="DetalleActa" component={DetalleActaScreen} />
+          </Stack.Navigator>
+        )}
+      </NavigationContainer>
+    </SafeAreaProvider>
+  );
+}
+
 export default function App() {
-  const [fuentesListas] = useFonts({
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-    Manrope_800ExtraBold,
-  });
+  const fuentesListas = useAppFonts();
 
   // undefined = todavía comprobando con Supabase; null = sin sesión.
   const [sesion, setSesion] = useState<Session | null | undefined>(undefined);
@@ -101,44 +151,21 @@ export default function App() {
     return () => suscripcion.subscription.unsubscribe();
   }, []);
 
-  // Mientras cargan las fuentes o se comprueba la sesión, para evitar el
-  // flash blanco (o un parpadeo de login) al arrancar.
-  if (!fuentesListas || sesion === undefined) {
-    return <PantallaCarga />;
-  }
+  useEffect(() => {
+    if (fuentesListas && sesion !== undefined) {
+      SplashScreen.hideAsync();
+    }
+  }, [fuentesListas, sesion]);
 
-  if (haySupabase && !sesion) {
-    return (
-      <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <NavigationContainer>
-          <Autenticacion />
-        </NavigationContainer>
-      </SafeAreaProvider>
-    );
+  // El splash nativo (ver app.json) sigue tapando la pantalla mientras esto
+  // es `null`, así que no hace falta una pantalla de carga propia aquí.
+  if (!fuentesListas || sesion === undefined) {
+    return null;
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="dark" />
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Tabs" component={Pestanas} />
-          <Stack.Screen
-            name="NuevaGrabacion"
-            component={NuevaGrabacionScreen}
-            options={{ animation: 'slide_from_bottom' }}
-          />
-          <Stack.Screen
-            name="Grabacion"
-            component={GrabacionScreen}
-            options={{ animation: 'slide_from_bottom' }}
-          />
-          {/* El detalle entra de lado: es navegación jerárquica desde la lista,
-              no una tarea modal como la grabación. */}
-          <Stack.Screen name="DetalleActa" component={DetalleActaScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <ThemeProvider>
+      <Raiz sesion={sesion} />
+    </ThemeProvider>
   );
 }

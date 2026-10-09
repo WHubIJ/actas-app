@@ -1,30 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import {
-  BellIcon,
-  GearIcon,
-  GlobeIcon,
-  HardDrivesIcon,
-  ShieldCheckIcon,
-  SignOutIcon,
-  WaveformIcon,
-  type Icon,
-} from 'phosphor-react-native';
-import { ScreenBackground } from '../components/ScreenBackground';
+  Bell,
+  Globe,
+  AudioLines,
+  HardDrive,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text, Button, Aviso } from '../../components/ui';
 import { TarjetaPerfil } from '../components/TarjetaPerfil';
 import { TarjetaEstadistica } from '../components/TarjetaEstadistica';
 import { FilaAjuste } from '../components/FilaAjuste';
-import { Boton } from '../components/Boton';
-import { Aviso } from '../components/Aviso';
+import { ALTURA_FAB_SOBRESALIENTE } from '../components/TabBar';
 import { cerrarSesion, ErrorAuth } from '../services/authService';
 import { obtenerCuenta, ErrorApi, type Cuenta } from '../services/api';
-import { colors, espaciado, textos } from '../theme';
 
 interface Ajuste {
   id: string;
-  icono: Icon;
+  icono: LucideIcon;
   titulo: string;
   descripcion: string;
 }
@@ -47,23 +46,24 @@ const SECCIONES: Seccion[] = [
     id: 'cuenta',
     titulo: 'Cuenta',
     ajustes: [
-      { id: 'preferencias', icono: GearIcon, titulo: 'Preferencias', descripcion: 'Idioma, notificaciones' },
-      { id: 'notificaciones', icono: BellIcon, titulo: 'Notificaciones', descripcion: 'Alertas y recordatorios' },
-      { id: 'idioma', icono: GlobeIcon, titulo: 'Idioma', descripcion: 'Español (España)' },
+      { id: 'preferencias', icono: Settings, titulo: 'Preferencias', descripcion: 'Idioma, notificaciones' },
+      { id: 'notificaciones', icono: Bell, titulo: 'Notificaciones', descripcion: 'Alertas y recordatorios' },
+      { id: 'idioma', icono: Globe, titulo: 'Idioma', descripcion: 'Español (España)' },
     ],
   },
   {
     id: 'ia',
     titulo: 'IA y almacenamiento',
     ajustes: [
-      { id: 'ia', icono: WaveformIcon, titulo: 'Configuración de IA', descripcion: 'Modelo, precisión, idioma' },
-      { id: 'almacenamiento', icono: HardDrivesIcon, titulo: 'Almacenamiento', descripcion: '4.2 GB de 10 GB usados' },
-      { id: 'privacidad', icono: ShieldCheckIcon, titulo: 'Privacidad y datos', descripcion: 'Gestiona tus datos' },
+      { id: 'ia', icono: AudioLines, titulo: 'Configuración de IA', descripcion: 'Modelo, precisión, idioma' },
+      { id: 'almacenamiento', icono: HardDrive, titulo: 'Almacenamiento', descripcion: '4.2 GB de 10 GB usados' },
+      { id: 'privacidad', icono: ShieldCheck, titulo: 'Privacidad y datos', descripcion: 'Gestiona tus datos' },
     ],
   },
 ];
 
 export function MiCuentaScreen() {
+  const t = useTheme();
   const insets = useSafeAreaInsets();
   const altoTabBar = useBottomTabBarHeight();
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
@@ -100,20 +100,22 @@ export function MiCuentaScreen() {
   }, []);
 
   return (
-    <ScreenBackground>
+    // El hueco del FAB va en este contenedor, no en el `contentContainerStyle`
+    // del ScrollView: un `paddingBottom` ahí solo libera espacio DEBAJO del
+    // último elemento, invisible mientras no se haga scroll. Encogiendo aquí
+    // la caja del ScrollView, el contenido nunca llega a esa zona ni en reposo.
+    <View style={{ flex: 1, backgroundColor: t.colors.bg, paddingBottom: altoTabBar + ALTURA_FAB_SOBRESALIENTE + t.spacing[4] }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.contenido,
+        contentContainerStyle={{
+          paddingHorizontal: t.spacing[5],
+          gap: t.spacing[5],
           // Mínimo garantizado: en web y en Android sin notch `insets.top` es 0
           // y el título quedaría pegado al borde.
-          {
-            paddingTop: Math.max(insets.top, espaciado.lg) + espaciado.lg,
-            paddingBottom: altoTabBar + espaciado.xxl,
-          },
-        ]}
+          paddingTop: Math.max(insets.top, t.spacing[6]) + t.spacing[4],
+        }}
       >
-        <Text style={textos.display}>Mi cuenta</Text>
+        <Text variant="heading">Mi cuenta</Text>
 
         {errorCuenta && <Aviso tono="error" mensaje={errorCuenta} onCerrar={() => setErrorCuenta(null)} />}
 
@@ -121,62 +123,55 @@ export function MiCuentaScreen() {
           <TarjetaPerfil
             nombre={cuenta.nombre || cuenta.email?.split('@')[0] || 'Usuario'}
             email={cuenta.email ?? ''}
-            plan={cuenta.plan ?? cuenta.organizacionNombre ?? 'Sin organización'}
+            organizacion={cuenta.organizacionNombre}
+            plan={cuenta.plan}
             onEditar={() => {}}
           />
         ) : (
           !errorCuenta && (
-            <View style={styles.cargandoCuenta}>
-              <ActivityIndicator color={colors.marronClaro} />
+            <View style={{ height: 94, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator color={t.colors.brand} />
             </View>
           )
         )}
 
-        <View style={styles.estadisticas}>
+        <View style={{ flexDirection: 'row', gap: t.spacing[2] }}>
           {ESTADISTICAS.map((e) => (
             <TarjetaEstadistica key={e.id} valor={e.valor} etiqueta={e.etiqueta} />
           ))}
         </View>
 
         {SECCIONES.map((seccion) => (
-          <View key={seccion.id} style={styles.seccion}>
-            <Text style={textos.etiqueta}>{seccion.titulo}</Text>
-            <View style={styles.filas}>
-              {seccion.ajustes.map((ajuste) => (
-                <FilaAjuste
-                  key={ajuste.id}
-                  icono={ajuste.icono}
-                  titulo={ajuste.titulo}
-                  descripcion={ajuste.descripcion}
-                  onPress={() => {}}
-                />
+          <View key={seccion.id} style={{ gap: t.spacing[2] }}>
+            <Text variant="overline" color="text2">
+              {seccion.titulo}
+            </Text>
+            <View style={{ backgroundColor: t.colors.surface, borderWidth: 1, borderColor: t.colors.border, borderRadius: t.radius.lg, overflow: 'hidden' }}>
+              {seccion.ajustes.map((ajuste, i) => (
+                <View key={ajuste.id} style={i > 0 ? { borderTopWidth: 1, borderTopColor: t.colors.border } : undefined}>
+                  <FilaAjuste icono={ajuste.icono} titulo={ajuste.titulo} descripcion={ajuste.descripcion} onPress={() => {}} />
+                </View>
               ))}
             </View>
           </View>
         ))}
 
-        <View style={styles.seccion}>
+        <View style={{ gap: t.spacing[3] }}>
           {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
-          <Boton
-            titulo={cerrandoSesion ? 'Cerrando sesión…' : 'Cerrar sesión'}
-            variante="secundario"
-            icono={(color, size) => <SignOutIcon size={size} weight="bold" color={color} />}
-            cargando={cerrandoSesion}
+          <Button
+            label={cerrandoSesion ? 'Cerrando sesión…' : 'Cerrar sesión'}
+            variant="danger"
+            size="lg"
+            fullWidth
+            icon={(c) => <LogOut size={18} color={c} strokeWidth={1.8} />}
+            loading={cerrandoSesion}
             onPress={manejarCerrarSesion}
           />
+          <Text variant="caption" color="text3" style={{ textAlign: 'center' }}>
+            MeetingAI 1.0.0
+          </Text>
         </View>
       </ScrollView>
-    </ScreenBackground>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  contenido: {
-    paddingHorizontal: espaciado.xl,
-    gap: espaciado.xl,
-  },
-  cargandoCuenta: { height: 94, alignItems: 'center', justifyContent: 'center' },
-  estadisticas: { flexDirection: 'row', gap: espaciado.md },
-  seccion: { gap: espaciado.md },
-  filas: { gap: espaciado.sm },
-});

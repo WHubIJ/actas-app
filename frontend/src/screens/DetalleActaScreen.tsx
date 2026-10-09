@@ -1,35 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated, Easing } from 'react-native';
+import { View, Pressable, ScrollView, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
-  ArrowClockwiseIcon,
-  FileDocIcon,
-  FilePdfIcon,
-  MarkdownLogoIcon,
-  SparkleIcon,
-  ShareNetworkIcon,
-  WarningCircleIcon,
-  WaveformIcon,
-} from 'phosphor-react-native';
+  AudioLines,
+  ChevronLeft,
+  FileText,
+  FileType,
+  Hash,
+  ListChecks,
+  RotateCw,
+  Share2,
+  Sparkles,
+  TriangleAlert,
+} from 'lucide-react-native';
 import type { RootStackParamList } from '../../App';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { PantallaCarga } from '../components/PantallaCarga';
-import { Header } from '../components/Header';
-import { BadgeEstado } from '../components/BadgeEstado';
-import { AvatarStack } from '../components/AvatarStack';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text, Button, Aviso, BadgeEstado, AvatarStack, EstadoVacio, PantallaCarga } from '../../components/ui';
 import { SelectorSegmentos, type Segmento } from '../components/SelectorSegmentos';
 import { TarjetaSeccionResumen } from '../components/TarjetaSeccionResumen';
 import { FilaIntervencion } from '../components/FilaIntervencion';
-import { EstadoVacio } from '../components/EstadoVacio';
-import { Boton } from '../components/Boton';
 import { HojaOpciones, type OpcionHoja } from '../components/HojaOpciones';
-import { Aviso } from '../components/Aviso';
 import { buscarActa } from '../mocks/actas';
 import { obtenerActaDetalle, hayBackend, ErrorApi } from '../services/api';
 import { compartirActa, ErrorCompartir } from '../services/compartirService';
 import { formatearMinutos } from '../utils/formato';
-import { colors, espaciado, radios, sombras, textos } from '../theme';
 import type {
   ActaDetalle,
   EstadoTranscripcion,
@@ -53,19 +48,19 @@ const PLANTILLAS: ReadonlyArray<OpcionHoja<PlantillaResumen>> = [
     id: 'ACTA_FORMAL',
     titulo: 'Acta formal',
     descripcion: 'Acuerdos, temas tratados y pendientes, con el tono de un acta de junta.',
-    icono: FileDocIcon,
+    icono: FileText,
   },
   {
     id: 'RESUMEN_EJECUTIVO',
     titulo: 'Resumen ejecutivo',
     descripcion: 'Media página con lo esencial de la reunión.',
-    icono: SparkleIcon,
+    icono: Sparkles,
   },
   {
     id: 'LISTA_ACUERDOS',
     titulo: 'Lista de acuerdos',
     descripcion: 'Solo las decisiones tomadas, sin contexto.',
-    icono: MarkdownLogoIcon,
+    icono: ListChecks,
   },
 ];
 
@@ -74,9 +69,9 @@ const PLANTILLAS: ReadonlyArray<OpcionHoja<PlantillaResumen>> = [
  * negocio), así que la lista cambia según la pestaña abierta.
  */
 const FORMATOS_RESUMEN: ReadonlyArray<OpcionHoja<FormatoArchivo>> = [
-  { id: 'PDF', titulo: 'PDF', descripcion: 'Listo para imprimir o firmar.', icono: FilePdfIcon },
-  { id: 'WORD', titulo: 'Word', descripcion: 'Editable antes de enviarlo.', icono: FileDocIcon },
-  { id: 'MARKDOWN', titulo: 'Markdown', descripcion: 'Texto plano para notas o wiki.', icono: MarkdownLogoIcon },
+  { id: 'PDF', titulo: 'PDF', descripcion: 'Listo para imprimir o firmar.', icono: FileText },
+  { id: 'WORD', titulo: 'Word', descripcion: 'Editable antes de enviarlo.', icono: FileType },
+  { id: 'MARKDOWN', titulo: 'Markdown', descripcion: 'Texto plano para notas o wiki.', icono: Hash },
 ];
 
 const FORMATOS_TRANSCRIPCION = FORMATOS_RESUMEN.slice(0, 1);
@@ -85,6 +80,7 @@ const FORMATOS_TRANSCRIPCION = FORMATOS_RESUMEN.slice(0, 1);
 const MS_GENERACION = 2200;
 
 export function DetalleActaScreen({ route, navigation }: Props) {
+  const t = useTheme();
   const insets = useSafeAreaInsets();
   const { actaId } = route.params;
 
@@ -190,19 +186,39 @@ export function DetalleActaScreen({ route, navigation }: Props) {
     }, MS_GENERACION);
   }, []);
 
+  const volver = () => navigation.goBack();
+
+  const encabezado = (
+    <Pressable
+      onPress={volver}
+      accessibilityRole="button"
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+        alignSelf: 'flex-start',
+        paddingTop: Math.max(insets.top, t.spacing[3]) + t.spacing[2],
+        paddingHorizontal: t.spacing[4],
+      }}
+    >
+      <ChevronLeft size={22} color={t.colors.brandStrong} strokeWidth={2} />
+      <Text variant="body" color="brandStrong">
+        Mis actas
+      </Text>
+    </Pressable>
+  );
+
   if (!acta && errorCarga) {
     return (
-      <ScreenBackground>
-        <View style={[styles.raiz, { paddingTop: Math.max(insets.top, espaciado.md) + espaciado.sm }]}>
-          <Header onBack={() => navigation.goBack()} onOptions={() => {}} />
-          <EstadoVacio
-            icono={WarningCircleIcon}
-            titulo="No se pudo cargar el acta"
-            descripcion={errorCarga}
-            accion={{ titulo: 'Reintentar', onPress: () => setIntento((n) => n + 1) }}
-          />
-        </View>
-      </ScreenBackground>
+      <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+        {encabezado}
+        <EstadoVacio
+          icono={TriangleAlert}
+          titulo="No se pudo cargar el acta"
+          descripcion={errorCarga}
+          accion={{ titulo: 'Reintentar', onPress: () => setIntento((n) => n + 1) }}
+        />
+      </View>
     );
   }
 
@@ -214,17 +230,15 @@ export function DetalleActaScreen({ route, navigation }: Props) {
   // profundo caducado.
   if (!acta) {
     return (
-      <ScreenBackground>
-        <View style={[styles.raiz, { paddingTop: Math.max(insets.top, espaciado.md) + espaciado.sm }]}>
-          <Header onBack={() => navigation.goBack()} onOptions={() => {}} />
-          <EstadoVacio
-            icono={WarningCircleIcon}
-            titulo="No encontramos esta acta"
-            descripcion="Puede que se haya eliminado o que el enlace ya no sea válido."
-            accion={{ titulo: 'Volver a mis actas', onPress: () => navigation.goBack() }}
-          />
-        </View>
-      </ScreenBackground>
+      <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+        {encabezado}
+        <EstadoVacio
+          icono={TriangleAlert}
+          titulo="No encontramos esta acta"
+          descripcion="Puede que se haya eliminado o que el enlace ya no sea válido."
+          accion={{ titulo: 'Volver a mis actas', onPress: volver }}
+        />
+      </View>
     );
   }
 
@@ -233,58 +247,53 @@ export function DetalleActaScreen({ route, navigation }: Props) {
   const puedeCompartir = pestana === 'resumen' ? resumen !== null : transcrita;
 
   return (
-    <ScreenBackground>
-      <View style={[styles.raiz, { paddingTop: Math.max(insets.top, espaciado.md) + espaciado.sm }]}>
-        <Header onBack={() => navigation.goBack()} onOptions={() => {}} />
+    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+      {encabezado}
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.contenido}
-        >
-          <View style={styles.ficha}>
-            <BadgeEstado estado={acta.estadoTranscripcion} />
-            <Text style={textos.titulo}>{acta.titulo}</Text>
-            <Text style={textos.apoyo}>
-              {acta.fecha} · {formatearMinutos(acta.duracionMinutos)}
-            </Text>
-            <View style={styles.participantes}>
-              <AvatarStack participantes={acta.participantes} />
-            </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: t.spacing[5], paddingBottom: t.spacing[16], gap: t.spacing[5] }}>
+        <View style={{ gap: t.spacing[2], paddingTop: t.spacing[2] }}>
+          <BadgeEstado estado={acta.estadoTranscripcion} />
+          <Text variant="title">{acta.titulo}</Text>
+          <Text variant="caption" color="text2">
+            {acta.fecha} · {formatearMinutos(acta.duracionMinutos)}
+          </Text>
+          <View style={{ marginTop: t.spacing[1] }}>
+            <AvatarStack participantes={acta.participantes} />
           </View>
+        </View>
 
-          <SelectorSegmentos segmentos={PESTANAS} activo={pestana} onSeleccionar={setPestana} />
+        <SelectorSegmentos segmentos={PESTANAS} activo={pestana} onSeleccionar={setPestana} />
 
-          <Animated.View style={[styles.panel, { opacity: aparicion }]}>
-            {vista.pestana === 'resumen' && (
-              <PanelResumen
-                estadoTranscripcion={acta.estadoTranscripcion}
-                generando={vista.generando}
-                resumen={vista.resumen}
-                onGenerar={() => setHojaPlantillas(true)}
-                onVerTranscripcion={() => setPestana('transcripcion')}
-              />
-            )}
-
-            {vista.pestana === 'transcripcion' && (
-              <PanelTranscripcion estado={acta.estadoTranscripcion} intervenciones={acta.intervenciones} />
-            )}
-          </Animated.View>
-        </ScrollView>
-
-        {puedeCompartir && (
-          <View style={[styles.barra, { paddingBottom: Math.max(insets.bottom, espaciado.lg) }]}>
-            {errorCompartir && (
-              <Aviso tono="error" mensaje={errorCompartir} onCerrar={() => setErrorCompartir(null)} />
-            )}
-            <Boton
-              titulo={compartiendo ? 'Preparando archivo' : 'Compartir'}
-              cargando={compartiendo}
-              icono={(color, size) => <ShareNetworkIcon size={size} weight="bold" color={color} />}
-              onPress={() => setHojaFormatos(true)}
+        <Animated.View style={{ minHeight: 200, opacity: aparicion }}>
+          {vista.pestana === 'resumen' && (
+            <PanelResumen
+              estadoTranscripcion={acta.estadoTranscripcion}
+              generando={vista.generando}
+              resumen={vista.resumen}
+              onGenerar={() => setHojaPlantillas(true)}
+              onVerTranscripcion={() => setPestana('transcripcion')}
             />
-          </View>
-        )}
-      </View>
+          )}
+
+          {vista.pestana === 'transcripcion' && (
+            <PanelTranscripcion estado={acta.estadoTranscripcion} intervenciones={acta.intervenciones} />
+          )}
+        </Animated.View>
+      </ScrollView>
+
+      {puedeCompartir && (
+        <View style={{ gap: t.spacing[3], paddingHorizontal: t.spacing[5], paddingTop: t.spacing[3], paddingBottom: Math.max(insets.bottom, t.spacing[5]), backgroundColor: t.colors.surface, borderTopWidth: 1, borderTopColor: t.colors.border }}>
+          {errorCompartir && <Aviso tono="error" mensaje={errorCompartir} onCerrar={() => setErrorCompartir(null)} />}
+          <Button
+            label={compartiendo ? 'Preparando archivo' : 'Compartir'}
+            size="xl"
+            fullWidth
+            loading={compartiendo}
+            icon={(c) => <Share2 size={18} color={c} strokeWidth={1.8} />}
+            onPress={() => setHojaFormatos(true)}
+          />
+        </View>
+      )}
 
       <HojaOpciones
         visible={hojaPlantillas}
@@ -308,7 +317,7 @@ export function DetalleActaScreen({ route, navigation }: Props) {
         onSeleccionar={compartir}
         onCerrar={() => setHojaFormatos(false)}
       />
-    </ScreenBackground>
+    </View>
   );
 }
 
@@ -326,12 +335,14 @@ function PanelResumen({
   onGenerar: () => void;
   onVerTranscripcion: () => void;
 }) {
+  const t = useTheme();
+
   // Sin transcripción no hay resumen posible, pero el motivo importa: si falló
   // no llegará nunca sola y hay que mandar al usuario a reintentarla.
   if (estadoTranscripcion === 'FALLIDA') {
     return (
       <EstadoVacio
-        icono={WarningCircleIcon}
+        icono={TriangleAlert}
         titulo="No se puede resumir esta reunión"
         descripcion="La transcripción falló, y sin texto la IA no tiene de dónde partir. Reintenta la transcripción y vuelve aquí."
         accion={{ titulo: 'Ver la transcripción', onPress: onVerTranscripcion }}
@@ -342,7 +353,7 @@ function PanelResumen({
   if (estadoTranscripcion !== 'COMPLETADA') {
     return (
       <EstadoVacio
-        icono={WaveformIcon}
+        icono={AudioLines}
         titulo="Todavía no hay transcripción"
         descripcion="El resumen se genera a partir del texto transcrito. En cuanto la transcripción termine, podrás pedirlo."
       />
@@ -351,9 +362,9 @@ function PanelResumen({
 
   if (generando) {
     return (
-      <View style={styles.generando}>
-        <Boton titulo="Generando resumen" cargando onPress={() => {}} />
-        <Text style={[textos.apoyo, styles.centrado]}>
+      <View style={{ gap: t.spacing[4], paddingVertical: t.spacing[10] }}>
+        <Button label="Generando resumen" size="xl" fullWidth loading onPress={() => {}} />
+        <Text variant="caption" color="text2" style={{ textAlign: 'center' }}>
           La IA está leyendo la transcripción. Puedes salir de la pantalla, seguirá en segundo plano.
         </Text>
       </View>
@@ -363,7 +374,7 @@ function PanelResumen({
   if (!resumen) {
     return (
       <EstadoVacio
-        icono={SparkleIcon}
+        icono={Sparkles}
         titulo="Aún no has generado el resumen"
         descripcion="El resumen nunca se crea solo: eliges la plantilla y la IA redacta el acta a partir de la transcripción."
         accion={{ titulo: 'Generar resumen', onPress: onGenerar }}
@@ -372,7 +383,7 @@ function PanelResumen({
   }
 
   return (
-    <View style={styles.secciones}>
+    <View style={{ gap: t.spacing[3] }}>
       {resumen.map((seccion) => (
         <TarjetaSeccionResumen key={seccion.id} seccion={seccion} />
       ))}
@@ -388,10 +399,12 @@ function PanelTranscripcion({
   estado: EstadoTranscripcion;
   intervenciones: IntervencionTranscripcion[];
 }) {
+  const t = useTheme();
+
   if (estado === 'FALLIDA') {
     return (
       <EstadoVacio
-        icono={WarningCircleIcon}
+        icono={TriangleAlert}
         titulo="La transcripción falló"
         descripcion="Se agotaron los tres intentos. Revisa que el audio se subiera completo y vuelve a lanzarla."
         accion={{ titulo: 'Reintentar transcripción', onPress: () => {} }}
@@ -402,7 +415,7 @@ function PanelTranscripcion({
   if (estado !== 'COMPLETADA') {
     return (
       <EstadoVacio
-        icono={ArrowClockwiseIcon}
+        icono={RotateCw}
         titulo="Transcripción en curso"
         descripcion="Los clips se procesan en orden. Te avisaremos en cuanto el texto esté listo."
       />
@@ -414,7 +427,7 @@ function PanelTranscripcion({
   if (intervenciones.length === 0) {
     return (
       <EstadoVacio
-        icono={WaveformIcon}
+        icono={AudioLines}
         titulo="Transcripción lista"
         descripcion="El texto ya está disponible, pero esta pantalla todavía no sabe mostrarlo aquí."
       />
@@ -422,7 +435,16 @@ function PanelTranscripcion({
   }
 
   return (
-    <View style={styles.intervenciones}>
+    <View
+      style={{
+        gap: t.spacing[5],
+        padding: t.spacing[5],
+        borderRadius: t.radius.lg,
+        backgroundColor: t.colors.surface,
+        borderWidth: 1,
+        borderColor: t.colors.border,
+      }}
+    >
       {intervenciones.map((intervencion) => (
         <FilaIntervencion key={intervencion.id} intervencion={intervencion} />
       ))}
@@ -446,35 +468,3 @@ const RESUMEN_GENERADO: SeccionResumen[] = [
     puntos: ['Definir el criterio de volumen para abordar el resto de la integración.'],
   },
 ];
-
-const styles = StyleSheet.create({
-  raiz: { flex: 1 },
-  contenido: {
-    paddingHorizontal: espaciado.xl,
-    paddingBottom: espaciado.enorme,
-    gap: espaciado.xl,
-  },
-  ficha: { gap: espaciado.sm, paddingTop: espaciado.lg },
-  participantes: { marginTop: espaciado.xs },
-  panel: { minHeight: 200 },
-  secciones: { gap: espaciado.md },
-  intervenciones: {
-    gap: espaciado.xl,
-    padding: espaciado.xl,
-    borderRadius: radios.xl,
-    backgroundColor: colors.superficie,
-    borderWidth: 1,
-    borderColor: colors.borde,
-    ...sombras.tarjeta,
-  },
-  generando: { gap: espaciado.lg, paddingVertical: espaciado.xxxl },
-  centrado: { textAlign: 'center' },
-  barra: {
-    gap: espaciado.md,
-    paddingHorizontal: espaciado.xl,
-    paddingTop: espaciado.md,
-    backgroundColor: colors.superficie,
-    borderTopWidth: 1,
-    borderTopColor: colors.borde,
-  },
-});

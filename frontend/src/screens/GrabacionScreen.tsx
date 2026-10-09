@@ -1,21 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, ScrollView } from 'react-native';
+import { View, Pressable, Animated, Easing, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
 import { File } from 'expo-file-system';
-import { UploadSimpleIcon } from 'phosphor-react-native';
+import { ChevronLeft, Upload } from 'lucide-react-native';
 import type { RootStackParamList } from '../../App';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { Header } from '../components/Header';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text, Button, Aviso, LiveIndicator, Waveform } from '../../components/ui';
 import { MicPulse } from '../components/MicPulse';
-import { EstadoPill } from '../components/EstadoPill';
-import { Cronometro } from '../components/Cronometro';
-import { Waveform } from '../components/Waveform';
 import { RecorderControls } from '../components/RecorderControllers';
 import { ProcesandoIA, type Paso } from '../components/ProcesandoIA';
-import { Boton } from '../components/Boton';
-import { Aviso } from '../components/Aviso';
 import { finalizarReunion, registrarClip, ErrorApi } from '../services/api';
 import {
   pedirPermisoMicrofono,
@@ -26,7 +21,7 @@ import {
   type ClipGrabado,
 } from '../services/grabacionAudio';
 import { subirClipAudio, BUCKET_AUDIOS, ErrorSubidaAudio } from '../services/supabaseClient';
-import { colors, espaciado, textos } from '../theme';
+import { formatearDuracion } from '../utils/formato';
 
 /** Extensión real del archivo grabado (el URI de expo-audio no siempre acaba en la extensión "de toda la vida"). */
 function extensionDe(uri: string): string {
@@ -45,9 +40,9 @@ function mensajeError(err: unknown, porDefecto: string): string {
 type Props = NativeStackScreenProps<RootStackParamList, 'Grabacion'>;
 
 /**
- * Estados de la pantalla. Coinciden con los cuatro frames del diseño y con el
- * ciclo de vida real: mientras `procesando`, el backend ya ha recibido el
- * `POST /finalizar` y está corriendo la Épica 2.
+ * Estados de la pantalla. Coinciden con el ciclo de vida real: mientras
+ * `procesando`, el backend ya ha recibido el `POST /finalizar` y está
+ * corriendo la Épica 2.
  */
 type Estado = 'inactivo' | 'grabando' | 'pausado' | 'procesando';
 
@@ -61,7 +56,19 @@ const PASOS: Paso[] = [
 /** Ritmo del checklist simulado. Sustituir por el progreso real del backend. */
 const MS_POR_PASO = 1800;
 
+const BARRAS_ONDA = 28;
+const NIVELES_REPOSO = Array.from({ length: BARRAS_ONDA }, () => 0.12);
+
+/** Onda decorativa: no lee el micrófono todavía (ver `grabacionAudio.ts`), solo pseudoaleatoriedad mientras `grabando`. */
+function nivelesAleatorios(): number[] {
+  return Array.from({ length: BARRAS_ONDA }, (_, i) => {
+    const envolvente = Math.sin((Math.PI * (i + 0.5)) / BARRAS_ONDA);
+    return Math.max(0.08, Math.min(1, envolvente * (0.4 + Math.random() * 0.6)));
+  });
+}
+
 export function GrabacionScreen({ navigation, route }: Props) {
+  const t = useTheme();
   const insets = useSafeAreaInsets();
   const { reunionId } = route.params;
   const [estado, setEstado] = useState<Estado>('inactivo');
@@ -69,6 +76,7 @@ export function GrabacionScreen({ navigation, route }: Props) {
   const [pasoActual, setPasoActual] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [niveles, setNiveles] = useState(NIVELES_REPOSO);
 
   // useAudioRecorder crea el recorder una vez al montar el componente y lo
   // libera al desmontar; expo-audio no ofrece forma de crearlo fuera de un
@@ -113,6 +121,15 @@ export function GrabacionScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (estado !== 'grabando') return;
     const id = setInterval(() => setSegundos((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [estado]);
+
+  // Onda decorativa: tiembla mientras se graba. Fuera de ese estado se pinta
+  // `NIVELES_REPOSO` directamente (ver más abajo), así el efecto solo
+  // arranca/detiene el intervalo y nunca llama a setState en su propio cuerpo.
+  useEffect(() => {
+    if (estado !== 'grabando') return;
+    const id = setInterval(() => setNiveles(nivelesAleatorios()), 220);
     return () => clearInterval(id);
   }, [estado]);
 
@@ -218,102 +235,105 @@ export function GrabacionScreen({ navigation, route }: Props) {
   };
 
   return (
-    <ScreenBackground>
-      <View style={[styles.raiz, { paddingTop: Math.max(insets.top, espaciado.md) + espaciado.sm }]}>
-        <Header onBack={() => navigation.goBack()} onOptions={() => {}} />
+    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+      <Pressable
+        onPress={() => navigation.goBack()}
+        accessibilityRole="button"
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 2,
+          alignSelf: 'flex-start',
+          paddingTop: Math.max(insets.top, t.spacing[3]) + t.spacing[2],
+          paddingHorizontal: t.spacing[4],
+        }}
+      >
+        <ChevronLeft size={22} color={t.colors.brandStrong} strokeWidth={2} />
+        <Text variant="body" color="brandStrong">
+          Antes de grabar
+        </Text>
+      </Pressable>
 
-        <ScrollView
-          contentContainerStyle={[
-            styles.contenido,
-            { paddingBottom: insets.bottom + espaciado.xxl },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          <Animated.View style={[styles.centro, estiloAnimado]}>
-            {estadoVisible === 'inactivo' && (
-              <>
-                <MicPulse />
-                <View style={styles.encabezado}>
-                  <Text style={[textos.titulo, styles.centrado]}>Listo para grabar</Text>
-                  <Text style={[textos.apoyo, styles.centrado, styles.subtitulo]}>
-                    Graba tu reunión y la IA hará{'\n'}el resto automáticamente
-                  </Text>
-                </View>
-              </>
-            )}
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingHorizontal: t.spacing[6],
+          paddingBottom: insets.bottom + t.spacing[8],
+          justifyContent: 'space-between',
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: t.spacing[8], paddingVertical: t.spacing[10] }, estiloAnimado]}>
+          {estadoVisible === 'inactivo' && (
+            <>
+              <MicPulse />
+              <View style={{ alignItems: 'center', gap: t.spacing[2] }}>
+                <Text variant="title" style={{ textAlign: 'center' }}>
+                  Listo para grabar
+                </Text>
+                <Text variant="caption" color="text2" style={{ textAlign: 'center', maxWidth: 260 }}>
+                  Graba tu reunión y la IA hará{'\n'}el resto automáticamente
+                </Text>
+              </View>
+            </>
+          )}
 
-            {(estadoVisible === 'grabando' || estadoVisible === 'pausado') && (
-              <>
-                <EstadoPill
-                  texto={estado === 'grabando' ? 'Grabando' : 'En pausa'}
-                  color={estado === 'grabando' ? colors.grabando : colors.pausado}
-                  latiendo={estado === 'grabando'}
-                />
-                <Cronometro segundos={segundos} />
-                <Waveform activo={estado === 'grabando'} />
-                <RecorderControls
-                  grabando={estado === 'grabando'}
-                  onAlternar={alternarPausa}
-                  onDetener={descartar}
-                  onMejorar={() => {}}
-                />
-              </>
-            )}
-
-            {estadoVisible === 'procesando' && <ProcesandoIA pasos={PASOS} pasoActual={pasoActual} />}
-          </Animated.View>
-
-          <View style={styles.acciones}>
-            {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
-
-            {estado === 'inactivo' && (
-              <>
-                <Boton
-                  titulo={cargando ? 'Iniciando…' : 'Iniciar grabación'}
-                  cargando={cargando}
-                  onPress={iniciar}
-                />
-                <Boton
-                  titulo="Importar archivo de audio"
-                  variante="secundario"
-                  icono={(color, size) => <UploadSimpleIcon size={size} weight="bold" color={color} />}
-                  onPress={() => {}}
-                  disabled={cargando}
-                />
-              </>
-            )}
-
-            {(estado === 'grabando' || estado === 'pausado') && (
-              <Boton
-                titulo={cargando ? 'Finalizando…' : 'Finalizar grabación'}
-                variante="secundario"
-                cargando={cargando}
-                onPress={finalizar}
+          {(estadoVisible === 'grabando' || estadoVisible === 'pausado') && (
+            <>
+              <LiveIndicator
+                label={estado === 'grabando' ? 'Grabando' : 'En pausa'}
+                time={formatearDuracion(segundos)}
+                tone={estado === 'grabando' ? 'solid' : 'off'}
               />
-            )}
-          </View>
-        </ScrollView>
-      </View>
-    </ScreenBackground>
+              <Waveform levels={estado === 'grabando' ? niveles : NIVELES_REPOSO} height={46} idle={estado !== 'grabando'} />
+              <RecorderControls
+                grabando={estado === 'grabando'}
+                onAlternar={alternarPausa}
+                onDetener={descartar}
+                onMejorar={() => {}}
+              />
+            </>
+          )}
+
+          {estadoVisible === 'procesando' && <ProcesandoIA pasos={PASOS} pasoActual={pasoActual} />}
+        </Animated.View>
+
+        <View style={{ gap: t.spacing[3] }}>
+          {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
+
+          {estado === 'inactivo' && (
+            <>
+              <Button
+                label={cargando ? 'Iniciando…' : 'Iniciar grabación'}
+                size="xl"
+                fullWidth
+                loading={cargando}
+                onPress={iniciar}
+              />
+              <Button
+                label="Importar archivo de audio"
+                variant="secondary"
+                size="xl"
+                fullWidth
+                icon={(c) => <Upload size={18} color={c} strokeWidth={1.8} />}
+                onPress={() => {}}
+                disabled={cargando}
+              />
+            </>
+          )}
+
+          {(estado === 'grabando' || estado === 'pausado') && (
+            <Button
+              label={cargando ? 'Finalizando…' : 'Finalizar grabación'}
+              variant="secondary"
+              size="xl"
+              fullWidth
+              loading={cargando}
+              onPress={finalizar}
+            />
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  raiz: { flex: 1 },
-  contenido: {
-    flexGrow: 1,
-    paddingHorizontal: espaciado.xxl,
-    justifyContent: 'space-between',
-  },
-  centro: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: espaciado.xxl,
-    paddingVertical: espaciado.xxxl,
-  },
-  encabezado: { alignItems: 'center', gap: espaciado.sm },
-  centrado: { textAlign: 'center' },
-  subtitulo: { maxWidth: 260 },
-  acciones: { gap: espaciado.md },
-});

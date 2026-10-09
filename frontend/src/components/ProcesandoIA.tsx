@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Animated, Easing } from 'react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text, AnilloCarga } from '../../components/ui';
 import { PasoProceso, type EstadoPaso } from './PasoProceso';
-import { AnilloCarga } from './AnilloCarga';
-import { espaciado, textos } from '../theme';
 
 export interface Paso {
   id: string;
@@ -15,14 +15,13 @@ interface Props {
   pasoActual: number;
 }
 
-const TAMANO_ANILLO = 88;
-
 /**
  * Estado "Procesando con IA": anillo giratorio sobre la marca y checklist de
  * progreso. La lista se atenúa progresivamente hacia abajo para sugerir que
  * quedan pasos sin llegar todavía.
  */
 export function ProcesandoIA({ pasos, pasoActual }: Props) {
+  const t = useTheme();
   // Un valor de entrada por paso, para que el checklist aparezca escalonado
   // en vez de de golpe. Se crea una sola vez: `pasos` no cambia tras montar.
   const entradaPasos = useRef(pasos.map(() => new Animated.Value(0))).current;
@@ -36,27 +35,26 @@ export function ProcesandoIA({ pasos, pasoActual }: Props) {
     ).start();
   }, [entradaPasos]);
 
-  const estadoDe = (i: number): EstadoPaso =>
-    i < pasoActual ? 'completado' : i === pasoActual ? 'activo' : 'pendiente';
+  const estadoDe = (i: number): EstadoPaso => (i < pasoActual ? 'completado' : i === pasoActual ? 'activo' : 'pendiente');
 
   return (
-    <View style={styles.contenedor}>
-      <AnilloCarga size={TAMANO_ANILLO} />
+    <View style={{ alignItems: 'center', width: '100%' }}>
+      <AnilloCarga size={88} />
 
-      <View style={styles.encabezado}>
-        <Text style={textos.titulo}>Procesando con IA</Text>
-        <Text style={[textos.apoyo, styles.subtitulo]}>Solo tardará un momento</Text>
+      <View style={{ alignItems: 'center', marginTop: t.spacing[6], marginBottom: t.spacing[8], gap: t.spacing[1] }}>
+        <Text variant="title">Procesando con IA</Text>
+        <Text variant="caption" color="text2" style={{ textAlign: 'center' }}>
+          Solo tardará un momento
+        </Text>
       </View>
 
-      <View style={styles.lista}>
+      <View style={{ width: '100%', gap: t.spacing[2] }}>
         {pasos.map((paso, i) => (
           <Animated.View
             key={paso.id}
             style={{
               opacity: entradaPasos[i],
-              transform: [
-                { translateY: entradaPasos[i].interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
-              ],
+              transform: [{ translateY: entradaPasos[i].interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
             }}
           >
             <PasoProceso
@@ -70,15 +68,3 @@ export function ProcesandoIA({ pasos, pasoActual }: Props) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  contenedor: { alignItems: 'center', width: '100%' },
-  encabezado: {
-    alignItems: 'center',
-    marginTop: espaciado.xxl,
-    marginBottom: espaciado.xxxl,
-    gap: espaciado.xs,
-  },
-  subtitulo: { textAlign: 'center' },
-  lista: { width: '100%', gap: espaciado.sm },
-});

@@ -1,73 +1,52 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { CaretRightIcon, MicrophoneIcon } from 'phosphor-react-native';
+import { View } from 'react-native';
+import { ChevronRight, Mic } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text } from '../../components/ui';
 import { PressableEscala } from './PressableEscala';
-import { colors, espaciado, radios, sombras, textos, tipografia } from '../theme';
 
 interface Props {
   onPress: () => void;
 }
 
-/** Llamada a la acción principal de "Mis actas". */
+/** Llamada a la acción principal de "Mis actas". Brand-soft plano, sin degradado (ver design/README.md). */
 export function TarjetaNuevaGrabacion({ onPress }: Props) {
+  const t = useTheme();
   return (
     <PressableEscala onPress={onPress} escala={0.98} accessibilityLabel="Nueva grabación">
-      <LinearGradient
-        colors={[...colors.marronGradiente]}
-        start={{ x: 0.05, y: 0 }}
-        end={{ x: 0.95, y: 1 }}
-        style={styles.tarjeta}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: t.spacing[4],
+          padding: t.spacing[4],
+          borderRadius: t.radius.lg,
+          backgroundColor: t.colors.brandSoft,
+        }}
       >
-        <View style={styles.icono}>
-          <MicrophoneIcon size={22} weight="fill" color={colors.textoInverso} />
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: t.radius.full,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: t.colors.brand,
+          }}
+        >
+          <Mic size={22} color={t.colors.onBrand} strokeWidth={1.8} />
         </View>
 
-        <View style={styles.cuerpo}>
-          <Text style={styles.titulo}>Nueva grabación</Text>
-          <Text style={styles.apoyo}>Empieza en segundos</Text>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text variant="bodyStrong" color="brandStrong">
+            Nueva grabación
+          </Text>
+          <Text variant="caption" color="text2">
+            Empieza en segundos
+          </Text>
         </View>
 
-        <View style={styles.chevron}>
-          <CaretRightIcon size={14} weight="bold" color={colors.textoInverso} />
-        </View>
-      </LinearGradient>
+        <ChevronRight size={18} color={t.colors.brandStrong} strokeWidth={2} />
+      </View>
     </PressableEscala>
   );
 }
-
-const styles = StyleSheet.create({
-  tarjeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaciado.lg,
-    padding: espaciado.xl,
-    borderRadius: radios.xxl,
-    ...sombras.elevada,
-  },
-  icono: {
-    width: 46,
-    height: 46,
-    borderRadius: radios.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 252, 248, 0.16)',
-  },
-  cuerpo: { flex: 1, gap: 2 },
-  titulo: {
-    ...textos.subtitulo,
-    color: colors.textoInverso,
-  },
-  apoyo: {
-    fontFamily: tipografia.familia.regular,
-    fontSize: tipografia.tamano.sm,
-    color: colors.textoInversoSuave,
-  },
-  chevron: {
-    width: 28,
-    height: 28,
-    borderRadius: radios.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 252, 248, 0.16)',
-  },
-});

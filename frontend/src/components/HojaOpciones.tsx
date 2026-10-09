@@ -1,15 +1,16 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, Modal, Pressable, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Modal, Pressable, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CheckIcon, type Icon } from 'phosphor-react-native';
+import { Check, type LucideIcon } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text } from '../../components/ui';
 import { PressableEscala } from './PressableEscala';
-import { colors, espaciado, radios, sombras, textos, tipografia } from '../theme';
 
 export interface OpcionHoja<T extends string> {
   id: T;
   titulo: string;
   descripcion?: string;
-  icono?: Icon;
+  icono?: LucideIcon;
 }
 
 interface Props<T extends string> {
@@ -37,6 +38,7 @@ export function HojaOpciones<T extends string>({
   onSeleccionar,
   onCerrar,
 }: Props<T>) {
+  const t = useTheme();
   const insets = useSafeAreaInsets();
   const entrada = useRef(new Animated.Value(0)).current;
   // Un valor de entrada por opción, para escalonar su aparición en vez de que
@@ -69,30 +71,39 @@ export function HojaOpciones<T extends string>({
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onCerrar}>
-      <Animated.View style={[styles.velo, { opacity: entrada }]}>
+      <Animated.View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: t.colors.scrim, opacity: entrada }}>
         {/* El velo cierra al pulsar fuera; la hoja detiene la propagación. */}
-        <Pressable style={styles.veloPulsable} onPress={onCerrar} accessibilityLabel="Cerrar" />
+        <Pressable style={{ flex: 1 }} onPress={onCerrar} accessibilityLabel="Cerrar" />
       </Animated.View>
 
       <Animated.View
-        style={[
-          styles.hoja,
-          {
-            paddingBottom: Math.max(insets.bottom, espaciado.xl),
-            transform: [
-              { translateY: entrada.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }) },
-            ],
-          },
-        ]}
+        style={{
+          position: 'absolute',
+          right: 0,
+          bottom: 0,
+          left: 0,
+          paddingTop: t.spacing[3],
+          paddingHorizontal: t.spacing[5],
+          borderTopLeftRadius: t.radius.xl,
+          borderTopRightRadius: t.radius.xl,
+          backgroundColor: t.colors.surface,
+          boxShadow: t.shadows.lg,
+          paddingBottom: Math.max(insets.bottom, t.spacing[5]),
+          transform: [{ translateY: entrada.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }) }],
+        }}
       >
-        <View style={styles.asa} />
+        <View style={{ alignSelf: 'center', width: 38, height: 4, borderRadius: t.radius.full, backgroundColor: t.colors.borderStrong, marginBottom: t.spacing[5] }} />
 
-        <View style={styles.encabezado}>
-          <Text style={textos.subtitulo}>{titulo}</Text>
-          {descripcion && <Text style={textos.apoyo}>{descripcion}</Text>}
+        <View style={{ gap: t.spacing[1], marginBottom: t.spacing[5] }}>
+          <Text variant="titleSm">{titulo}</Text>
+          {descripcion && (
+            <Text variant="caption" color="text2">
+              {descripcion}
+            </Text>
+          )}
         </View>
 
-        <View style={styles.opciones}>
+        <View style={{ gap: t.spacing[2] }}>
           {opciones.map((opcion) => {
             const activa = opcion.id === seleccionada;
             const Icono = opcion.icono;
@@ -102,38 +113,63 @@ export function HojaOpciones<T extends string>({
                 key={opcion.id}
                 style={{
                   opacity: entradaOpcion,
-                  transform: [
-                    { translateY: entradaOpcion.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
-                  ],
+                  transform: [{ translateY: entradaOpcion.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
                 }}
               >
                 <PressableEscala
                   onPress={() => onSeleccionar(opcion.id)}
                   escala={0.98}
-                  style={[styles.opcion, activa && styles.opcionActiva]}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: t.spacing[4],
+                    padding: t.spacing[4],
+                    borderRadius: t.radius.lg,
+                    backgroundColor: t.colors.surface,
+                    borderWidth: 1,
+                    borderColor: activa ? t.colors.brand : t.colors.border,
+                  }}
                   accessibilityLabel={opcion.titulo}
                   accessibilityState={{ selected: activa }}
                 >
                   {Icono && (
-                    <View style={styles.icono}>
-                      <Icono size={19} weight="regular" color={colors.marronClaro} />
+                    <View
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: t.radius.md,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: t.colors.surface2,
+                      }}
+                    >
+                      <Icono size={19} color={t.colors.text2} strokeWidth={1.8} />
                     </View>
                   )}
 
-                  <View style={styles.cuerpo}>
-                    <Text style={styles.opcionTitulo} numberOfLines={1}>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <Text variant="bodyStrong" numberOfLines={1}>
                       {opcion.titulo}
                     </Text>
                     {opcion.descripcion && (
-                      <Text style={textos.meta} numberOfLines={2}>
+                      <Text variant="caption" color="text2" numberOfLines={2}>
                         {opcion.descripcion}
                       </Text>
                     )}
                   </View>
 
                   {activa && (
-                    <View style={styles.check}>
-                      <CheckIcon size={13} weight="bold" color={colors.textoInverso} />
+                    <View
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: t.radius.full,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: t.colors.brand,
+                      }}
+                    >
+                      <Check size={13} color={t.colors.onBrand} strokeWidth={2.4} />
                     </View>
                   )}
                 </PressableEscala>
@@ -145,69 +181,3 @@ export function HojaOpciones<T extends string>({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  velo: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: 'rgba(44, 24, 16, 0.38)',
-  },
-  veloPulsable: { flex: 1 },
-  hoja: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
-    paddingTop: espaciado.md,
-    paddingHorizontal: espaciado.xl,
-    borderTopLeftRadius: radios.xxl,
-    borderTopRightRadius: radios.xxl,
-    backgroundColor: colors.crema,
-    ...sombras.elevada,
-  },
-  asa: {
-    alignSelf: 'center',
-    width: 38,
-    height: 4,
-    borderRadius: radios.pill,
-    backgroundColor: colors.bordeFuerte,
-    marginBottom: espaciado.xl,
-  },
-  encabezado: { gap: espaciado.xs, marginBottom: espaciado.xl },
-  opciones: { gap: espaciado.sm },
-  opcion: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espaciado.lg,
-    padding: espaciado.lg,
-    borderRadius: radios.lg,
-    backgroundColor: colors.superficie,
-    borderWidth: 1,
-    borderColor: colors.borde,
-  },
-  opcionActiva: { borderColor: colors.acento },
-  icono: {
-    width: 38,
-    height: 38,
-    borderRadius: radios.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.superficieHundida,
-  },
-  cuerpo: { flex: 1, gap: 1 },
-  opcionTitulo: {
-    ...textos.accion,
-    fontFamily: tipografia.familia.bold,
-  },
-  check: {
-    width: 22,
-    height: 22,
-    borderRadius: radios.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.acento,
-  },
-});

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated, type LayoutChangeEvent } from 'react-native';
-import { colors, espaciado, radios, sombras, tipografia } from '../theme';
+import { View, Pressable, Animated, type LayoutChangeEvent } from 'react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text } from '../../components/ui';
 
 export interface Segmento<T extends string> {
   id: T;
@@ -13,8 +14,8 @@ interface Props<T extends string> {
   onSeleccionar: (id: T) => void;
 }
 
-const ALTO = 44;
-const MARGEN = 4;
+const ALTO = 40;
+const MARGEN = 3;
 
 /**
  * Control segmentado. El indicador es una sola vista que se desliza, en vez de
@@ -26,6 +27,7 @@ const MARGEN = 4;
  * padre, no contra su contenido, y el indicador acabaría desalineado.
  */
 export function SelectorSegmentos<T extends string>({ segmentos, activo, onSeleccionar }: Props<T>) {
+  const t = useTheme();
   const [anchoPista, setAnchoPista] = useState(0);
   const indice = Math.max(0, segmentos.findIndex((s) => s.id === activo));
   const posicion = useRef(new Animated.Value(0)).current;
@@ -60,14 +62,25 @@ export function SelectorSegmentos<T extends string>({ segmentos, activo, onSelec
   const medir = (e: LayoutChangeEvent) => setAnchoPista(e.nativeEvent.layout.width);
 
   return (
-    <View style={styles.pista} onLayout={medir} accessibilityRole="tablist">
+    <View
+      style={{ flexDirection: 'row', height: ALTO, borderRadius: t.radius.md, backgroundColor: t.colors.surface2, padding: MARGEN }}
+      onLayout={medir}
+      accessibilityRole="tablist"
+    >
       {anchoSegmento > 0 && (
         <Animated.View
           pointerEvents="none"
-          style={[
-            styles.indicador,
-            { width: anchoSegmento, transform: [{ translateX: posicion }] },
-          ]}
+          style={{
+            position: 'absolute',
+            top: MARGEN,
+            left: MARGEN,
+            bottom: MARGEN,
+            width: anchoSegmento,
+            borderRadius: t.radius.sm,
+            backgroundColor: t.colors.surface,
+            boxShadow: t.shadows.sm,
+            transform: [{ translateX: posicion }],
+          }}
         />
       )}
 
@@ -79,22 +92,13 @@ export function SelectorSegmentos<T extends string>({ segmentos, activo, onSelec
             onPress={() => onSeleccionar(segmento.id)}
             onPressIn={() => animarEscala(segmento.id, 0.96)}
             onPressOut={() => animarEscala(segmento.id, 1)}
-            style={styles.segmento}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: t.spacing[2] }}
             accessibilityRole="tab"
             accessibilityLabel={segmento.etiqueta}
             accessibilityState={{ selected: seleccionado }}
           >
             <Animated.View style={{ transform: [{ scale: escalas.get(segmento.id)! }] }}>
-              <Text
-                style={[
-                  styles.texto,
-                  {
-                    color: seleccionado ? colors.textoPrincipal : colors.textoSecundario,
-                    fontFamily: seleccionado ? tipografia.familia.bold : tipografia.familia.medium,
-                  },
-                ]}
-                numberOfLines={1}
-              >
+              <Text variant={seleccionado ? 'bodyStrong' : 'body'} color={seleccionado ? 'text' : 'text2'} numberOfLines={1} style={{ fontSize: 14 }}>
                 {segmento.etiqueta}
               </Text>
             </Animated.View>
@@ -104,32 +108,3 @@ export function SelectorSegmentos<T extends string>({ segmentos, activo, onSelec
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  pista: {
-    flexDirection: 'row',
-    height: ALTO,
-    borderRadius: radios.md,
-    backgroundColor: colors.superficieHundida,
-    padding: MARGEN,
-  },
-  indicador: {
-    position: 'absolute',
-    top: MARGEN,
-    left: MARGEN,
-    bottom: MARGEN,
-    borderRadius: radios.sm + 2,
-    backgroundColor: colors.superficie,
-    ...sombras.tarjeta,
-  },
-  segmento: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: espaciado.sm,
-  },
-  texto: {
-    fontSize: tipografia.tamano.sm,
-    letterSpacing: -0.1,
-  },
-});

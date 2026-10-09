@@ -1,15 +1,12 @@
 import { useCallback, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ChevronLeft, FileText, Users } from 'lucide-react-native';
 import type { RootStackParamList } from '../../App';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { Header } from '../components/Header';
-import { CampoFormulario } from '../components/CampoFormulario';
-import { Boton } from '../components/Boton';
-import { Aviso } from '../components/Aviso';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text, Button, Input, Aviso } from '../../components/ui';
 import { crearReunion, ErrorApi } from '../services/api';
-import { espaciado, textos } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NuevaGrabacion'>;
 
@@ -32,10 +29,15 @@ function parsearParticipantes(texto: string): string[] {
 /**
  * Paso previo a grabar: título y participantes, ambos opcionales (ver
  * ADR pendiente de confirmar UX de participantes — por ahora un solo campo
- * separado por comas, sin componente de chips). Al confirmar, crea la
- * reunión en el backend y navega a GrabacionScreen ya con su id.
+ * separado por comas, sin picker de contactos de la organización ni roles;
+ * el preview (`NuevaGrabacionScreen.html`) muestra ese flujo más rico, pero
+ * depende de un directorio de organización que el backend no expone todavía,
+ * así que queda para más adelante, igual que el registro en 2 pasos).
+ * Al confirmar, crea la reunión en el backend y navega a GrabacionScreen ya
+ * con su id.
  */
 export function NuevaGrabacionScreen({ navigation }: Props) {
+  const t = useTheme();
   const insets = useSafeAreaInsets();
   const [titulo, setTitulo] = useState('');
   const [participantes, setParticipantes] = useState('');
@@ -59,56 +61,77 @@ export function NuevaGrabacionScreen({ navigation }: Props) {
   }, [titulo, participantes, navigation]);
 
   return (
-    <ScreenBackground>
-      <View style={[styles.raiz, { paddingTop: Math.max(insets.top, espaciado.md) + espaciado.sm }]}>
-        <Header onBack={() => navigation.goBack()} onOptions={() => {}} />
+    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 2,
+            alignSelf: 'flex-start',
+            paddingTop: Math.max(insets.top, t.spacing[3]) + t.spacing[2],
+            paddingHorizontal: t.spacing[4],
+          }}
+        >
+          <ChevronLeft size={22} color={t.colors.brandStrong} strokeWidth={2} />
+          <Text variant="body" color="brandStrong">
+            Mis actas
+          </Text>
+        </Pressable>
 
-        <View style={[styles.contenido, { paddingBottom: insets.bottom + espaciado.xxl }]}>
-          <View style={styles.encabezado}>
-            <Text style={textos.titulo}>Antes de grabar</Text>
-            <Text style={[textos.apoyo, styles.subtitulo]}>
-              Título y participantes son opcionales: puedes dejarlos en blanco y añadirlos más tarde.
-            </Text>
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: t.spacing[5],
+            paddingTop: t.spacing[2],
+            paddingBottom: insets.bottom + t.spacing[8],
+            justifyContent: 'space-between',
+            gap: t.spacing[6],
+          }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={{ gap: t.spacing[5] }}>
+            <View style={{ gap: t.spacing[1] }}>
+              <Text variant="heading" style={{ fontSize: 28, lineHeight: 34, letterSpacing: -0.84 }}>
+                Antes de grabar
+              </Text>
+              <Text variant="caption" color="text2" style={{ maxWidth: 320 }}>
+                Título y participantes son opcionales: puedes dejarlos en blanco y añadirlos más tarde.
+              </Text>
+            </View>
+
+            <View style={{ gap: t.spacing[4] }}>
+              <Input
+                label="Título de la reunión"
+                value={titulo}
+                onChangeText={setTitulo}
+                placeholder="Ej. Junta directiva de octubre"
+                icon={(c) => <FileText size={18} color={c} />}
+              />
+              <Input
+                label="Participantes"
+                value={participantes}
+                onChangeText={setParticipantes}
+                placeholder="Ana, Pedro, María"
+                icon={(c) => <Users size={18} color={c} />}
+              />
+            </View>
           </View>
 
-          <View style={styles.campos}>
-            <CampoFormulario
-              etiqueta="Título de la reunión"
-              valor={titulo}
-              onCambiar={setTitulo}
-              placeholder="Ej. Junta directiva de octubre"
-            />
-            <CampoFormulario
-              etiqueta="Participantes"
-              valor={participantes}
-              onCambiar={setParticipantes}
-              placeholder="Ana, Pedro, María"
-            />
-          </View>
-
-          <View style={styles.acciones}>
+          <View style={{ gap: t.spacing[3] }}>
             {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
-            <Boton
-              titulo={cargando ? 'Creando…' : 'Continuar'}
-              cargando={cargando}
+            <Button
+              label={cargando ? 'Creando…' : 'Continuar'}
+              size="xl"
+              fullWidth
+              loading={cargando}
               onPress={continuar}
             />
           </View>
-        </View>
-      </View>
-    </ScreenBackground>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  raiz: { flex: 1 },
-  contenido: {
-    flex: 1,
-    paddingHorizontal: espaciado.xxl,
-    justifyContent: 'space-between',
-  },
-  encabezado: { gap: espaciado.sm, paddingTop: espaciado.xl },
-  subtitulo: { maxWidth: 320 },
-  campos: { gap: espaciado.lg },
-  acciones: { gap: espaciado.md },
-});

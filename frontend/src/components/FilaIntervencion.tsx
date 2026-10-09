@@ -1,18 +1,13 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { colors, espaciado, radios, tipografia } from '../theme';
+import { View } from 'react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text } from '../../components/ui';
 import type { IntervencionTranscripcion } from '../types';
 
 interface Props {
   intervencion: IntervencionTranscripcion;
 }
 
-/** Paleta rotatoria por interviniente; misma regla que en `AvatarStack`. */
-const TONOS = ['#C4956A', '#8B6A4F', '#A87B58', '#6B4A32', '#B5895F'];
-
-function tonoPara(nombre: string): string {
-  const suma = [...nombre].reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  return TONOS[suma % TONOS.length];
-}
+const TAMANO_AVATAR = 30;
 
 /**
  * Una intervención de la transcripción. Sin tarjeta ni borde: en un texto
@@ -20,63 +15,38 @@ function tonoPara(nombre: string): string {
  * la lectura corrida. La jerarquía la dan el nombre y la marca de tiempo.
  */
 export function FilaIntervencion({ intervencion }: Props) {
-  const tono = tonoPara(intervencion.interviniente);
-
+  const t = useTheme();
   return (
-    <View style={styles.fila}>
-      <View style={[styles.avatar, { backgroundColor: tono }]}>
-        <Text style={styles.inicial}>{intervencion.interviniente.charAt(0).toUpperCase()}</Text>
+    <View style={{ flexDirection: 'row', gap: t.spacing[3] }}>
+      <View
+        style={{
+          width: TAMANO_AVATAR,
+          height: TAMANO_AVATAR,
+          borderRadius: TAMANO_AVATAR / 2,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: t.colors.surface2,
+          boxShadow: `inset 0 0 0 1px ${t.colors.border}`,
+          flexShrink: 0,
+          marginTop: 2,
+        }}
+      >
+        <Text style={{ fontFamily: 'Geist_600SemiBold', fontSize: 12 }} color="text2">
+          {intervencion.interviniente.charAt(0).toUpperCase()}
+        </Text>
       </View>
 
-      <View style={styles.cuerpo}>
-        <View style={styles.cabecera}>
-          <Text style={styles.nombre} numberOfLines={1}>
+      <View style={{ flex: 1, gap: t.spacing[1] }}>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: t.spacing[2] }}>
+          <Text variant="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
             {intervencion.interviniente}
           </Text>
-          <Text style={styles.marca}>{intervencion.marca}</Text>
+          <Text variant="metadata" color="text3">
+            {intervencion.marca}
+          </Text>
         </View>
-        <Text style={styles.texto}>{intervencion.texto}</Text>
+        <Text variant="bodyLg">{intervencion.texto}</Text>
       </View>
     </View>
   );
 }
-
-const TAMANO_AVATAR = 30;
-
-const styles = StyleSheet.create({
-  fila: { flexDirection: 'row', gap: espaciado.md },
-  avatar: {
-    width: TAMANO_AVATAR,
-    height: TAMANO_AVATAR,
-    borderRadius: radios.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    marginTop: 2,
-  },
-  inicial: {
-    fontFamily: tipografia.familia.bold,
-    fontSize: tipografia.tamano.xs,
-    color: colors.textoInverso,
-  },
-  cuerpo: { flex: 1, gap: espaciado.xs },
-  cabecera: { flexDirection: 'row', alignItems: 'baseline', gap: espaciado.sm },
-  nombre: {
-    fontFamily: tipografia.familia.bold,
-    fontSize: tipografia.tamano.sm,
-    color: colors.textoPrincipal,
-    flexShrink: 1,
-  },
-  marca: {
-    fontFamily: tipografia.familia.medium,
-    fontSize: tipografia.tamano.xs,
-    color: colors.textoTerciario,
-    fontVariant: ['tabular-nums'],
-  },
-  texto: {
-    fontFamily: tipografia.familia.regular,
-    fontSize: tipografia.tamano.md,
-    lineHeight: tipografia.interlineado.lg,
-    color: colors.textoPrincipal,
-  },
-});

@@ -1,6 +1,7 @@
-import { ScrollView, Text, StyleSheet } from 'react-native';
+import { ScrollView } from 'react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text } from '../../components/ui';
 import { PressableEscala } from './PressableEscala';
-import { colors, espaciado, radios, sombras, tipografia } from '../theme';
 
 export interface Filtro<T extends string> {
   id: T;
@@ -14,16 +15,13 @@ interface Props<T extends string> {
 }
 
 /**
- * Chips de filtro en scroll horizontal. Genérico sobre el id para que la
- * pantalla no tenga que castear el valor devuelto.
+ * Chips de filtro en scroll horizontal. El activo invierte a `text`/`bg` en
+ * vez de usar brand: aquí el acento es solo de selección, no de IA/acción.
  */
 export function ChipsFiltro<T extends string>({ filtros, activo, onSeleccionar }: Props<T>) {
+  const t = useTheme();
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.contenido}
-    >
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: t.spacing[2], paddingVertical: t.spacing[1] }}>
       {filtros.map((filtro) => {
         const seleccionado = filtro.id === activo;
         return (
@@ -34,14 +32,18 @@ export function ChipsFiltro<T extends string>({ filtros, activo, onSeleccionar }
             accessibilityRole="tab"
             accessibilityLabel={filtro.etiqueta}
             accessibilityState={{ selected: seleccionado }}
-            style={[styles.chip, seleccionado ? styles.chipActivo : styles.chipInactivo]}
+            style={{
+              height: 32,
+              paddingHorizontal: t.spacing[4],
+              borderRadius: t.radius.full,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: seleccionado ? t.colors.text : t.colors.surface,
+              borderWidth: seleccionado ? 0 : 1,
+              borderColor: t.colors.borderStrong,
+            }}
           >
-            <Text
-              style={[
-                styles.texto,
-                { color: seleccionado ? colors.textoInverso : colors.textoSecundario },
-              ]}
-            >
+            <Text variant="label" style={{ color: seleccionado ? t.colors.bg : t.colors.text2 }}>
               {filtro.etiqueta}
             </Text>
           </PressableEscala>
@@ -50,30 +52,3 @@ export function ChipsFiltro<T extends string>({ filtros, activo, onSeleccionar }
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  contenido: {
-    gap: espaciado.sm,
-    paddingVertical: espaciado.xs,
-  },
-  chip: {
-    paddingVertical: espaciado.sm + 2,
-    paddingHorizontal: espaciado.lg,
-    borderRadius: radios.pill,
-    borderWidth: 1,
-  },
-  chipActivo: {
-    backgroundColor: colors.marronOscuro,
-    borderColor: colors.marronOscuro,
-    ...sombras.tarjeta,
-  },
-  chipInactivo: {
-    backgroundColor: colors.superficie,
-    borderColor: colors.borde,
-  },
-  texto: {
-    fontFamily: tipografia.familia.semibold,
-    fontSize: tipografia.tamano.sm,
-    letterSpacing: -0.1,
-  },
-});

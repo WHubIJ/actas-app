@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Animated, Easing } from 'react-native';
+import { View, FlatList, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { MagnifyingGlassIcon, MicrophoneIcon, WarningCircleIcon } from 'phosphor-react-native';
+import { Search, Mic, TriangleAlert } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text, EstadoVacio, PantallaCarga } from '../../components/ui';
 import type { RootStackParamList } from '../../App';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { PantallaCarga } from '../components/PantallaCarga';
 import { TarjetaNuevaGrabacion } from '../components/TarjetaNuevaGrabacion';
 import { Buscador } from '../components/Buscador';
 import { ChipsFiltro, type Filtro } from '../components/ChipsFiltro';
 import { TarjetaActa } from '../components/TarjetaActa';
-import { EstadoVacio } from '../components/EstadoVacio';
+import { ALTURA_FAB_SOBRESALIENTE } from '../components/TabBar';
 import { obtenerActas, hayBackend, ErrorApi } from '../services/api';
 import { ACTAS_EJEMPLO } from '../mocks/actas';
-import { espaciado, textos } from '../theme';
 import type { ActaResumen } from '../types';
 
 type IdFiltro = 'todas' | 'semana' | 'procesado' | 'enProceso';
@@ -47,6 +46,7 @@ function aplicarFiltro(actas: ActaResumen[], filtro: IdFiltro): ActaResumen[] {
 }
 
 export function MisActasScreen() {
+  const t = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const altoTabBar = useBottomTabBarHeight();
@@ -89,6 +89,7 @@ export function MisActasScreen() {
   }, [actasBackend, busqueda, filtro]);
 
   const hayBusquedaActiva = busqueda.trim().length > 0 || filtro !== 'todas';
+  const bibliotecaVacia = actasBackend !== null && actasBackend.length === 0;
 
   // La lista que de verdad se renderiza va un paso por detrás de `actas`: si
   // se sustituyera al instante (como hacía la versión anterior), React ya
@@ -132,38 +133,60 @@ export function MisActasScreen() {
 
   if (actasBackend === null && errorCarga) {
     return (
-      <ScreenBackground>
-        <View style={[styles.errorCarga, { paddingTop: Math.max(insets.top, espaciado.lg) }]}>
+      <View style={{ flex: 1, backgroundColor: t.colors.bg, justifyContent: 'center', paddingTop: Math.max(insets.top, t.spacing[6]) }}>
+        <EstadoVacio
+          icono={TriangleAlert}
+          titulo="No se pudieron cargar tus actas"
+          descripcion={errorCarga}
+          accion={{ titulo: 'Reintentar', onPress: () => setIntento((n) => n + 1) }}
+        />
+      </View>
+    );
+  }
+
+  // Biblioteca realmente vacía (nunca hubo actas): sin CTA ni chips, el
+  // propio estado vacío ya invita a grabar la primera reunión.
+  if (bibliotecaVacia) {
+    return (
+      <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+        <View
+          style={{
+            paddingTop: Math.max(insets.top, t.spacing[6]) + t.spacing[4],
+            paddingHorizontal: t.spacing[5],
+          }}
+        >
+          <Text variant="heading">Mis actas</Text>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center' }}>
           <EstadoVacio
-            icono={WarningCircleIcon}
-            titulo="No se pudieron cargar tus actas"
-            descripcion={errorCarga}
-            accion={{ titulo: 'Reintentar', onPress: () => setIntento((n) => n + 1) }}
+            icono={Mic}
+            titulo="Aún no tienes actas"
+            descripcion="Graba tu primera reunión y tendrás la transcripción, el resumen y el acta en minutos."
+            accion={{ titulo: 'Grabar mi primera reunión', onPress: () => navigation.navigate('NuevaGrabacion') }}
           />
         </View>
-      </ScreenBackground>
+      </View>
     );
   }
 
   return (
-    <ScreenBackground>
+    // El hueco del FAB va en este contenedor, no en el `contentContainerStyle`
+    // de la lista: un `paddingBottom` ahí solo libera espacio DEBAJO de la
+    // última tarjeta, invisible mientras no se haga scroll hasta el final.
+    // Encogiendo aquí la caja de la lista, el contenido nunca llega a esa zona.
+    <View style={{ flex: 1, backgroundColor: t.colors.bg, paddingBottom: altoTabBar + ALTURA_FAB_SOBRESALIENTE + t.spacing[4] }}>
       <FlatList
         data={actasVisibles}
         keyExtractor={(acta) => acta.id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.contenido,
-          // La tab bar flota sobre la lista: sin este hueco la última tarjeta
-          // queda debajo y no se puede llegar a ella. El mínimo superior cubre
-          // web y Android sin notch, donde `insets.top` es 0.
-          {
-            paddingTop: Math.max(insets.top, espaciado.lg) + espaciado.lg,
-            paddingBottom: altoTabBar + espaciado.xxl,
-          },
-        ]}
+        contentContainerStyle={{
+          paddingHorizontal: t.spacing[5],
+          // El mínimo superior cubre web y Android sin notch, donde `insets.top` es 0.
+          paddingTop: Math.max(insets.top, t.spacing[6]) + t.spacing[4],
+        }}
         ListHeaderComponent={
-          <View style={styles.cabecera}>
-            <Text style={textos.display}>Mis actas</Text>
+          <View style={{ gap: t.spacing[4], marginBottom: t.spacing[5] }}>
+            <Text variant="heading">Mis actas</Text>
             <TarjetaNuevaGrabacion onPress={() => navigation.navigate('NuevaGrabacion')} />
             <Buscador valor={busqueda} onCambiar={setBusqueda} />
             <ChipsFiltro filtros={FILTROS} activo={filtro} onSeleccionar={setFiltro} />
@@ -171,18 +194,15 @@ export function MisActasScreen() {
         }
         renderItem={({ item }) => (
           <Animated.View style={{ opacity: aparicion }}>
-            <TarjetaActa
-              acta={item}
-              onPress={() => navigation.navigate('DetalleActa', { actaId: item.id })}
-            />
+            <TarjetaActa acta={item} onPress={() => navigation.navigate('DetalleActa', { actaId: item.id })} />
           </Animated.View>
         )}
-        ItemSeparatorComponent={() => <View style={styles.separador} />}
+        ItemSeparatorComponent={() => <View style={{ height: t.spacing[3] }} />}
         ListEmptyComponent={
           <Animated.View style={{ opacity: aparicion }}>
             {hayBusquedaActiva ? (
               <EstadoVacio
-                icono={MagnifyingGlassIcon}
+                icono={Search}
                 titulo="Sin resultados"
                 descripcion="No hay actas que coincidan con tu búsqueda. Prueba con otro término o quita los filtros."
                 accion={{
@@ -193,24 +213,10 @@ export function MisActasScreen() {
                   },
                 }}
               />
-            ) : (
-              <EstadoVacio
-                icono={MicrophoneIcon}
-                titulo="Aún no tienes actas"
-                descripcion="Graba tu primera reunión y la IA generará la transcripción y el acta por ti."
-                accion={{ titulo: 'Grabar mi primera reunión', onPress: () => navigation.navigate('NuevaGrabacion') }}
-              />
-            )}
+            ) : null}
           </Animated.View>
         }
       />
-    </ScreenBackground>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  contenido: { paddingHorizontal: espaciado.xl },
-  cabecera: { gap: espaciado.lg, marginBottom: espaciado.xl },
-  separador: { height: espaciado.md },
-  errorCarga: { flex: 1, justifyContent: 'center' },
-});

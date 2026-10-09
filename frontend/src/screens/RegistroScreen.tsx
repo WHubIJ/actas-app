@@ -1,15 +1,12 @@
 import { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
+import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ScreenBackground } from '../components/ScreenBackground';
-import { LogoBadge } from '../components/LogoBadge';
-import { Boton } from '../components/Boton';
-import { Aviso } from '../components/Aviso';
-import { CampoFormulario } from '../components/CampoFormulario';
+import { User, Mail, Lock, Eye, EyeOff, Building, Phone } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Text, Button, Input, AppIcon, PanelProductoAuth, Aviso } from '../../components/ui';
 import { registrarse, ErrorAuth } from '../services/authService';
-import { colors, espaciado, textos } from '../theme';
 import type { AuthStackParamList } from '../../App';
 
 /** Mismo patrón que en las demás pantallas: solo se confía en el mensaje de nuestros propios errores tipados. */
@@ -18,11 +15,21 @@ function mensajeError(err: unknown, porDefecto: string): string {
   return porDefecto;
 }
 
+/**
+ * Reskin sobre el tema nuevo del formulario ya existente (un solo paso).
+ * El flujo en 2 pasos + verificación por código del preview (`AuthMobile.html`)
+ * queda para más adelante — decisión explícita, no un olvido.
+ */
 export function RegistroScreen() {
+  const t = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList>>();
+  const { width } = useWindowDimensions();
+  const esEscritorio = width >= t.size.bpTablet;
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [verPassword, setVerPassword] = useState(false);
   const [nombre, setNombre] = useState('');
   const [organizacionNombre, setOrganizacionNombre] = useState('');
   const [telefono, setTelefono] = useState('');
@@ -46,85 +53,129 @@ export function RegistroScreen() {
     }
   }, [email, password, nombre, organizacionNombre, telefono, navigation]);
 
-  return (
-    <ScreenBackground>
-      <KeyboardAvoidingView
-        style={styles.raiz}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={[
-            styles.contenido,
-            { paddingTop: Math.max(insets.top, espaciado.xxl) + espaciado.xxl, paddingBottom: insets.bottom + espaciado.xxl },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+  const formulario = (
+    <View style={{ width: '100%', maxWidth: 380, gap: t.spacing[4] }}>
+      <View style={{ alignItems: esEscritorio ? 'flex-start' : 'center', gap: t.spacing[3] }}>
+        <AppIcon size={esEscritorio ? 28 : 64} />
+        <Text
+          variant="heading"
+          style={{
+            fontSize: 28,
+            lineHeight: 34,
+            letterSpacing: -0.84,
+            textAlign: esEscritorio ? 'left' : 'center',
+          }}
         >
-          <View style={styles.encabezado}>
-            <LogoBadge size={56} />
-            <Text style={textos.display}>MeetingAI</Text>
-            <Text style={[textos.apoyo, styles.centrado]}>Crea tu cuenta para empezar</Text>
-          </View>
+          Crea tu cuenta
+        </Text>
+        <Text variant="caption" color="text2" style={{ textAlign: esEscritorio ? 'left' : 'center', marginTop: -t.spacing[1] }}>
+          Reuniones y actas de tu organización
+        </Text>
+      </View>
 
-          <View style={styles.formulario}>
-            {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
+      {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
 
-            <CampoFormulario etiqueta="Nombre" valor={nombre} onCambiar={setNombre} placeholder="Tu nombre completo" />
-            <CampoFormulario
-              etiqueta="Email"
-              valor={email}
-              onCambiar={setEmail}
-              tipoTeclado="email-address"
-              placeholder="tu@email.com"
-            />
-            <CampoFormulario
-              etiqueta="Contraseña"
-              valor={password}
-              onCambiar={setPassword}
-              secreto
-              placeholder="••••••••"
-            />
-            <CampoFormulario
-              etiqueta="Nombre de la organización (opcional)"
-              valor={organizacionNombre}
-              onCambiar={setOrganizacionNombre}
-              placeholder="Ej. Iglesia Central"
-            />
-            <CampoFormulario
-              etiqueta="Teléfono (opcional)"
-              valor={telefono}
-              onCambiar={setTelefono}
-              tipoTeclado="phone-pad"
-              placeholder="600 000 000"
-            />
-
-            <Boton
-              titulo={cargando ? 'Un momento…' : 'Crear cuenta'}
-              cargando={cargando}
-              disabled={!email || !password}
-              onPress={enviar}
-            />
-
-            <Pressable onPress={() => navigation.navigate('Login')} disabled={cargando} accessibilityRole="button">
-              <Text style={[textos.accion, styles.enlace]}>¿Ya tienes cuenta? Inicia sesión</Text>
+      <View style={{ gap: t.spacing[4] }}>
+        <Input
+          label="Nombre"
+          value={nombre}
+          onChangeText={setNombre}
+          placeholder="Tu nombre completo"
+          icon={(c) => <User size={18} color={c} />}
+        />
+        <Input
+          label="Correo electrónico"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="tu@email.com"
+          icon={(c) => <Mail size={18} color={c} />}
+        />
+        <Input
+          label="Contraseña"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!verPassword}
+          placeholder="••••••••"
+          icon={(c) => <Lock size={18} color={c} />}
+          right={
+            <Pressable
+              onPress={() => setVerPassword((v) => !v)}
+              hitSlop={8}
+              accessibilityLabel={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            >
+              {verPassword ? <EyeOff size={18} color={t.colors.text2} /> : <Eye size={18} color={t.colors.text2} />}
             </Pressable>
+          }
+        />
+        <Input
+          label="Nombre de la organización (opcional)"
+          value={organizacionNombre}
+          onChangeText={setOrganizacionNombre}
+          placeholder="Ej. Iglesia Central"
+          icon={(c) => <Building size={18} color={c} />}
+        />
+        <Input
+          label="Teléfono (opcional)"
+          value={telefono}
+          onChangeText={setTelefono}
+          keyboardType="phone-pad"
+          placeholder="600 000 000"
+          icon={(c) => <Phone size={18} color={c} />}
+        />
+      </View>
+
+      <Button
+        label={cargando ? 'Un momento…' : 'Crear cuenta'}
+        size="xl"
+        fullWidth
+        loading={cargando}
+        disabled={!email || !password}
+        onPress={enviar}
+      />
+
+      <Pressable onPress={() => navigation.navigate('Login')} disabled={cargando} accessibilityRole="button">
+        <Text variant="caption" color="text2" style={{ textAlign: 'center' }}>
+          ¿Ya tienes cuenta?{' '}
+          <Text variant="label" color="brandStrong">
+            Inicia sesión
+          </Text>
+        </Text>
+      </Pressable>
+    </View>
+  );
+
+  return (
+    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {esEscritorio ? (
+          <View style={{ flex: 1, flexDirection: 'row' }}>
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: t.spacing[12] }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {formulario}
+            </ScrollView>
+            <PanelProductoAuth />
           </View>
-        </ScrollView>
+        ) : (
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: t.spacing[6],
+              paddingTop: insets.top + t.spacing[10],
+              paddingBottom: insets.bottom + t.spacing[8],
+            }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {formulario}
+          </ScrollView>
+        )}
       </KeyboardAvoidingView>
-    </ScreenBackground>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  raiz: { flex: 1 },
-  contenido: {
-    flexGrow: 1,
-    paddingHorizontal: espaciado.xxl,
-    justifyContent: 'center',
-    gap: espaciado.xxxl,
-  },
-  encabezado: { alignItems: 'center', gap: espaciado.md },
-  centrado: { textAlign: 'center' },
-  formulario: { gap: espaciado.lg },
-  enlace: { textAlign: 'center', color: colors.marronClaro },
-});
