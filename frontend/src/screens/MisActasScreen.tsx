@@ -3,7 +3,6 @@ import { View, FlatList, Animated, Easing } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Search, Mic, TriangleAlert } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Text, EstadoVacio, PantallaCarga } from '../../components/ui';
@@ -49,7 +48,6 @@ export function MisActasScreen() {
   const t = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const altoTabBar = useBottomTabBarHeight();
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<IdFiltro>('todas');
 
@@ -174,7 +172,13 @@ export function MisActasScreen() {
     // de la lista: un `paddingBottom` ahí solo libera espacio DEBAJO de la
     // última tarjeta, invisible mientras no se haga scroll hasta el final.
     // Encogiendo aquí la caja de la lista, el contenido nunca llega a esa zona.
-    <View style={{ flex: 1, backgroundColor: t.colors.bg, paddingBottom: altoTabBar + ALTURA_FAB_SOBRESALIENTE + t.spacing[4] }}>
+    // Nota: el Tab.Navigator ya reserva su propia fila para el TabBar (no es
+    // absoluto sobre las pantallas), así que la pantalla NO necesita sumar
+    // `useBottomTabBarHeight()` aparte — solo lo que el FAB sobresale por
+    // encima de la caja del TabBar. Sumar el alto completo del TabBar aquí
+    // duplicaba esa reserva y dejaba un bloque entero de `bg` vacío encima
+    // de la barra.
+    <View style={{ flex: 1, backgroundColor: t.colors.bg, paddingBottom: ALTURA_FAB_SOBRESALIENTE + t.spacing[4] }}>
       <FlatList
         data={actasVisibles}
         keyExtractor={(acta) => acta.id}

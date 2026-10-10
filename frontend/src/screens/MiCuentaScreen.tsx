@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import {
   Bell,
   Globe,
@@ -65,7 +64,6 @@ const SECCIONES: Seccion[] = [
 export function MiCuentaScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const altoTabBar = useBottomTabBarHeight();
   const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cuenta, setCuenta] = useState<Cuenta | null>(null);
@@ -104,7 +102,13 @@ export function MiCuentaScreen() {
     // del ScrollView: un `paddingBottom` ahí solo libera espacio DEBAJO del
     // último elemento, invisible mientras no se haga scroll. Encogiendo aquí
     // la caja del ScrollView, el contenido nunca llega a esa zona ni en reposo.
-    <View style={{ flex: 1, backgroundColor: t.colors.bg, paddingBottom: altoTabBar + ALTURA_FAB_SOBRESALIENTE + t.spacing[4] }}>
+    // Nota: el Tab.Navigator ya reserva su propia fila para el TabBar (no es
+    // absoluto sobre las pantallas), así que la pantalla NO necesita sumar
+    // `useBottomTabBarHeight()` aparte — solo lo que el FAB sobresale por
+    // encima de la caja del TabBar. Sumar el alto completo del TabBar aquí
+    // duplicaba esa reserva y dejaba un bloque entero de `bg` vacío encima
+    // de la barra.
+    <View style={{ flex: 1, backgroundColor: t.colors.bg, paddingBottom: ALTURA_FAB_SOBRESALIENTE + t.spacing[4] }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
