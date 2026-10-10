@@ -7,9 +7,13 @@ export type PlantillaResumen = 'ACTA_FORMAL' | 'RESUMEN_EJECUTIVO' | 'LISTA_ACUE
 
 export interface Reunion {
   id: string;
-  iglesia: string;
+  organizacionId: string;
+  equipoId?: string;
   fecha: string;
   finalizada: boolean;
+  /** Opcionales: capturados a mano en NuevaGrabacionScreen antes de grabar. */
+  titulo?: string;
+  participantes?: string[];
 }
 
 export interface ClipAudio {
@@ -20,4 +24,61 @@ export interface ClipAudio {
   duracionSegundos: number;
   estadoSubida: EstadoSubida;
   estadoTranscripcion: EstadoTranscripcion;
+}
+
+/**
+ * Proyección para la lista de "Mis actas".
+ *
+ * OJO: `titulo`, `participantes` y `duracionMinutos` NO existen todavía en el
+ * backend — `Reunion` solo expone `organizacionId`, `equipoId`, `fecha` y
+ * `finalizada`. El diseño
+ * los da por hechos, así que o se añaden al dominio de `grabacion` o la lista
+ * tendrá que derivarlos (título a partir del resumen, participantes de la
+ * transcripción). Decisión pendiente antes de conectar la API.
+ */
+export interface ActaResumen {
+  id: string;
+  titulo: string;
+  fecha: string;
+  duracionMinutos: number;
+  participantes: string[];
+  estadoTranscripcion: EstadoTranscripcion;
+}
+
+/** Una intervención dentro de la transcripción. */
+export interface IntervencionTranscripcion {
+  id: string;
+  interviniente: string;
+  /** Marca de tiempo desde el inicio, ya formateada ("04:12"). */
+  marca: string;
+  texto: string;
+}
+
+/** Bloque del resumen generado: un encabezado y sus puntos. */
+export interface SeccionResumen {
+  id: string;
+  titulo: string;
+  puntos: string[];
+}
+
+/**
+ * Detalle completo de un acta.
+ *
+ * `resumen` es `null` mientras no exista: por regla de negocio el resumen
+ * NO se genera automáticamente al terminar la transcripción, solo cuando el
+ * usuario lo pide (ver docs/01-Domain/modelo.md). La pantalla de detalle
+ * depende de esa distinción, no es un estado de carga.
+ */
+export interface ActaDetalle extends ActaResumen {
+  intervenciones: IntervencionTranscripcion[];
+  /**
+   * Texto combinado de la transcripción, tal cual lo da el backend
+   * (`GET /api/transcripcion/{id}`): un único bloque, sin desglose por
+   * interviniente. `intervenciones` sigue existiendo para los mocks, que sí
+   * simulan ese desglose; con backend real queda vacío y la pantalla cae a
+   * este campo. `null` mientras no haya transcripción combinada todavía.
+   */
+  textoTranscripcion: string | null;
+  resumen: SeccionResumen[] | null;
+  plantillaResumen: PlantillaResumen | null;
 }

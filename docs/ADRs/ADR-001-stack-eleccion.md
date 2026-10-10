@@ -1,7 +1,7 @@
 # ADR-001: Elección de stack técnico
 
 **Sprint**: 1
-**Estado**: Aceptado
+**Estado**: Aceptado (Autenticación sustituida por ADR-005; transcripción y resumen sustituidos por ADR-006)
 **Propietario**: Wisdom Imade Isibor
 
 ---
@@ -20,9 +20,16 @@ así como el flujo de generación y envío de archivos.
 - **Backend:** Java + Spring Boot.
 - **Base de datos:** Supabase (Postgres).
 - **Storage de audios:** Supabase Storage.
-- **Autenticación:** implementación propia en Spring Boot (no Supabase Auth).
+- **Autenticación:** ~~implementación propia en Spring Boot (no Supabase Auth)~~
+  — **sustituido por ADR-005**: Supabase Auth. Esta parte de la decisión se
+  tomó sin alternativas consideradas ni justificación escrita (a diferencia de
+  storage y generación de archivos, más abajo); ADR-005 explica por qué se
+  revirtió.
 - **Frontend:** React, como app móvil nativa/híbrida.
-- **Transcripción y resumen:** API externa (Whisper / OpenAI), invocada desde el backend.
+- **Transcripción y resumen:** ~~API externa (Whisper / OpenAI)~~ — **sustituido
+  por ADR-006**: Mistral (Voxtral Mini Transcribe V2 para transcripción,
+  mismo proveedor para resumen). Igual que Autenticación, esta parte se
+  declaró sin alternativas consideradas ni justificación escrita.
 - **Generación de archivos:** el backend genera los archivos (no el frontend).
   - Transcripción: solo en PDF.
   - Resumen: en PDF, Word o Markdown, a elección del usuario.

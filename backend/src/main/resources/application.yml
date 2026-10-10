@@ -2,6 +2,14 @@ spring:
   application:
     name: actas-app-backend
 
+  # Carga backend/.env si existe (está en .gitignore). Spring Boot NO lee ficheros
+  # .env por su cuenta: sin esta línea, "mvn spring-boot:run" arrancaría con los
+  # valores por defecto de abajo (localhost) en vez de contra Supabase.
+  # "optional:" evita que falle el arranque en entornos sin .env (CI, producción,
+  # donde las credenciales llegan como variables de entorno reales).
+  config:
+    import: optional:file:.env[.properties]
+
   datasource:
     # Credenciales de Supabase (Postgres). No commitear valores reales:
     # usar variables de entorno o un application-local.yml ignorado por git.
@@ -11,7 +19,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update # cambiar a "validate" cuando haya migraciones formales (Flyway/Liquibase)
+      ddl-auto: validate # el esquema lo gestiona Flyway (ADR-004), Hibernate solo verifica
     show-sql: true
     properties:
       hibernate:
@@ -20,18 +28,34 @@ spring:
 server:
   port: ${PORT:8080}
 
-# Claves externas (Whisper/OpenAI, Supabase Storage, Firebase Cloud Messaging).
+# Claves externas (Mistral, Supabase Storage, Firebase Cloud Messaging).
 # Definir como variables de entorno, nunca hardcodeadas.
 actas-app:
-  openai:
-    api-key: ${OPENAI_API_KEY:}
-    whisper-model: whisper-1
+  mistral:
+    api-key: ${MISTRAL_API_KEY:}
+    modelo-transcripcion: voxtral-mini-latest
+    modelo-combinacion: mistral-small-latest
+    modelo-resumen: mistral-small-latest
   supabase:
     storage-url: ${SUPABASE_STORAGE_URL:}
-    storage-bucket: ${SUPABASE_STORAGE_BUCKET:audios-reuniones}
+    # Bucket real del proyecto (confirmado el 2026-10-06 al arreglar el RLS);
+    # "audios-reuniones" nunca existió, era un placeholder sin corregir.
+    storage-bucket: ${SUPABASE_STORAGE_BUCKET:meeting_audio}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+    # URL base del proyecto: de aquí sale el endpoint JWKS que valida los JWT
+    # de Supabase Auth (ver jwks-uri más abajo y SecurityConfig, ADR-005).
+    url: ${SUPABASE_URL:}
+    # Este proyecto firma con claves asimétricas (ES256), publicadas en este
+    # endpoint JWKS — confirmado el 2026-09-29 tras ver "Another algorithm
+    # expected" al intentar validar con el secreto compartido HS256 legacy.
+    jwks-uri: ${SUPABASE_JWKS_URI:${actas-app.supabase.url}/auth/v1/.well-known/jwks.json}
   firebase:
     credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+  # Organización a la que se asignan las reuniones mientras no exista un módulo
+  # de cuentas real (debe existir en la tabla `organizacion`; la siembra
+  # V2__reunion_organizacion.sql). Cuando llegue ese módulo, este valor sale de
+  # la membresía del usuario autenticado y esta propiedad desaparece.
+  organizacion-por-defecto-id: ${ORGANIZACION_POR_DEFECTO_ID:00000000-0000-0000-0000-000000000001}
   enlace-compartido:
     expiracion-horas: 24
   transcripcion:

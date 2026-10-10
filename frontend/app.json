@@ -3,9 +3,12 @@
     "name": "App de Actas",
     "slug": "actas-app",
     "version": "0.1.0",
+    "scheme": "actasapp",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
@@ -13,13 +16,28 @@
       }
     },
     "android": {
-      "permissions": ["RECORD_AUDIO"]
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
     },
     "plugins": [
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "La app necesita el micrófono para grabar las reuniones."
+        }
+      ],
+      "expo-sharing",
+      "expo-web-browser",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F8F8F6",
+          "dark": {
+            "backgroundColor": "#0B0B0D"
+          },
+          "resizeMode": "contain"
         }
       ]
     ]

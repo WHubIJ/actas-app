@@ -2,6 +2,7 @@ package com.actasapp.backend.grabacion.puertos.salida;
 
 import com.actasapp.backend.grabacion.domain.Reunion;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,4 +15,6 @@ public interface ReunionRepositorioPuerto {
     Reunion guardar(Reunion reunion);
 
     Optional<Reunion> buscarPorId(UUID id);
+
+    List<Reunion> buscarPorOrganizacion(UUID organizacionId);
 }

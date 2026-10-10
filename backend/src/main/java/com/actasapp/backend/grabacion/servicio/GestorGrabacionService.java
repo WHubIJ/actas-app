@@ -1,7 +1,9 @@
 package com.actasapp.backend.grabacion.servicio;
 
 import com.actasapp.backend.grabacion.domain.ClipAudio;
+import com.actasapp.backend.grabacion.domain.EstadoSubida;
 import com.actasapp.backend.grabacion.domain.Reunion;
+import com.actasapp.backend.grabacion.puertos.entrada.ConsultarReunionesUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.FinalizarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.IniciarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.RegistrarClipUseCase;
@@ -11,6 +13,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -19,7 +23,8 @@ import java.util.UUID;
  * esos viven en los adaptadores.
  */
 @Service
-public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarClipUseCase, FinalizarReunionUseCase {
+public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarClipUseCase, FinalizarReunionUseCase,
+        ConsultarReunionesUseCase {
 
     private final ReunionRepositorioPuerto reunionRepositorio;
     private final ApplicationEventPublisher eventos;
@@ -30,8 +35,8 @@ public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarC
     }
 
     @Override
-    public UUID iniciarReunion(String iglesia, LocalDate fecha) {
-        Reunion reunion = new Reunion(UUID.randomUUID(), iglesia, fecha);
+    public UUID iniciarReunion(UUID organizacionId, UUID equipoId, LocalDate fecha, String titulo, List<String> participantes) {
+        Reunion reunion = new Reunion(UUID.randomUUID(), organizacionId, equipoId, fecha, titulo, participantes);
         return reunionRepositorio.guardar(reunion).getId();
     }
 
@@ -56,7 +61,27 @@ public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarC
         reunion.finalizar(); // regla de negocio vive en el dominio, no aquí
         reunionRepositorio.guardar(reunion);
 
-        // Desacopla grabación de transcripción: el módulo de transcripción escucha este evento.
-        eventos.publishEvent(new ReunionFinalizadaEvent(reunionId));
+        // Desacopla grabación de transcripción: el módulo de transcripción escucha este
+        // evento, y lleva ya la lista de clips a procesar para no tener que leer
+        // ClipAudio/Reunion de este módulo.
+        List<ReunionFinalizadaEvent.ClipParaTranscribir> clips = reunion.getClips().stream()
+                .filter(c -> c.getEstadoSubida() == EstadoSubida.COMPLETADO)
+                .sorted(Comparator.comparingInt(ClipAudio::getOrden))
+                .map(c -> new ReunionFinalizadaEvent.ClipParaTranscribir(c.getId(), c.getOrden(), c.getUrlStorage()))
+                .toList();
+        eventos.publishEvent(new ReunionFinalizadaEvent(reunionId, clips));
+    }
+
+    @Override
+    public List<Reunion> listarFinalizadasPorOrganizacion(UUID organizacionId) {
+        return reunionRepositorio.buscarPorOrganizacion(organizacionId).stream()
+                .filter(Reunion::isFinalizada)
+                .toList();
+    }
+
+    @Override
+    public Reunion buscarPorId(UUID reunionId) {
+        return reunionRepositorio.buscarPorId(reunionId)
+                .orElseThrow(() -> new IllegalArgumentException("Reunión no encontrada: " + reunionId));
     }
 }

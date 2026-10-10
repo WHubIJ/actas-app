@@ -1,0 +1,288 @@
+import { supabase } from './supabaseClient';
+import { formatearFecha } from '../utils/formato';
+import type { ActaDetalle, ActaResumen, EstadoTranscripcion, FormatoArchivo, PlantillaResumen } from '../types';
+
+/**
+ * Base de la API del backend (Spring Boot). Sin barra final.
+ *
+ * Mientras no esté definida, la app funciona con los mocks de `src/mocks/` y
+ * las operaciones que exigen backend fallan con un error explícito en vez de
+ * simular un éxito.
+ */
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
+
+/**
+ * `true` cuando hay un backend al que llamar. No es un flag de feature: es la
+ * diferencia entre poder pedir un archivo generado y no poder.
+ */
+export const hayBackend = API_URL.length > 0;
+
+/** Los mismos códigos que emite `GlobalExceptionHandler` en el backend, más los del propio cliente. */
+export type CodigoErrorApi =
+  | 'BACKEND_NO_CONFIGURADO'
+  | 'ERROR_RED'
+  | 'NO_AUTENTICADO'
+  | 'SOLICITUD_INVALIDA'
+  | 'ESTADO_INVALIDO'
+  | 'ERROR_INTERNO';
+
+/** Error con código para que la UI elija el mensaje, no lo improvise (mismo patrón que ErrorCompartir). */
+export class ErrorApi extends Error {
+  constructor(
+    readonly codigo: CodigoErrorApi,
+    mensaje: string,
+  ) {
+    super(mensaje);
+    this.name = 'ErrorApi';
+  }
+}
+
+interface CuerpoErrorBackend {
+  error?: string;
+  mensaje?: string;
+}
+
+/**
+ * Llama al backend y traduce la respuesta: éxito tipado o `ErrorApi` con el
+ * código que ya manda `GlobalExceptionHandler` en el cuerpo del error.
+ *
+ * Adjunta el token de la sesión de Supabase (ADR-005): el backend ya exige
+ * autenticación en toda la API. Sin sesión, la petición sigue saliendo sin
+ * cabecera y el backend responde `NO_AUTENTICADO` con el mismo formato que
+ * cualquier otro error — no hace falta comprobarlo aquí a mano.
+ */
+async function peticion<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
+  if (!hayBackend) {
+    throw new ErrorApi('BACKEND_NO_CONFIGURADO', 'No hay backend configurado (falta EXPO_PUBLIC_API_URL).');
+  }
+
+  const cabeceras = new Headers(opciones.headers);
+  const sesion = supabase ? (await supabase.auth.getSession()).data.session : null;
+  if (sesion?.access_token) {
+    cabeceras.set('Authorization', `Bearer ${sesion.access_token}`);
+  }
+
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(`${API_URL}${ruta}`, { ...opciones, headers: cabeceras });
+  } catch {
+    throw new ErrorApi('ERROR_RED', 'No se pudo contactar con el servidor. Revisa la conexión.');
+  }
+
+  // Algunos endpoints (p. ej. finalizar) devuelven 200 sin cuerpo.
+  const texto = await respuesta.text();
+  let cuerpo: unknown;
+  try {
+    cuerpo = texto ? JSON.parse(texto) : undefined;
+  } catch {
+    cuerpo = undefined;
+  }
+
+  if (!respuesta.ok) {
+    const { error, mensaje } = (cuerpo as CuerpoErrorBackend | undefined) ?? {};
+    throw new ErrorApi((error as CodigoErrorApi) ?? 'ERROR_INTERNO', mensaje ?? 'Error inesperado del servidor.');
+  }
+
+  return cuerpo as T;
+}
+
+/**
+ * Crea una reunión. Corresponde a `POST /api/reuniones` (ver GrabacionController).
+ * `titulo` y `participantes` son opcionales: se capturan en NuevaGrabacionScreen
+ * antes de empezar a grabar.
+ */
+export async function crearReunion(titulo?: string, participantes?: string[]): Promise<string> {
+  const { reunionId } = await peticion<{ reunionId: string }>('/api/reuniones', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ titulo, participantes }),
+  });
+  return reunionId;
+}
+
+/**
+ * Registra en el backend la referencia a un clip ya subido a Supabase Storage.
+ * Corresponde a `POST /api/reuniones/{id}/clips`.
+ */
+export async function registrarClip(
+  reunionId: string,
+  orden: number,
+  urlStorage: string,
+  duracionSegundos: number,
+): Promise<string> {
+  const { clipId } = await peticion<{ clipId: string }>(`/api/reuniones/${reunionId}/clips`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orden, urlStorage, duracionSegundos }),
+  });
+  return clipId;
+}
+
+/** Marca la reunión como finalizada. Corresponde a `POST /api/reuniones/{id}/finalizar`. */
+export async function finalizarReunion(reunionId: string): Promise<void> {
+  await peticion<void>(`/api/reuniones/${reunionId}/finalizar`, { method: 'POST' });
+}
+
+interface ReunionResumenBackend {
+  id: string;
+  /** ISO `yyyy-MM-dd`, tal cual lo serializa Jackson para un `LocalDate`. */
+  fecha: string;
+  finalizada: boolean;
+  duracionMinutos: number;
+  titulo: string;
+  participantes: string[];
+}
+
+/** Corresponde a `GET /api/reuniones` (solo reuniones finalizadas, ver GrabacionController). */
+async function obtenerReunionesFinalizadas(): Promise<ReunionResumenBackend[]> {
+  return peticion<ReunionResumenBackend[]>('/api/reuniones');
+}
+
+/**
+ * Corresponde a `GET /api/transcripcion/estados`. En lote: una sola petición
+ * para toda la lista, no una por tarjeta.
+ */
+async function obtenerEstadosTranscripcion(
+  reunionIds: string[],
+): Promise<Record<string, EstadoTranscripcion>> {
+  if (reunionIds.length === 0) return {};
+  const query = reunionIds.map(encodeURIComponent).join(',');
+  return peticion<Record<string, EstadoTranscripcion>>(`/api/transcripcion/estados?reunionIds=${query}`);
+}
+
+/**
+ * Proyección para "Mis actas": combina `GET /api/reuniones` con el estado de
+ * transcripción, que vive en otro módulo y por tanto es una llamada aparte
+ * (ver TranscripcionController — `grabacion` no puede depender de `transcripcion`).
+ * Si una reunión todavía no tiene registro de transcripción, se asume `PENDIENTE`
+ * (el caso normal justo tras finalizar, antes de que el listener la procese).
+ */
+export async function obtenerActas(): Promise<ActaResumen[]> {
+  const reuniones = await obtenerReunionesFinalizadas();
+  const estados = await obtenerEstadosTranscripcion(reuniones.map((r) => r.id));
+  return reuniones.map((r) => ({
+    id: r.id,
+    titulo: r.titulo,
+    fecha: formatearFecha(r.fecha),
+    duracionMinutos: r.duracionMinutos,
+    participantes: r.participantes,
+    estadoTranscripcion: estados[r.id] ?? 'PENDIENTE',
+  }));
+}
+
+/** Corresponde a `GET /api/reuniones/{id}`. */
+async function obtenerReunionPorId(reunionId: string): Promise<ReunionResumenBackend> {
+  return peticion<ReunionResumenBackend>(`/api/reuniones/${reunionId}`);
+}
+
+interface TranscripcionDetalleBackend {
+  estado: EstadoTranscripcion;
+  /** `null` si todavía no hay transcripción combinada para esta reunión. */
+  texto: string | null;
+}
+
+/**
+ * Corresponde a `GET /api/transcripcion/{reunionId}`: estado agregado y el
+ * texto combinado (un único bloque, sin desglose por interviniente — ver
+ * `ActaDetalle.textoTranscripcion`), para `DetalleActaScreen`.
+ */
+async function obtenerTranscripcionDetalle(reunionId: string): Promise<TranscripcionDetalleBackend> {
+  return peticion<TranscripcionDetalleBackend>(`/api/transcripcion/${reunionId}`);
+}
+
+/**
+ * Proyección para el detalle de una acta. `resumen` queda `null` a
+ * propósito: por regla de negocio no se genera automáticamente, solo cuando
+ * el usuario lo pide (ver `generarResumen`) — esta función solo trae lo que
+ * ya existe de antemano (reunión + transcripción), nunca un resumen.
+ */
+export async function obtenerActaDetalle(reunionId: string): Promise<ActaDetalle> {
+  const [reunion, transcripcion] = await Promise.all([
+    obtenerReunionPorId(reunionId),
+    obtenerTranscripcionDetalle(reunionId),
+  ]);
+  return {
+    id: reunion.id,
+    titulo: reunion.titulo,
+    fecha: formatearFecha(reunion.fecha),
+    duracionMinutos: reunion.duracionMinutos,
+    participantes: reunion.participantes,
+    estadoTranscripcion: transcripcion.estado,
+    intervenciones: [],
+    textoTranscripcion: transcripcion.texto,
+    resumen: null,
+    plantillaResumen: null,
+  };
+}
+
+/**
+ * Corresponde a `POST /api/resumen`. `transcripcion` viaja en el body porque
+ * `resumen` no puede depender de `transcripcion` en el backend (los módulos
+ * no se llaman entre sí) — el frontend ya la tiene (`obtenerActaDetalle`) y
+ * la reenvía tal cual.
+ *
+ * Hoy el backend solo tiene implementadas la plantilla RESUMEN_EJECUTIVO y
+ * el formato MARKDOWN; el resto responde `ERROR_INTERNO` (ver
+ * `backend/CLAUDE.md`, estado de `resumen`). `contenido` llega como texto.
+ */
+export async function generarResumen(
+  reunionId: string,
+  transcripcion: string,
+  plantilla: PlantillaResumen,
+  formato: FormatoArchivo,
+): Promise<{ resumenId: string; contenido: string }> {
+  return peticion<{ resumenId: string; contenido: string }>('/api/resumen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reunionId, transcripcion, plantilla, formato }),
+  });
+}
+
+/**
+ * Corresponde a `GET /api/reuniones/{id}/archivos`: descarga el archivo de un
+ * resumen ya generado (`ArchivosController`, en `shared/` porque necesita leer
+ * de `resumen` para servirlo — ver `backend/CLAUDE.md`). Hoy solo sirve
+ * `contenido: 'resumen'` con `formato: 'MARKDOWN'`; cualquier otra combinación
+ * responde `SOLICITUD_INVALIDA` porque PDF, Word y la transcripción todavía no
+ * se generan.
+ *
+ * No usa `peticion()`: esa función espera JSON y aquí la respuesta son los
+ * bytes del archivo. Quien llama (`compartirService.ts`) hace su propio
+ * `fetch` con la URL y las cabeceras por separado (para poder comprobar el
+ * status antes de escribir nada a disco), en vez de una `Response` ya resuelta.
+ */
+export async function urlArchivo(
+  reunionId: string,
+  contenido: 'resumen' | 'transcripcion',
+  formato: FormatoArchivo,
+): Promise<{ url: string; cabeceras: Record<string, string> }> {
+  if (!hayBackend) {
+    throw new ErrorApi('BACKEND_NO_CONFIGURADO', 'No hay backend configurado (falta EXPO_PUBLIC_API_URL).');
+  }
+  const sesion = supabase ? (await supabase.auth.getSession()).data.session : null;
+  const cabeceras: Record<string, string> = {};
+  if (sesion?.access_token) {
+    cabeceras.Authorization = `Bearer ${sesion.access_token}`;
+  }
+  return {
+    url: `${API_URL}/api/reuniones/${reunionId}/archivos?contenido=${contenido}&formato=${formato}`,
+    cabeceras,
+  };
+}
+
+/**
+ * Perfil y organización del usuario autenticado. `nombre`/`organizacionNombre`/
+ * `plan` pueden ser `null`: son opcionales en el registro (ver LoginScreen) o
+ * el usuario no pertenece a ninguna organización todavía.
+ */
+export interface Cuenta {
+  nombre: string | null;
+  email: string | null;
+  organizacionNombre: string | null;
+  plan: string | null;
+}
+
+/** Corresponde a `GET /api/cuenta` (ver CuentaController). */
+export async function obtenerCuenta(): Promise<Cuenta> {
+  return peticion<Cuenta>('/api/cuenta');
+}
