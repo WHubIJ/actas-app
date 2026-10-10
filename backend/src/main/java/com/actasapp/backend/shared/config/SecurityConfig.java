@@ -64,6 +64,13 @@ public class SecurityConfig implements WebMvcConfigurer {
                         // permitAll, Spring Security lo rechaza con 401 antes de que llegue la
                         // petición real, y el navegador la aborta como fallo de CORS.
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Requisito de negocio, no un descuido: el enlace se comparte por
+                        // WhatsApp/Gmail/etc. con gente sin cuenta en la app (ADR pendiente
+                        // de formalizar, ver CLAUDE.md raíz — "enlace hosted con expiración
+                        // de 24h"). Protegido por el token aleatorio (UUID) + la caducidad
+                        // en GestorCompartirService, no por JWT. Generar el enlace
+                        // (POST /api/compartir) sigue exigiendo sesión, como todo lo demás.
+                        .requestMatchers(HttpMethod.GET, "/api/compartir/*").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.decoder(jwtDecoder))
