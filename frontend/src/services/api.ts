@@ -239,6 +239,38 @@ export async function generarResumen(
 }
 
 /**
+ * Corresponde a `GET /api/reuniones/{id}/archivos`: descarga el archivo de un
+ * resumen ya generado (`ArchivosController`, en `shared/` porque necesita leer
+ * de `resumen` para servirlo — ver `backend/CLAUDE.md`). Hoy solo sirve
+ * `contenido: 'resumen'` con `formato: 'MARKDOWN'`; cualquier otra combinación
+ * responde `SOLICITUD_INVALIDA` porque PDF, Word y la transcripción todavía no
+ * se generan.
+ *
+ * No usa `peticion()`: esa función espera JSON y aquí la respuesta son los
+ * bytes del archivo. Quien llama (`compartirService.ts`) no hace el `fetch`
+ * con este cliente sino con `File.downloadFileAsync`, que pide la URL y las
+ * cabeceras por separado en vez de una `Response` ya resuelta.
+ */
+export async function urlArchivo(
+  reunionId: string,
+  contenido: 'resumen' | 'transcripcion',
+  formato: FormatoArchivo,
+): Promise<{ url: string; cabeceras: Record<string, string> }> {
+  if (!hayBackend) {
+    throw new ErrorApi('BACKEND_NO_CONFIGURADO', 'No hay backend configurado (falta EXPO_PUBLIC_API_URL).');
+  }
+  const sesion = supabase ? (await supabase.auth.getSession()).data.session : null;
+  const cabeceras: Record<string, string> = {};
+  if (sesion?.access_token) {
+    cabeceras.Authorization = `Bearer ${sesion.access_token}`;
+  }
+  return {
+    url: `${API_URL}/api/reuniones/${reunionId}/archivos?contenido=${contenido}&formato=${formato}`,
+    cabeceras,
+  };
+}
+
+/**
  * Perfil y organización del usuario autenticado. `nombre`/`organizacionNombre`/
  * `plan` pueden ser `null`: son opcionales en el registro (ver LoginScreen) o
  * el usuario no pertenece a ninguna organización todavía.

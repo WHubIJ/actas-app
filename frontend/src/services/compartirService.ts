@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import { Directory, File, Paths } from 'expo-file-system';
+import { hayBackend, urlArchivo } from './api';
 import { componerMarkdownResumen, nombreArchivoActa } from '../utils/markdownActa';
 import type { ActaDetalle, FormatoArchivo } from '../types';
 
@@ -11,7 +12,8 @@ export type CodigoErrorCompartir =
   | 'COMPARTIR_NO_DISPONIBLE'
   | 'PLATAFORMA_NO_SOPORTADA'
   | 'SIN_CONTENIDO'
-  | 'REQUIERE_BACKEND';
+  | 'REQUIERE_BACKEND'
+  | 'DESCARGA_FALLIDA';
 
 /** Error con código para que la UI elija el mensaje, no lo improvise. */
 export class ErrorCompartir extends Error {
@@ -86,10 +88,8 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
   }
 
   // Por regla de negocio la transcripción solo se entrega en PDF, y el
-  // backend todavía no genera ni PDF ni Word (iText/POI, ver
-  // GeneradorDocumentoAdapter) — hoy lo único que se puede producir de
-  // verdad es el resumen en Markdown, y eso no necesita al servidor: se
-  // compone en el propio dispositivo con lo que ya está en memoria.
+  // backend todavía no lo genera (`ArchivosController` responde
+  // SOLICITUD_INVALIDA para cualquier combinación que no sea resumen+Markdown).
   if (contenido === 'transcripcion') {
     throw new ErrorCompartir(
       'REQUIERE_BACKEND',
@@ -105,7 +105,14 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
 
   const perfil = PERFILES[formato];
   const nombre = nombreArchivoActa(acta.titulo, contenido, perfil.extension);
-  const archivo = componerMarkdownEnDispositivo(acta, nombre);
+  // Con backend, el resumen ya está persistido ahí (se generó con
+  // POST /api/resumen antes de poder compartir — ver DetalleActaScreen): se
+  // descarga de vuelta en vez de reserializar `acta.resumen` a mano, para
+  // que el archivo compartido sea el mismo que generó el servidor. Sin
+  // backend (mock), no hay nada que descargar y se compone en el dispositivo.
+  const archivo = hayBackend
+    ? await descargarDelBackend(acta.id, contenido, formato, nombre)
+    : componerMarkdownEnDispositivo(acta, nombre);
 
   await Sharing.shareAsync(archivo.uri, {
     mimeType: perfil.mimeType,
@@ -114,7 +121,29 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
   });
 }
 
-/** Compone el resumen en Markdown y lo deja en caché, listo para el share sheet. */
+/** Pide el archivo ya generado a `GET /api/reuniones/{id}/archivos` y lo deja en caché. */
+async function descargarDelBackend(
+  actaId: string,
+  contenido: ContenidoCompartible,
+  formato: FormatoArchivo,
+  nombre: string,
+): Promise<File> {
+  const { url, cabeceras } = await urlArchivo(actaId, contenido, formato);
+  try {
+    // `idempotent` permite reintentar sin que falle por existir ya el archivo.
+    return await File.downloadFileAsync(url, new File(carpetaCache(), nombre), {
+      idempotent: true,
+      headers: cabeceras,
+    });
+  } catch {
+    throw new ErrorCompartir(
+      'DESCARGA_FALLIDA',
+      'No pudimos preparar el archivo. Revisa la conexión e inténtalo otra vez.',
+    );
+  }
+}
+
+/** Compone el resumen en Markdown y lo deja en caché, listo para el share sheet (solo mock, sin backend). */
 function componerMarkdownEnDispositivo(acta: ActaDetalle, nombre: string): File {
   const archivo = new File(carpetaCache(), nombre);
   // `create` con `overwrite` evita que un segundo intento falle por existir ya.
