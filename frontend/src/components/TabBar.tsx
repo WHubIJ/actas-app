@@ -15,6 +15,8 @@ const ICONOS: Record<string, LucideIcon> = {
 const TAMANO_FAB = 60;
 /** Cuánto sobresale el FAB por encima del propio borde superior de la barra (ver `top` más abajo). `useBottomTabBarHeight()` no lo cuenta: las pantallas con scroll deben sumarlo a su `paddingBottom` o el FAB tapa el último elemento. */
 export const ALTURA_FAB_SOBRESALIENTE = 26;
+/** Medio ancho del hueco central reservado para el FAB, a cada lado de la fila. */
+const MEDIO_HUECO_FAB = 48;
 
 interface Props extends BottomTabBarProps {
   /** Acción del botón central; no es una pestaña, es un atajo a la grabación. */
@@ -48,7 +50,7 @@ export function TabBar({ state, descriptors, navigation, onGrabar }: Props) {
         key={route.key}
         onPress={alPulsar}
         escala={0.9}
-        style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: t.spacing[1] }}
+        style={{ alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: t.spacing[1], paddingHorizontal: t.spacing[2] }}
         accessibilityRole="tab"
         accessibilityState={{ selected: activo }}
         accessibilityLabel={etiqueta}
@@ -68,14 +70,14 @@ export function TabBar({ state, descriptors, navigation, onGrabar }: Props) {
     );
   });
 
-  // Hueco físico en mitad de la fila para que el FAB, que va por encima en
-  // absoluto, no se superponga a ninguna pestaña.
+  // Dos mitades de ancho igual (50/50), cada una centrando sus propias
+  // pestañas. El hueco para el FAB se reserva con padding hacia el centro en
+  // cada mitad, no con un elemento de ancho fijo: así el espacio sobrante de
+  // la fila no se acumula a un lado (lo que antes dejaba una pestaña pegada
+  // al FAB y un hueco vacío en el extremo opuesto).
   const mitad = Math.ceil(pestanas.length / 2);
-  const fila = [
-    ...pestanas.slice(0, mitad),
-    <View key="hueco" style={{ width: 96 }} />,
-    ...pestanas.slice(mitad),
-  ];
+  const izquierda = pestanas.slice(0, mitad);
+  const derecha = pestanas.slice(mitad);
 
   return (
     <View
@@ -88,7 +90,14 @@ export function TabBar({ state, descriptors, navigation, onGrabar }: Props) {
         borderTopColor: t.colors.border,
       }}
     >
-      <View style={{ flexDirection: 'row' }}>{fila}</View>
+      <View style={{ flexDirection: 'row' }}>
+        <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-evenly', paddingRight: MEDIO_HUECO_FAB }}>
+          {izquierda}
+        </View>
+        <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-evenly', paddingLeft: MEDIO_HUECO_FAB }}>
+          {derecha}
+        </View>
+      </View>
 
       <View
         style={{ position: 'absolute', left: '50%', top: -ALTURA_FAB_SOBRESALIENTE, marginLeft: -TAMANO_FAB / 2 }}
