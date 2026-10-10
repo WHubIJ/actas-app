@@ -433,8 +433,7 @@ function PanelTranscripcion({
       <EstadoVacio
         icono={TriangleAlert}
         titulo="La transcripción falló"
-        descripcion="Se agotaron los tres intentos. Revisa que el audio se subiera completo y vuelve a lanzarla."
-        accion={{ titulo: 'Reintentar transcripción', onPress: () => {} }}
+        descripcion="Se agotaron los tres intentos. Todavía no hay forma de relanzarla desde la app; vuelve a grabarla si es posible."
       />
     );
   }

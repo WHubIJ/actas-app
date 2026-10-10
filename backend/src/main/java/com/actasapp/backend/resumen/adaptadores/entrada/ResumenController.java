@@ -43,6 +43,14 @@ public class ResumenController {
     @PostMapping
     public ResumenResponse generar(@RequestBody GenerarResumenRequest req, @AuthenticationPrincipal Jwt jwt) {
         verificarAcceso.verificar(req.reunionId(), UUID.fromString(jwt.getSubject()));
+        // GeneradorDocumentoAdapter solo genera bytes reales para MARKDOWN; sin esta
+        // comprobación, PDF/WORD llegaban hasta su UnsupportedOperationException y
+        // caían en el catch-all de RuntimeException como 500, no como un 400 claro
+        // (mismo criterio ya usado en ArchivosController para esta misma limitación).
+        if (req.formato() != FormatoArchivo.MARKDOWN) {
+            throw new IllegalArgumentException(
+                    "Todavía solo se puede generar el resumen en Markdown; PDF y Word están pendientes de implementar");
+        }
         Resumen resumen = generarResumen.generarResumen(req.reunionId(), req.transcripcion(), req.plantilla(), req.formato());
         return new ResumenResponse(resumen.getId(), new String(resumen.getContenido(), StandardCharsets.UTF_8));
     }

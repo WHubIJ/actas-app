@@ -247,9 +247,9 @@ export async function generarResumen(
  * se generan.
  *
  * No usa `peticion()`: esa función espera JSON y aquí la respuesta son los
- * bytes del archivo. Quien llama (`compartirService.ts`) no hace el `fetch`
- * con este cliente sino con `File.downloadFileAsync`, que pide la URL y las
- * cabeceras por separado en vez de una `Response` ya resuelta.
+ * bytes del archivo. Quien llama (`compartirService.ts`) hace su propio
+ * `fetch` con la URL y las cabeceras por separado (para poder comprobar el
+ * status antes de escribir nada a disco), en vez de una `Response` ya resuelta.
  */
 export async function urlArchivo(
   reunionId: string,

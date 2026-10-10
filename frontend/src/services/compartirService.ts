@@ -121,7 +121,16 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
   });
 }
 
-/** Pide el archivo ya generado a `GET /api/reuniones/{id}/archivos` y lo deja en caché. */
+/**
+ * Pide el archivo ya generado a `GET /api/reuniones/{id}/archivos` y lo deja en caché.
+ *
+ * No usa `File.downloadFileAsync`: ese método nativo escribe el body de la
+ * respuesta a disco sin mirar el status HTTP, así que un 400 del backend (p. ej.
+ * "todavía no hay resumen generado") se guardaría igual como si fuera el archivo
+ * pedido, y el share sheet lo abriría corrupto en vez de fallar aquí con un
+ * error claro. Por eso se usa `fetch` a mano y se comprueba `ok` antes de
+ * escribir nada.
+ */
 async function descargarDelBackend(
   actaId: string,
   contenido: ContenidoCompartible,
@@ -129,12 +138,31 @@ async function descargarDelBackend(
   nombre: string,
 ): Promise<File> {
   const { url, cabeceras } = await urlArchivo(actaId, contenido, formato);
+
+  let respuesta: Response;
   try {
-    // `idempotent` permite reintentar sin que falle por existir ya el archivo.
-    return await File.downloadFileAsync(url, new File(carpetaCache(), nombre), {
-      idempotent: true,
-      headers: cabeceras,
-    });
+    respuesta = await fetch(url, { headers: cabeceras });
+  } catch {
+    throw new ErrorCompartir(
+      'DESCARGA_FALLIDA',
+      'No pudimos preparar el archivo. Revisa la conexión e inténtalo otra vez.',
+    );
+  }
+
+  if (!respuesta.ok) {
+    throw new ErrorCompartir(
+      'DESCARGA_FALLIDA',
+      'No pudimos preparar el archivo. Revisa la conexión e inténtalo otra vez.',
+    );
+  }
+
+  try {
+    const bytes = new Uint8Array(await respuesta.arrayBuffer());
+    const archivo = new File(carpetaCache(), nombre);
+    // `overwrite` permite reintentar sin que falle por existir ya el archivo.
+    archivo.create({ overwrite: true, intermediates: true });
+    archivo.write(bytes);
+    return archivo;
   } catch {
     throw new ErrorCompartir(
       'DESCARGA_FALLIDA',

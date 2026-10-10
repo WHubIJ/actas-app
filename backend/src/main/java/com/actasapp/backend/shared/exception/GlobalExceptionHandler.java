@@ -1,5 +1,7 @@
 package com.actasapp.backend.shared.exception;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -15,6 +17,8 @@ import java.util.Map;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
@@ -37,10 +41,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(cuerpoError("SOLICITUD_INVALIDA", "Parámetro inválido: " + ex.getName()));
     }
 
+    /**
+     * `ex.getMessage()` puede contener detalles internos (nombres de clase/método,
+     * como los "helpful NullPointerException messages" de Java 21) que no deben
+     * llegar al cliente. Se registra completo en el log del servidor y se
+     * devuelve un mensaje genérico.
+     */
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
+        log.error("Error interno no controlado", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(cuerpoError("ERROR_INTERNO", ex.getMessage() != null ? ex.getMessage() : "Error inesperado"));
+                .body(cuerpoError("ERROR_INTERNO", "Error inesperado del servidor."));
     }
 
     private Map<String, Object> cuerpoError(String codigo, String mensaje) {

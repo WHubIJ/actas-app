@@ -19,10 +19,11 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -35,8 +36,8 @@ public class GestorTranscripcionService implements TranscribirReunionUseCase, Co
 
     private static final Logger log = LoggerFactory.getLogger(GestorTranscripcionService.class);
 
-    /** Espera creciente entre reintentos, en ms. Un índice por intento fallido. */
-    private static final long[] ESPERA_ENTRE_REINTENTOS_MS = {2000, 4000, 8000};
+    /** Base del backoff exponencial entre reintentos, en ms: 2s, 4s, 8s, 16s... */
+    private static final long ESPERA_BASE_MS = 2000;
 
     private final TranscripcionRepositorioPuerto transcripcionRepositorio;
     private final TranscripcionCombinadaRepositorioPuerto transcripcionCombinadaRepositorio;
@@ -70,37 +71,48 @@ public class GestorTranscripcionService implements TranscribirReunionUseCase, Co
         transcribirReunion(evento.reunionId(), evento.clips());
     }
 
+    /** Resultado de transcribir un clip: `texto` es `null` si se agotaron los reintentos. */
+    private record ResultadoClip(int orden, String texto) {}
+
     /**
      * Async: esto llama a una API externa lenta (Mistral) y no debe bloquear
-     * la respuesta HTTP de POST /finalizar. Un clip que agota los reintentos
-     * no aborta la reunión entera, se sigue con el siguiente — pero entonces
-     * no hay texto combinado posible, así que solo se genera si todos los
-     * clips (ya vienen ordenados) terminaron COMPLETADA.
+     * la respuesta HTTP de POST /finalizar. Los clips se transcriben en
+     * paralelo (cada uno con su propia API externa y reintentos, no comparten
+     * estado entre sí) en vez de secuencialmente: una reunión con N clips
+     * tardaría N × latencia si se esperara uno a uno. Un clip que agota los
+     * reintentos no aborta la reunión entera, pero entonces no hay texto
+     * combinado posible, así que solo se genera si todos los clips (ya vienen
+     * ordenados) terminaron COMPLETADA.
      */
     @Override
     @Async
     public void transcribirReunion(UUID reunionId, List<ReunionFinalizadaEvent.ClipParaTranscribir> clips) {
-        boolean todosCompletados = true;
-        List<String> textosEnOrden = new ArrayList<>();
+        List<CompletableFuture<ResultadoClip>> futuros = clips.stream()
+                .map(clip -> CompletableFuture.supplyAsync(() -> procesarClip(reunionId, clip)))
+                .toList();
+        List<ResultadoClip> resultados = futuros.stream().map(CompletableFuture::join).toList();
 
-        for (ReunionFinalizadaEvent.ClipParaTranscribir clip : clips) {
-            Transcripcion transcripcion = new Transcripcion(clip.clipId(), reunionId, clip.orden());
-            transcripcion.marcarEnProceso();
-            transcripcionRepositorio.guardar(transcripcion);
-
-            String texto = transcribirConReintentos(clip, transcripcion);
-            if (texto == null) {
-                todosCompletados = false;
-            } else {
-                textosEnOrden.add(texto);
-            }
-        }
+        boolean todosCompletados = resultados.stream().allMatch(r -> r.texto() != null);
+        List<String> textosEnOrden = resultados.stream()
+                .sorted((a, b) -> Integer.compare(a.orden(), b.orden()))
+                .map(ResultadoClip::texto)
+                .filter(Objects::nonNull)
+                .toList();
 
         if (todosCompletados && !textosEnOrden.isEmpty()) {
             combinarYGuardar(reunionId, textosEnOrden);
         }
 
         eventos.publishEvent(new TranscripcionCompletadaEvent(reunionId, todosCompletados));
+    }
+
+    private ResultadoClip procesarClip(UUID reunionId, ReunionFinalizadaEvent.ClipParaTranscribir clip) {
+        Transcripcion transcripcion = new Transcripcion(clip.clipId(), reunionId, clip.orden());
+        transcripcion.marcarEnProceso();
+        transcripcionRepositorio.guardar(transcripcion);
+
+        String texto = transcribirConReintentos(clip, transcripcion);
+        return new ResultadoClip(clip.orden(), texto);
     }
 
     /** Con un solo clip no hay nada que fundir: se guarda tal cual, sin gastar una llamada a Mistral. */
@@ -143,10 +155,15 @@ public class GestorTranscripcionService implements TranscribirReunionUseCase, Co
         return new TranscripcionDetalle(estado, texto);
     }
 
+    /**
+     * Backoff exponencial calculado a partir de `intento`, no de una tabla fija:
+     * así sigue creciendo correctamente si `max-reintentos` se configura por
+     * encima de lo que tenía la tabla antigua, en vez de dejar de esperar entre
+     * reintentos sin ningún aviso.
+     */
     private void esperarAntesDeReintentar(int intento) {
-        if (intento >= ESPERA_ENTRE_REINTENTOS_MS.length) return;
         try {
-            Thread.sleep(ESPERA_ENTRE_REINTENTOS_MS[intento]);
+            Thread.sleep(ESPERA_BASE_MS * (1L << intento));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

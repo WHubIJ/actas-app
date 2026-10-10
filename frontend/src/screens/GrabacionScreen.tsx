@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
 import { File } from 'expo-file-system';
-import { ChevronLeft, Upload } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import type { RootStackParamList } from '../../App';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Text, Button, Aviso, LiveIndicator, Waveform } from '../../components/ui';
@@ -290,7 +290,6 @@ export function GrabacionScreen({ navigation, route }: Props) {
                 grabando={estado === 'grabando'}
                 onAlternar={alternarPausa}
                 onDetener={descartar}
-                onMejorar={() => {}}
               />
             </>
           )}
@@ -302,24 +301,13 @@ export function GrabacionScreen({ navigation, route }: Props) {
           {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
 
           {estado === 'inactivo' && (
-            <>
-              <Button
-                label={cargando ? 'Iniciando…' : 'Iniciar grabación'}
-                size="xl"
-                fullWidth
-                loading={cargando}
-                onPress={iniciar}
-              />
-              <Button
-                label="Importar archivo de audio"
-                variant="secondary"
-                size="xl"
-                fullWidth
-                icon={(c) => <Upload size={18} color={c} strokeWidth={1.8} />}
-                onPress={() => {}}
-                disabled={cargando}
-              />
-            </>
+            <Button
+              label={cargando ? 'Iniciando…' : 'Iniciar grabación'}
+              size="xl"
+              fullWidth
+              loading={cargando}
+              onPress={iniciar}
+            />
           )}
 
           {(estado === 'grabando' || estado === 'pausado') && (

@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { Pause, Play, Sparkles, Square } from 'lucide-react-native';
+import { Pause, Play, Square } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { PressableEscala } from './PressableEscala';
 
@@ -8,18 +8,17 @@ interface Props {
   grabando: boolean;
   onDetener: () => void;
   onAlternar: () => void;
-  onMejorar: () => void;
 }
 
 const TAMANO_SECUNDARIO = 54;
 const TAMANO_PRINCIPAL = 80;
 
 /**
- * Fila de controles de la grabación: detener · pausar/reanudar · mejorar audio.
- * El botón central es el doble de peso visual que los laterales porque es la
- * acción que se pulsa a ciegas, sin mirar la pantalla.
+ * Fila de controles de la grabación: detener · pausar/reanudar. El botón
+ * central es el doble de peso visual que el lateral porque es la acción que
+ * se pulsa a ciegas, sin mirar la pantalla.
  */
-export function RecorderControls({ grabando, onDetener, onAlternar, onMejorar }: Props) {
+export function RecorderControls({ grabando, onDetener, onAlternar }: Props) {
   const t = useTheme();
   const secundario = {
     width: TAMANO_SECUNDARIO,
@@ -57,10 +56,6 @@ export function RecorderControls({ grabando, onDetener, onAlternar, onMejorar }:
         ) : (
           <Play size={30} color={t.colors.onBrand} strokeWidth={2} fill={t.colors.onBrand} />
         )}
-      </PressableEscala>
-
-      <PressableEscala onPress={onMejorar} escala={0.92} accessibilityLabel="Mejorar audio" style={secundario}>
-        <Sparkles size={20} color={t.colors.text2} strokeWidth={1.8} />
       </PressableEscala>
     </View>
   );
