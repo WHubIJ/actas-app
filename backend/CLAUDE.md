@@ -7,8 +7,9 @@ generales viven en el `CLAUDE.md` raíz del repo.
 
 **Hexagonal (Ports & Adapters) + Modular Monolito** (ADR-002). Un único desplegable
 dividido en 4 módulos bajo `com.actasapp.backend`, uno por épica del Sprint 1:
-`grabacion`, `transcripcion`, `resumen`, `compartir`, más `shared` (eventos y
-manejo de errores comunes).
+`grabacion`, `transcripcion`, `resumen`, `compartir`, más `shared` (eventos,
+manejo de errores comunes, identidad/tenancy y el orquestador de descarga
+`archivos`).
 
 Cada módulo repite la misma estructura interna:
 
@@ -37,6 +38,11 @@ Cada módulo repite la misma estructura interna:
   (`ApplicationEventPublisher`) definidos en `shared/eventos/`:
   `grabacion` publica `ReunionFinalizadaEvent` → `transcripcion` lo escuchará (Épica 2);
   `transcripcion` publicará `TranscripcionCompletadaEvent` para notificar vía FCM.
+  **Única excepción documentada:** `shared/archivos/ArchivosController` depende del
+  puerto de entrada de lectura de `resumen` (`ObtenerResumenUseCase`) para servir una
+  descarga — es `shared` quien conoce a un módulo, nunca al revés, y solo a través de
+  su puerto de entrada (nunca sus adaptadores internos). No crear un segundo caso así
+  sin pensarlo igual de explícito.
 - **Cambiar de proveedor externo = reemplazar un adaptador**, nunca tocar dominio ni servicio.
 - **Errores:** centralizados en `shared/exception/GlobalExceptionHandler`.
   `IllegalArgumentException` → 400 `SOLICITUD_INVALIDA`;
@@ -113,4 +119,19 @@ hardware de audio).
   `contentType`
 - `GET /api/compartir/{token}` → descarga el archivo — público a propósito
   (quien recibe el enlace por WhatsApp no tiene cuenta en la app), permitido
-  explícitamente en `SecurityConfig`
+  explícitamente en `SecurityConfig`. Sin este módulo nadie lo llama todavía
+  (no hay botón de "enlace" en el frontend) — el share sheet nativo usa
+  `ArchivosController` (abajo), no este.
+
+`ArchivosController` (en `shared/archivos`, no en ningún módulo de épica) bajo
+`/api/reuniones/{reunionId}/archivos`:
+
+- `GET /api/reuniones/{reunionId}/archivos?contenido=resumen|transcripcion&formato=PDF|WORD|MARKDOWN`
+  → descarga el archivo ya generado para `compartirService.ts` (share sheet
+  nativo). Requiere sesión, como el resto de `/api/reuniones`. Hoy solo
+  `contenido=resumen&formato=MARKDOWN` funciona de verdad (busca el resumen
+  más reciente de esa reunión en ese formato vía `ObtenerResumenUseCase`,
+  nuevo puerto de entrada de `resumen`); cualquier otra combinación da 400
+  `SOLICITUD_INVALIDA` con un mensaje explícito, no un 500 — PDF/WORD siguen
+  sin implementar en `GeneradorDocumentoAdapter` y la transcripción, que por
+  regla de negocio solo se entrega en PDF, tampoco tiene generador todavía.

@@ -4,6 +4,7 @@ import com.actasapp.backend.resumen.domain.FormatoArchivo;
 import com.actasapp.backend.resumen.domain.PlantillaResumen;
 import com.actasapp.backend.resumen.domain.Resumen;
 import com.actasapp.backend.resumen.puertos.entrada.GenerarResumenUseCase;
+import com.actasapp.backend.resumen.puertos.entrada.ObtenerResumenUseCase;
 import com.actasapp.backend.resumen.puertos.salida.GenerarTextoResumenPuerto;
 import com.actasapp.backend.resumen.puertos.salida.GeneradorDocumentoPuerto;
 import com.actasapp.backend.resumen.puertos.salida.ResumenRepositorioPuerto;
@@ -21,7 +22,7 @@ import java.util.UUID;
  * reacción en segundo plano a un evento.
  */
 @Service
-public class GestorResumenService implements GenerarResumenUseCase {
+public class GestorResumenService implements GenerarResumenUseCase, ObtenerResumenUseCase {
 
     private final GenerarTextoResumenPuerto generadorTexto;
     private final GeneradorDocumentoPuerto generadorDocumento;
@@ -45,5 +46,12 @@ public class GestorResumenService implements GenerarResumenUseCase {
         byte[] contenido = generadorDocumento.generar(texto, formato);
         Resumen resumen = new Resumen(UUID.randomUUID(), reunionId, plantilla, formato, contenido);
         return resumenRepositorio.guardar(resumen);
+    }
+
+    @Override
+    public Resumen obtenerUltimoPorReunionId(UUID reunionId, FormatoArchivo formato) {
+        return resumenRepositorio.buscarUltimoPorReunionIdYFormato(reunionId, formato)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No hay resumen en formato " + formato + " generado todavía para esta reunión"));
     }
 }

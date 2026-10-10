@@ -1,5 +1,6 @@
 package com.actasapp.backend.resumen.adaptadores.salida.jpa;
 
+import com.actasapp.backend.resumen.domain.FormatoArchivo;
 import com.actasapp.backend.resumen.domain.Resumen;
 import com.actasapp.backend.resumen.puertos.salida.ResumenRepositorioPuerto;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,12 @@ public class ResumenRepositorioAdapter implements ResumenRepositorioPuerto {
     @Override
     public Optional<Resumen> buscarPorId(UUID id) {
         return jpaRepository.findById(id)
+                .map(e -> new Resumen(e.getId(), e.getReunionId(), e.getPlantilla(), e.getFormato(), e.getContenido()));
+    }
+
+    @Override
+    public Optional<Resumen> buscarUltimoPorReunionIdYFormato(UUID reunionId, FormatoArchivo formato) {
+        return jpaRepository.findTopByReunionIdAndFormatoOrderByGeneradoEnDesc(reunionId, formato)
                 .map(e -> new Resumen(e.getId(), e.getReunionId(), e.getPlantilla(), e.getFormato(), e.getContenido()));
     }
 }
