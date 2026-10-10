@@ -6,6 +6,7 @@ import com.actasapp.backend.grabacion.puertos.entrada.FinalizarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.IniciarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.RegistrarClipUseCase;
 import com.actasapp.backend.shared.identidad.ResolverOrganizacionUsuario;
+import com.actasapp.backend.shared.identidad.VerificarAccesoReunion;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -32,6 +33,7 @@ public class GrabacionController {
     private final FinalizarReunionUseCase finalizarReunion;
     private final ConsultarReunionesUseCase consultarReuniones;
     private final ResolverOrganizacionUsuario resolverOrganizacion;
+    private final VerificarAccesoReunion verificarAcceso;
 
     /** Provisional: para usuarios sin membresía (se registraron sin nombrar una organización). */
     private final UUID organizacionPorDefectoId;
@@ -41,12 +43,14 @@ public class GrabacionController {
                                 FinalizarReunionUseCase finalizarReunion,
                                 ConsultarReunionesUseCase consultarReuniones,
                                 ResolverOrganizacionUsuario resolverOrganizacion,
+                                VerificarAccesoReunion verificarAcceso,
                                 @Value("${actas-app.organizacion-por-defecto-id}") UUID organizacionPorDefectoId) {
         this.iniciarReunion = iniciarReunion;
         this.registrarClip = registrarClip;
         this.finalizarReunion = finalizarReunion;
         this.consultarReuniones = consultarReuniones;
         this.resolverOrganizacion = resolverOrganizacion;
+        this.verificarAcceso = verificarAcceso;
         this.organizacionPorDefectoId = organizacionPorDefectoId;
     }
 
@@ -113,8 +117,8 @@ public class GrabacionController {
     }
 
     @GetMapping("/{reunionId}")
-    public ReunionResumenResponse detalle(@PathVariable UUID reunionId) {
-        return aResumen(consultarReuniones.buscarPorId(reunionId));
+    public ReunionResumenResponse detalle(@PathVariable UUID reunionId, @AuthenticationPrincipal Jwt jwt) {
+        return aResumen(verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject())));
     }
 
     private ReunionResumenResponse aResumen(Reunion reunion) {

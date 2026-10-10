@@ -1,7 +1,9 @@
 package com.actasapp.backend.compartir.domain;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Enlace temporal a un contenido ya generado (hoy: un resumen). Objeto de
@@ -12,6 +14,19 @@ import java.util.UUID;
  */
 public class EnlaceCompartido {
 
+    /**
+     * Tipos de contenido que este módulo puede servir públicamente. Un `contentType`
+     * fuera de esta lista (ej. `text/html`) permitiría que el enlace público sirviera
+     * una página que un visor embebido renderice en vez de descargar como adjunto —
+     * riesgo de XSS reflejado desde un enlace con apariencia de MeetingAI.
+     */
+    private static final Set<String> TIPOS_CONTENIDO_PERMITIDOS = Set.of(
+            "text/markdown", "text/plain", "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+
+    /** CR/LF permitirían inyectar cabeceras adicionales en la respuesta HTTP; `"` rompería las comillas del `Content-Disposition`. */
+    private static final Pattern NOMBRE_ARCHIVO_INVALIDO = Pattern.compile("[\"\\r\\n\\\\]");
+
     private final UUID token;
     private final byte[] contenido;
     private final String nombreArchivo;
@@ -21,6 +36,12 @@ public class EnlaceCompartido {
     public EnlaceCompartido(UUID token, byte[] contenido, String nombreArchivo, String contentType, Instant expiraEn) {
         if (contenido == null || contenido.length == 0) {
             throw new IllegalArgumentException("El contenido a compartir no puede estar vacío");
+        }
+        if (nombreArchivo == null || nombreArchivo.isBlank() || NOMBRE_ARCHIVO_INVALIDO.matcher(nombreArchivo).find()) {
+            throw new IllegalArgumentException("Nombre de archivo inválido");
+        }
+        if (contentType == null || !TIPOS_CONTENIDO_PERMITIDOS.contains(contentType)) {
+            throw new IllegalArgumentException("Tipo de contenido no permitido para compartir: " + contentType);
         }
         this.token = token;
         this.contenido = contenido;

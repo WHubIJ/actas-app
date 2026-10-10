@@ -38,11 +38,15 @@ Cada módulo repite la misma estructura interna:
   (`ApplicationEventPublisher`) definidos en `shared/eventos/`:
   `grabacion` publica `ReunionFinalizadaEvent` → `transcripcion` lo escuchará (Épica 2);
   `transcripcion` publicará `TranscripcionCompletadaEvent` para notificar vía FCM.
-  **Única excepción documentada:** `shared/archivos/ArchivosController` depende del
-  puerto de entrada de lectura de `resumen` (`ObtenerResumenUseCase`) para servir una
-  descarga — es `shared` quien conoce a un módulo, nunca al revés, y solo a través de
-  su puerto de entrada (nunca sus adaptadores internos). No crear un segundo caso así
-  sin pensarlo igual de explícito.
+  **Excepción documentada, generalizada:** `shared/` puede depender del puerto de
+  entrada de un módulo de épica cuando necesita orquestar algo transversal — nunca al
+  revés, y nunca a través de los adaptadores internos de ese módulo. Dos casos hoy:
+  `shared/archivos/ArchivosController` depende de `ObtenerResumenUseCase` (`resumen`)
+  para servir una descarga; `shared/identidad/VerificarAccesoReunion` depende de
+  `ConsultarReunionesUseCase` (`grabacion`) para comprobar que un `reunionId` recibido
+  por `resumen`, `transcripcion` o `shared/archivos` pertenezca a la organización del
+  usuario autenticado (ver nota de seguridad abajo). No añadir un tercer caso sin
+  documentarlo aquí igual de explícito.
 - **Cambiar de proveedor externo = reemplazar un adaptador**, nunca tocar dominio ni servicio.
 - **Errores:** centralizados en `shared/exception/GlobalExceptionHandler`.
   `IllegalArgumentException` → 400 `SOLICITUD_INVALIDA`;
@@ -61,6 +65,25 @@ Cada módulo repite la misma estructura interna:
 | `compartir` | Completo: `GestorCompartirService` genera el token y valida expiración (24h), `EnlaceCompartidoRepositorioAdapter` persiste en JPA, `CompartirController` expone generar/descargar. `SecurityConfig` permite público solo el `GET /api/compartir/*` |
 
 Los `.gitkeep` marcan los paquetes ya previstos pero vacíos.
+
+### Nota de seguridad: aislamiento por organización en endpoints con `reunionId`
+
+Todo endpoint que recibe un `reunionId` directo (no uno resuelto a partir del usuario,
+como `listar()`) **debe** llamar a `VerificarAccesoReunion.verificar(reunionId, usuarioId)`
+(`shared/identidad`) antes de leer o generar nada — sin eso, cualquier cuenta autenticada
+podía pedir el contenido de una reunión de otra organización solo con su UUID (IDOR).
+Ya lo hacen `GrabacionController.detalle`, `ResumenController.generar`,
+`TranscripcionController.detalle` y `ArchivosController.descargar`. El endpoint en lote
+`TranscripcionController.estados` queda fuera a propósito: solo devuelve un enum de
+estado por reunión, nunca contenido, y ya recibe los IDs ya filtrados por organización
+desde `GET /api/reuniones`.
+
+El enlace público de `compartir` (`EnlaceCompartido`) valida en el propio dominio que
+`contentType` esté en una lista blanca (`text/markdown`, `text/plain`, `application/pdf`,
+`application/vnd.openxmlformats-officedocument.wordprocessingml.document` — nunca
+`text/html`, que un visor embebido podría renderizar en vez de descargar) y que
+`nombreArchivo` no contenga `"`, `\r` ni `\n` (evita inyectar cabeceras adicionales o
+romper las comillas de `Content-Disposition`).
 
 ### API existente
 

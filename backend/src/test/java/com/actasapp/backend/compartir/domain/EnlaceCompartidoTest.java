@@ -45,6 +45,31 @@ class EnlaceCompartidoTest {
     }
 
     @Test
+    void noSePuedeCrearConNombreArchivoNulo() {
+        assertThrows(IllegalArgumentException.class, () -> new EnlaceCompartido(
+                UUID.randomUUID(), contenidoDePrueba(), null, "text/markdown", Instant.now().plus(24, ChronoUnit.HOURS)));
+    }
+
+    @Test
+    void noSePuedeCrearConNombreArchivoQueInyecteCabeceras() {
+        assertThrows(IllegalArgumentException.class, () -> new EnlaceCompartido(
+                UUID.randomUUID(), contenidoDePrueba(), "foo.txt\"; filename*=UTF-8''evil.html",
+                "text/markdown", Instant.now().plus(24, ChronoUnit.HOURS)));
+    }
+
+    @Test
+    void noSePuedeCrearConContentTypeNulo() {
+        assertThrows(IllegalArgumentException.class, () -> new EnlaceCompartido(
+                UUID.randomUUID(), contenidoDePrueba(), "resumen.md", null, Instant.now().plus(24, ChronoUnit.HOURS)));
+    }
+
+    @Test
+    void noSePuedeCrearConContentTypeNoPermitido() {
+        assertThrows(IllegalArgumentException.class, () -> new EnlaceCompartido(
+                UUID.randomUUID(), contenidoDePrueba(), "pagina.html", "text/html", Instant.now().plus(24, ChronoUnit.HOURS)));
+    }
+
+    @Test
     void noEstaExpiradoAntesDeLaFechaLimite() {
         EnlaceCompartido enlace = new EnlaceCompartido(
                 UUID.randomUUID(), contenidoDePrueba(), "resumen.md", "text/markdown",

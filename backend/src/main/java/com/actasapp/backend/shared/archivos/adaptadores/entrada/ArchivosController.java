@@ -4,9 +4,12 @@ import com.actasapp.backend.resumen.domain.FormatoArchivo;
 import com.actasapp.backend.resumen.domain.Resumen;
 import com.actasapp.backend.resumen.puertos.entrada.ObtenerResumenUseCase;
 import com.actasapp.backend.shared.archivos.domain.ContenidoArchivo;
+import com.actasapp.backend.shared.identidad.VerificarAccesoReunion;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,15 +42,19 @@ import java.util.UUID;
 public class ArchivosController {
 
     private final ObtenerResumenUseCase obtenerResumen;
+    private final VerificarAccesoReunion verificarAcceso;
 
-    public ArchivosController(ObtenerResumenUseCase obtenerResumen) {
+    public ArchivosController(ObtenerResumenUseCase obtenerResumen, VerificarAccesoReunion verificarAcceso) {
         this.obtenerResumen = obtenerResumen;
+        this.verificarAcceso = verificarAcceso;
     }
 
     @GetMapping
     public ResponseEntity<byte[]> descargar(@PathVariable UUID reunionId,
                                              @RequestParam String contenido,
-                                             @RequestParam FormatoArchivo formato) {
+                                             @RequestParam FormatoArchivo formato,
+                                             @AuthenticationPrincipal Jwt jwt) {
+        verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject()));
         ContenidoArchivo tipoContenido = parsearContenido(contenido);
         if (tipoContenido != ContenidoArchivo.RESUMEN || formato != FormatoArchivo.MARKDOWN) {
             throw new IllegalArgumentException(

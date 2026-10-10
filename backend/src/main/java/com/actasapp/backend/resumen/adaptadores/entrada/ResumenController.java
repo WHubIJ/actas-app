@@ -4,6 +4,9 @@ import com.actasapp.backend.resumen.domain.FormatoArchivo;
 import com.actasapp.backend.resumen.domain.PlantillaResumen;
 import com.actasapp.backend.resumen.domain.Resumen;
 import com.actasapp.backend.resumen.puertos.entrada.GenerarResumenUseCase;
+import com.actasapp.backend.shared.identidad.VerificarAccesoReunion;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,9 +28,11 @@ import java.util.UUID;
 public class ResumenController {
 
     private final GenerarResumenUseCase generarResumen;
+    private final VerificarAccesoReunion verificarAcceso;
 
-    public ResumenController(GenerarResumenUseCase generarResumen) {
+    public ResumenController(GenerarResumenUseCase generarResumen, VerificarAccesoReunion verificarAcceso) {
         this.generarResumen = generarResumen;
+        this.verificarAcceso = verificarAcceso;
     }
 
     public record GenerarResumenRequest(UUID reunionId, String transcripcion, PlantillaResumen plantilla, FormatoArchivo formato) {}
@@ -36,7 +41,8 @@ public class ResumenController {
     public record ResumenResponse(UUID resumenId, String contenido) {}
 
     @PostMapping
-    public ResumenResponse generar(@RequestBody GenerarResumenRequest req) {
+    public ResumenResponse generar(@RequestBody GenerarResumenRequest req, @AuthenticationPrincipal Jwt jwt) {
+        verificarAcceso.verificar(req.reunionId(), UUID.fromString(jwt.getSubject()));
         Resumen resumen = generarResumen.generarResumen(req.reunionId(), req.transcripcion(), req.plantilla(), req.formato());
         return new ResumenResponse(resumen.getId(), new String(resumen.getContenido(), StandardCharsets.UTF_8));
     }
