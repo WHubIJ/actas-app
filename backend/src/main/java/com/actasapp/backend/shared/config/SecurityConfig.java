@@ -85,6 +85,9 @@ public class SecurityConfig implements WebMvcConfigurer {
     private AuthenticationEntryPoint entradaNoAutenticado() {
         return (request, response, excepcion) -> {
             response.setStatus(401);
+            // Sin esto, el acento de "sesión" sale como "sesi�n": getWriter() usa el
+            // encoding por defecto del servlet (no UTF-8) si no se fija a mano.
+            response.setCharacterEncoding("UTF-8");
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write("{\"error\":\"NO_AUTENTICADO\",\"mensaje\":\"Inicia sesión para continuar.\"}");
         };

@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -23,6 +24,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(cuerpoError("ESTADO_INVALIDO", ex.getMessage()));
+    }
+
+    /**
+     * Un path variable que no castea al tipo esperado (ej. `/api/compartir/no-es-un-uuid`)
+     * no es un fallo del servidor: en endpoints públicos como el de descarga, cualquiera
+     * puede mandar un token con un typo. Sin este handler caía en el catch-all de abajo,
+     * devolviendo 500 y filtrando el mensaje interno de Spring al cliente.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.badRequest().body(cuerpoError("SOLICITUD_INVALIDA", "Parámetro inválido: " + ex.getName()));
     }
 
     @ExceptionHandler(RuntimeException.class)
