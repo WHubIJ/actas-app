@@ -1,4 +1,4 @@
-import { componerMarkdownResumen, nombreArchivoActa } from './markdownActa';
+import { componerMarkdownResumen, nombreArchivoActa, parsearResumenEjecutivo } from './markdownActa';
 import type { ActaDetalle } from '../types';
 
 describe('nombreArchivoActa', () => {
@@ -28,6 +28,7 @@ describe('componerMarkdownResumen', () => {
     participantes: ['Ana', 'Luis'],
     estadoTranscripcion: 'COMPLETADA',
     intervenciones: [],
+    textoTranscripcion: null,
     resumen: null,
     plantillaResumen: null,
   };
@@ -58,5 +59,40 @@ describe('componerMarkdownResumen', () => {
     expect(markdown).toContain('## Acuerdos');
     expect(markdown).toContain('- Aprobar presupuesto');
     expect(markdown).toContain('- Fijar próxima fecha');
+  });
+});
+
+describe('parsearResumenEjecutivo', () => {
+  it('junta el párrafo inicial y los bullets en una sola sección', () => {
+    const markdown = [
+      'El equipo revisó los resultados del trimestre y definió los próximos pasos.',
+      '',
+      '- La integración de pagos entra en esta fase, limitada al cobro recurrente.',
+      '- El alcance del trimestre queda cerrado con tres tareas asignadas.',
+    ].join('\n');
+
+    const secciones = parsearResumenEjecutivo(markdown);
+
+    expect(secciones).toHaveLength(1);
+    expect(secciones[0].titulo).toBe('Resumen ejecutivo');
+    expect(secciones[0].puntos).toEqual([
+      'El equipo revisó los resultados del trimestre y definió los próximos pasos.',
+      'La integración de pagos entra en esta fase, limitada al cobro recurrente.',
+      'El alcance del trimestre queda cerrado con tres tareas asignadas.',
+    ]);
+  });
+
+  it('funciona con solo bullets, sin párrafo inicial', () => {
+    const secciones = parsearResumenEjecutivo('- Único acuerdo de la reunión.');
+
+    expect(secciones[0].puntos).toEqual(['Único acuerdo de la reunión.']);
+  });
+
+  it('ignora encabezados Markdown si el modelo los añade pese a la instrucción', () => {
+    const markdown = ['## Resumen', '- Un punto cualquiera.'].join('\n');
+
+    const secciones = parsearResumenEjecutivo(markdown);
+
+    expect(secciones[0].puntos).toEqual(['Un punto cualquiera.']);
   });
 });

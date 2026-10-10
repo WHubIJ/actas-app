@@ -5,10 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   AudioLines,
   ChevronLeft,
-  FileText,
-  FileType,
   Hash,
-  ListChecks,
   RotateCw,
   Share2,
   Sparkles,
@@ -22,9 +19,10 @@ import { TarjetaSeccionResumen } from '../components/TarjetaSeccionResumen';
 import { FilaIntervencion } from '../components/FilaIntervencion';
 import { HojaOpciones, type OpcionHoja } from '../components/HojaOpciones';
 import { buscarActa } from '../mocks/actas';
-import { obtenerActaDetalle, hayBackend, ErrorApi } from '../services/api';
+import { obtenerActaDetalle, generarResumen, hayBackend, ErrorApi } from '../services/api';
 import { compartirActa, ErrorCompartir } from '../services/compartirService';
 import { formatearMinutos } from '../utils/formato';
+import { parsearResumenEjecutivo } from '../utils/markdownActa';
 import type {
   ActaDetalle,
   EstadoTranscripcion,
@@ -43,40 +41,34 @@ const PESTANAS: ReadonlyArray<Segmento<Pestana>> = [
   { id: 'transcripcion', etiqueta: 'Transcripción' },
 ];
 
+/**
+ * Solo RESUMEN_EJECUTIVO tiene prompt implementado en el backend hoy
+ * (`MistralResumenAdapter`); ACTA_FORMAL y LISTA_ACUERDOS responden
+ * `ERROR_INTERNO`. Se ocultan en vez de ofrecerlas y dejar que el usuario
+ * choque con un 500 genérico — vuelven a la lista en cuanto el backend las
+ * implemente (Épica 3 ampliada).
+ */
 const PLANTILLAS: ReadonlyArray<OpcionHoja<PlantillaResumen>> = [
-  {
-    id: 'ACTA_FORMAL',
-    titulo: 'Acta formal',
-    descripcion: 'Acuerdos, temas tratados y pendientes, con el tono de un acta de junta.',
-    icono: FileText,
-  },
   {
     id: 'RESUMEN_EJECUTIVO',
     titulo: 'Resumen ejecutivo',
     descripcion: 'Media página con lo esencial de la reunión.',
     icono: Sparkles,
   },
-  {
-    id: 'LISTA_ACUERDOS',
-    titulo: 'Lista de acuerdos',
-    descripcion: 'Solo las decisiones tomadas, sin contexto.',
-    icono: ListChecks,
-  },
 ];
 
 /**
- * Formatos de exportación. La transcripción solo sale en PDF (regla de
- * negocio), así que la lista cambia según la pestaña abierta.
+ * Formatos de exportación del resumen. PDF y Word los generaría el backend
+ * (iText/POI) pero `GeneradorDocumentoAdapter` aún no los implementa — se
+ * ocultan por el mismo motivo que las plantillas de arriba. La transcripción
+ * por regla de negocio solo sale en PDF, que tampoco existe: por eso no
+ * tiene pestaña de compartir propia (ver `puedeCompartir`).
  */
 const FORMATOS_RESUMEN: ReadonlyArray<OpcionHoja<FormatoArchivo>> = [
-  { id: 'PDF', titulo: 'PDF', descripcion: 'Listo para imprimir o firmar.', icono: FileText },
-  { id: 'WORD', titulo: 'Word', descripcion: 'Editable antes de enviarlo.', icono: FileType },
   { id: 'MARKDOWN', titulo: 'Markdown', descripcion: 'Texto plano para notas o wiki.', icono: Hash },
 ];
 
-const FORMATOS_TRANSCRIPCION = FORMATOS_RESUMEN.slice(0, 1);
-
-/** Ritmo de la generación simulada del resumen. */
+/** Ritmo de la generación simulada del resumen (solo sin backend). */
 const MS_GENERACION = 2200;
 
 export function DetalleActaScreen({ route, navigation }: Props) {
@@ -112,9 +104,10 @@ export function DetalleActaScreen({ route, navigation }: Props) {
   const [pestana, setPestana] = useState<Pestana>('resumen');
   const [resumen, setResumen] = useState<SeccionResumen[] | null>(actaInicial?.resumen ?? null);
   const [generando, setGenerando] = useState(false);
+  const [errorResumen, setErrorResumen] = useState<string | null>(null);
   const [hojaPlantillas, setHojaPlantillas] = useState(false);
   const [hojaFormatos, setHojaFormatos] = useState(false);
-  const [formato, setFormato] = useState<FormatoArchivo>('PDF');
+  const [formato, setFormato] = useState<FormatoArchivo>('MARKDOWN');
   const [compartiendo, setCompartiendo] = useState(false);
   const [errorCompartir, setErrorCompartir] = useState<string | null>(null);
 
@@ -175,16 +168,36 @@ export function DetalleActaScreen({ route, navigation }: Props) {
     [acta, resumen, pestana],
   );
 
-  const generar = useCallback((_plantilla: PlantillaResumen) => {
-    setHojaPlantillas(false);
-    setGenerando(true);
-    // Simulación: cuando exista la Épica 3, esto será POST /resumen y la
-    // espera del evento de backend, no un temporizador.
-    setTimeout(() => {
-      setResumen(RESUMEN_GENERADO);
-      setGenerando(false);
-    }, MS_GENERACION);
-  }, []);
+  const generar = useCallback(
+    async (plantilla: PlantillaResumen) => {
+      if (!acta) return;
+      setHojaPlantillas(false);
+      setErrorResumen(null);
+      setGenerando(true);
+
+      if (!hayBackend) {
+        // Sin backend, mismo patrón que el resto de la app: simulación local.
+        setTimeout(() => {
+          setResumen(RESUMEN_GENERADO);
+          setGenerando(false);
+        }, MS_GENERACION);
+        return;
+      }
+
+      try {
+        // Formato fijo a MARKDOWN: es el único que `GeneradorDocumentoAdapter`
+        // tiene implementado hoy (ver backend/CLAUDE.md). El formato que elige
+        // el usuario al compartir es un paso aparte, sobre este mismo contenido.
+        const { contenido } = await generarResumen(actaId, acta.textoTranscripcion ?? '', plantilla, 'MARKDOWN');
+        setResumen(parsearResumenEjecutivo(contenido));
+      } catch (error) {
+        setErrorResumen(error instanceof ErrorApi ? error.message : 'No se pudo generar el resumen.');
+      } finally {
+        setGenerando(false);
+      }
+    },
+    [acta, actaId],
+  );
 
   const volver = () => navigation.goBack();
 
@@ -242,9 +255,11 @@ export function DetalleActaScreen({ route, navigation }: Props) {
     );
   }
 
-  const transcrita = acta.estadoTranscripcion === 'COMPLETADA';
-  const formatos = pestana === 'resumen' ? FORMATOS_RESUMEN : FORMATOS_TRANSCRIPCION;
-  const puedeCompartir = pestana === 'resumen' ? resumen !== null : transcrita;
+  // Compartir la transcripción exige PDF por regla de negocio, y el backend
+  // todavía no lo genera (ver compartirService.ts) — no tiene botón propio
+  // hasta que exista esa pieza, para no ofrecer una acción que solo puede
+  // fallar.
+  const puedeCompartir = pestana === 'resumen' && resumen !== null;
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
@@ -270,13 +285,19 @@ export function DetalleActaScreen({ route, navigation }: Props) {
               estadoTranscripcion={acta.estadoTranscripcion}
               generando={vista.generando}
               resumen={vista.resumen}
+              error={errorResumen}
+              onCerrarError={() => setErrorResumen(null)}
               onGenerar={() => setHojaPlantillas(true)}
               onVerTranscripcion={() => setPestana('transcripcion')}
             />
           )}
 
           {vista.pestana === 'transcripcion' && (
-            <PanelTranscripcion estado={acta.estadoTranscripcion} intervenciones={acta.intervenciones} />
+            <PanelTranscripcion
+              estado={acta.estadoTranscripcion}
+              intervenciones={acta.intervenciones}
+              textoTranscripcion={acta.textoTranscripcion}
+            />
           )}
         </Animated.View>
       </ScrollView>
@@ -307,12 +328,8 @@ export function DetalleActaScreen({ route, navigation }: Props) {
       <HojaOpciones
         visible={hojaFormatos}
         titulo="Compartir como"
-        descripcion={
-          pestana === 'transcripcion'
-            ? 'La transcripción completa solo se genera en PDF.'
-            : 'Se genera el archivo y se abre el menú de compartir del sistema.'
-        }
-        opciones={formatos}
+        descripcion="Se genera el archivo y se abre el menú de compartir del sistema."
+        opciones={FORMATOS_RESUMEN}
         seleccionada={formato}
         onSeleccionar={compartir}
         onCerrar={() => setHojaFormatos(false)}
@@ -326,12 +343,16 @@ function PanelResumen({
   estadoTranscripcion,
   generando,
   resumen,
+  error,
+  onCerrarError,
   onGenerar,
   onVerTranscripcion,
 }: {
   estadoTranscripcion: EstadoTranscripcion;
   generando: boolean;
   resumen: SeccionResumen[] | null;
+  error: string | null;
+  onCerrarError: () => void;
   onGenerar: () => void;
   onVerTranscripcion: () => void;
 }) {
@@ -373,12 +394,15 @@ function PanelResumen({
 
   if (!resumen) {
     return (
-      <EstadoVacio
-        icono={Sparkles}
-        titulo="Aún no has generado el resumen"
-        descripcion="El resumen nunca se crea solo: eliges la plantilla y la IA redacta el acta a partir de la transcripción."
-        accion={{ titulo: 'Generar resumen', onPress: onGenerar }}
-      />
+      <View style={{ gap: t.spacing[4] }}>
+        {error && <Aviso tono="error" mensaje={error} onCerrar={onCerrarError} />}
+        <EstadoVacio
+          icono={Sparkles}
+          titulo="Aún no has generado el resumen"
+          descripcion="El resumen nunca se crea solo: eliges la plantilla y la IA redacta el acta a partir de la transcripción."
+          accion={{ titulo: 'Generar resumen', onPress: onGenerar }}
+        />
+      </View>
     );
   }
 
@@ -395,9 +419,12 @@ function PanelResumen({
 function PanelTranscripcion({
   estado,
   intervenciones,
+  textoTranscripcion,
 }: {
   estado: EstadoTranscripcion;
   intervenciones: IntervencionTranscripcion[];
+  /** Texto combinado del backend real, sin desglose por interviniente (ver `ActaDetalle.textoTranscripcion`). */
+  textoTranscripcion: string | null;
 }) {
   const t = useTheme();
 
@@ -422,33 +449,53 @@ function PanelTranscripcion({
     );
   }
 
-  // El texto ya existe en el backend, pero esta pantalla todavía no tiene
-  // forma de pedirlo dividido por interviniente — no es un vacío real.
-  if (intervenciones.length === 0) {
+  if (intervenciones.length > 0) {
     return (
-      <EstadoVacio
-        icono={AudioLines}
-        titulo="Transcripción lista"
-        descripcion="El texto ya está disponible, pero esta pantalla todavía no sabe mostrarlo aquí."
-      />
+      <View
+        style={{
+          gap: t.spacing[5],
+          padding: t.spacing[5],
+          borderRadius: t.radius.lg,
+          backgroundColor: t.colors.surface,
+          borderWidth: 1,
+          borderColor: t.colors.border,
+        }}
+      >
+        {intervenciones.map((intervencion) => (
+          <FilaIntervencion key={intervencion.id} intervencion={intervencion} />
+        ))}
+      </View>
     );
   }
 
+  // El backend combina los clips con IA pero no desglosa por interviniente
+  // (ver `TranscripcionController`/`ConsultarEstadoTranscripcionUseCase`): es
+  // un único bloque de texto, no una lista de intervenciones con hablante y
+  // marca de tiempo. Se muestra tal cual en vez de fingir ese desglose.
+  if (textoTranscripcion) {
+    return (
+      <View
+        style={{
+          padding: t.spacing[5],
+          borderRadius: t.radius.lg,
+          backgroundColor: t.colors.surface,
+          borderWidth: 1,
+          borderColor: t.colors.border,
+        }}
+      >
+        <Text variant="bodyLg">{textoTranscripcion}</Text>
+      </View>
+    );
+  }
+
+  // Estado inconsistente (COMPLETADA pero sin texto ni intervenciones): no
+  // debería pasar con el backend real, pero cubre el hueco sin reventar.
   return (
-    <View
-      style={{
-        gap: t.spacing[5],
-        padding: t.spacing[5],
-        borderRadius: t.radius.lg,
-        backgroundColor: t.colors.surface,
-        borderWidth: 1,
-        borderColor: t.colors.border,
-      }}
-    >
-      {intervenciones.map((intervencion) => (
-        <FilaIntervencion key={intervencion.id} intervencion={intervencion} />
-      ))}
-    </View>
+    <EstadoVacio
+      icono={AudioLines}
+      titulo="Transcripción lista"
+      descripcion="El texto ya está disponible, pero esta pantalla todavía no sabe mostrarlo aquí."
+    />
   );
 }
 

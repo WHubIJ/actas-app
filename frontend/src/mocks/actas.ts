@@ -19,6 +19,7 @@ export const ACTAS_EJEMPLO: ActaDetalle[] = [
     duracionMinutos: 48,
     participantes: ['Ana', 'Carlos', 'Lucía', 'Marta', 'Nuria'],
     estadoTranscripcion: 'COMPLETADA',
+    textoTranscripcion: null,
     plantillaResumen: 'ACTA_FORMAL',
     resumen: [
       {
@@ -93,6 +94,7 @@ export const ACTAS_EJEMPLO: ActaDetalle[] = [
     duracionMinutos: 72,
     participantes: ['Javier', 'Elena', 'Miguel'],
     estadoTranscripcion: 'COMPLETADA',
+    textoTranscripcion: null,
     plantillaResumen: null,
     resumen: null,
     intervenciones: [
@@ -126,6 +128,7 @@ export const ACTAS_EJEMPLO: ActaDetalle[] = [
     duracionMinutos: 35,
     participantes: ['Beatriz', 'Raúl'],
     estadoTranscripcion: 'EN_PROCESO',
+    textoTranscripcion: null,
     plantillaResumen: null,
     resumen: null,
     intervenciones: [],
@@ -137,6 +140,7 @@ export const ACTAS_EJEMPLO: ActaDetalle[] = [
     duracionMinutos: 96,
     participantes: ['Pablo', 'Sara', 'Tomás', 'Iván', 'Rocío', 'Diego'],
     estadoTranscripcion: 'FALLIDA',
+    textoTranscripcion: null,
     plantillaResumen: null,
     resumen: null,
     intervenciones: [],

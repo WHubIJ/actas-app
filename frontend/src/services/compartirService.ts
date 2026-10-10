@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import { Directory, File, Paths } from 'expo-file-system';
-import { API_URL, hayBackend } from './api';
 import { componerMarkdownResumen, nombreArchivoActa } from '../utils/markdownActa';
 import type { ActaDetalle, FormatoArchivo } from '../types';
 
@@ -12,8 +11,7 @@ export type CodigoErrorCompartir =
   | 'COMPARTIR_NO_DISPONIBLE'
   | 'PLATAFORMA_NO_SOPORTADA'
   | 'SIN_CONTENIDO'
-  | 'REQUIERE_BACKEND'
-  | 'DESCARGA_FALLIDA';
+  | 'REQUIERE_BACKEND';
 
 /** Error con código para que la UI elija el mensaje, no lo improvise. */
 export class ErrorCompartir extends Error {
@@ -83,15 +81,31 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
   if (contenido === 'resumen' && (!acta.resumen || acta.resumen.length === 0)) {
     throw new ErrorCompartir('SIN_CONTENIDO', 'Todavía no hay resumen que compartir.');
   }
-  if (contenido === 'transcripcion' && acta.intervenciones.length === 0) {
+  if (contenido === 'transcripcion' && acta.intervenciones.length === 0 && !acta.textoTranscripcion) {
     throw new ErrorCompartir('SIN_CONTENIDO', 'Todavía no hay transcripción que compartir.');
+  }
+
+  // Por regla de negocio la transcripción solo se entrega en PDF, y el
+  // backend todavía no genera ni PDF ni Word (iText/POI, ver
+  // GeneradorDocumentoAdapter) — hoy lo único que se puede producir de
+  // verdad es el resumen en Markdown, y eso no necesita al servidor: se
+  // compone en el propio dispositivo con lo que ya está en memoria.
+  if (contenido === 'transcripcion') {
+    throw new ErrorCompartir(
+      'REQUIERE_BACKEND',
+      'La transcripción solo se entrega en PDF, y el servidor todavía no lo genera.',
+    );
+  }
+  if (formato !== 'MARKDOWN') {
+    throw new ErrorCompartir(
+      'REQUIERE_BACKEND',
+      'PDF y Word los genera el servidor, y todavía no están implementados. Prueba con Markdown.',
+    );
   }
 
   const perfil = PERFILES[formato];
   const nombre = nombreArchivoActa(acta.titulo, contenido, perfil.extension);
-  const archivo = hayBackend
-    ? await descargarDelBackend(acta.id, formato, contenido, nombre)
-    : componerEnDispositivo(acta, formato, contenido, nombre);
+  const archivo = componerMarkdownEnDispositivo(acta, nombre);
 
   await Sharing.shareAsync(archivo.uri, {
     mimeType: perfil.mimeType,
@@ -100,62 +114,8 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
   });
 }
 
-/**
- * Pide el archivo ya generado al backend y lo deja en caché.
- *
- * Contrato asumido (Épica 3, `resumen` + `compartir`): el backend genera con
- * iText/POI y devuelve el binario. Si cambia la ruta, este es el único sitio
- * que hay que tocar.
- */
-async function descargarDelBackend(
-  actaId: string,
-  formato: FormatoArchivo,
-  contenido: ContenidoCompartible,
-  nombre: string,
-): Promise<File> {
-  const url = `${API_URL}/api/reuniones/${actaId}/archivos?contenido=${contenido}&formato=${formato}`;
-
-  try {
-    // `idempotent` permite reintentar sin que falle por existir ya el archivo.
-    return await File.downloadFileAsync(url, new File(carpetaCache(), nombre), {
-      idempotent: true,
-    });
-  } catch {
-    throw new ErrorCompartir(
-      'DESCARGA_FALLIDA',
-      'No pudimos preparar el archivo. Revisa la conexión e inténtalo otra vez.',
-    );
-  }
-}
-
-/**
- * Compone el archivo en el propio dispositivo.
- *
- * PROVISIONAL: existe solo para que el flujo de compartir sea usable antes de
- * que el backend genere archivos (Épica 3). Por eso únicamente soporta
- * Markdown: PDF y Word necesitan iText y Apache POI, que viven en el backend,
- * y la transcripción por regla de negocio solo se entrega en PDF. Se borra
- * entero en cuanto `descargarDelBackend` tenga endpoint.
- */
-function componerEnDispositivo(
-  acta: ActaDetalle,
-  formato: FormatoArchivo,
-  contenido: ContenidoCompartible,
-  nombre: string,
-): File {
-  if (formato !== 'MARKDOWN') {
-    throw new ErrorCompartir(
-      'REQUIERE_BACKEND',
-      'PDF y Word los genera el servidor, y todavía no está conectado. Prueba con Markdown.',
-    );
-  }
-  if (contenido === 'transcripcion') {
-    throw new ErrorCompartir(
-      'REQUIERE_BACKEND',
-      'La transcripción solo se entrega en PDF y la genera el servidor, que todavía no está conectado.',
-    );
-  }
-
+/** Compone el resumen en Markdown y lo deja en caché, listo para el share sheet. */
+function componerMarkdownEnDispositivo(acta: ActaDetalle, nombre: string): File {
   const archivo = new File(carpetaCache(), nombre);
   // `create` con `overwrite` evita que un segundo intento falle por existir ya.
   archivo.create({ overwrite: true, intermediates: true });

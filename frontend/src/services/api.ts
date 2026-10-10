@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 import { formatearFecha } from '../utils/formato';
-import type { ActaDetalle, ActaResumen, EstadoTranscripcion } from '../types';
+import type { ActaDetalle, ActaResumen, EstadoTranscripcion, FormatoArchivo, PlantillaResumen } from '../types';
 
 /**
  * Base de la API del backend (Spring Boot). Sin barra final.
@@ -175,18 +175,31 @@ async function obtenerReunionPorId(reunionId: string): Promise<ReunionResumenBac
   return peticion<ReunionResumenBackend>(`/api/reuniones/${reunionId}`);
 }
 
+interface TranscripcionDetalleBackend {
+  estado: EstadoTranscripcion;
+  /** `null` si todavía no hay transcripción combinada para esta reunión. */
+  texto: string | null;
+}
+
 /**
- * Proyección para el detalle de una acta. `intervenciones` y `resumen`
- * quedan vacíos a propósito, no por un bug: ni el texto de transcripción
- * (falta el endpoint — el texto combinado existe en BD pero no hay forma de
- * pedirlo por HTTP todavía) ni el resumen (Épica 3 no está implementada)
- * se pueden traer del backend hoy. `DetalleActaScreen` lo trata como
- * "no disponible todavía", no como contenido vacío real.
+ * Corresponde a `GET /api/transcripcion/{reunionId}`: estado agregado y el
+ * texto combinado (un único bloque, sin desglose por interviniente — ver
+ * `ActaDetalle.textoTranscripcion`), para `DetalleActaScreen`.
+ */
+async function obtenerTranscripcionDetalle(reunionId: string): Promise<TranscripcionDetalleBackend> {
+  return peticion<TranscripcionDetalleBackend>(`/api/transcripcion/${reunionId}`);
+}
+
+/**
+ * Proyección para el detalle de una acta. `resumen` queda `null` a
+ * propósito: por regla de negocio no se genera automáticamente, solo cuando
+ * el usuario lo pide (ver `generarResumen`) — esta función solo trae lo que
+ * ya existe de antemano (reunión + transcripción), nunca un resumen.
  */
 export async function obtenerActaDetalle(reunionId: string): Promise<ActaDetalle> {
-  const [reunion, estados] = await Promise.all([
+  const [reunion, transcripcion] = await Promise.all([
     obtenerReunionPorId(reunionId),
-    obtenerEstadosTranscripcion([reunionId]),
+    obtenerTranscripcionDetalle(reunionId),
   ]);
   return {
     id: reunion.id,
@@ -194,11 +207,35 @@ export async function obtenerActaDetalle(reunionId: string): Promise<ActaDetalle
     fecha: formatearFecha(reunion.fecha),
     duracionMinutos: reunion.duracionMinutos,
     participantes: reunion.participantes,
-    estadoTranscripcion: estados[reunion.id] ?? 'PENDIENTE',
+    estadoTranscripcion: transcripcion.estado,
     intervenciones: [],
+    textoTranscripcion: transcripcion.texto,
     resumen: null,
     plantillaResumen: null,
   };
+}
+
+/**
+ * Corresponde a `POST /api/resumen`. `transcripcion` viaja en el body porque
+ * `resumen` no puede depender de `transcripcion` en el backend (los módulos
+ * no se llaman entre sí) — el frontend ya la tiene (`obtenerActaDetalle`) y
+ * la reenvía tal cual.
+ *
+ * Hoy el backend solo tiene implementadas la plantilla RESUMEN_EJECUTIVO y
+ * el formato MARKDOWN; el resto responde `ERROR_INTERNO` (ver
+ * `backend/CLAUDE.md`, estado de `resumen`). `contenido` llega como texto.
+ */
+export async function generarResumen(
+  reunionId: string,
+  transcripcion: string,
+  plantilla: PlantillaResumen,
+  formato: FormatoArchivo,
+): Promise<{ resumenId: string; contenido: string }> {
+  return peticion<{ resumenId: string; contenido: string }>('/api/resumen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reunionId, transcripcion, plantilla, formato }),
+  });
 }
 
 /**

@@ -71,6 +71,14 @@ export interface SeccionResumen {
  */
 export interface ActaDetalle extends ActaResumen {
   intervenciones: IntervencionTranscripcion[];
+  /**
+   * Texto combinado de la transcripción, tal cual lo da el backend
+   * (`GET /api/transcripcion/{id}`): un único bloque, sin desglose por
+   * interviniente. `intervenciones` sigue existiendo para los mocks, que sí
+   * simulan ese desglose; con backend real queda vacío y la pantalla cae a
+   * este campo. `null` mientras no haya transcripción combinada todavía.
+   */
+  textoTranscripcion: string | null;
   resumen: SeccionResumen[] | null;
   plantillaResumen: PlantillaResumen | null;
 }

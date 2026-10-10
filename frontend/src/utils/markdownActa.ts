@@ -1,5 +1,5 @@
 import { formatearMinutos } from './formato';
-import type { ActaDetalle } from '../types';
+import type { ActaDetalle, SeccionResumen } from '../types';
 
 /**
  * Composición del acta en texto. Vive separado de `compartirService` a
@@ -42,4 +42,33 @@ export function componerMarkdownResumen(acta: ActaDetalle): string {
   ]);
 
   return [...cabecera, ...cuerpo, '---', '', 'Generado con MeetingAI.'].join('\n');
+}
+
+/**
+ * Convierte el Markdown que devuelve `POST /api/resumen` en una única
+ * `SeccionResumen`, para reutilizar `TarjetaSeccionResumen` sin cambiar su
+ * forma. El backend no estructura el texto en secciones con encabezado: el
+ * prompt a Mistral (ver `MistralResumenAdapter`, plantilla RESUMEN_EJECUTIVO)
+ * pide un párrafo corto seguido de bullets, no varios `##`. El párrafo se
+ * trata como un punto más — se pierde si se descarta, y el componente no
+ * tiene un hueco separado para prosa suelta.
+ */
+export function parsearResumenEjecutivo(markdown: string): SeccionResumen[] {
+  const lineas = markdown
+    .split('\n')
+    .map((linea) => linea.trim())
+    .filter((linea) => linea.length > 0 && !linea.startsWith('#'));
+
+  const puntos: string[] = [];
+  const parrafo: string[] = [];
+  for (const linea of lineas) {
+    if (linea.startsWith('- ')) {
+      puntos.push(linea.slice(2).trim());
+    } else {
+      parrafo.push(linea);
+    }
+  }
+
+  const todosLosPuntos = parrafo.length > 0 ? [parrafo.join(' '), ...puntos] : puntos;
+  return [{ id: 'resumen', titulo: 'Resumen ejecutivo', puntos: todosLosPuntos }];
 }
