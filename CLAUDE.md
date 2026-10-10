@@ -169,17 +169,20 @@ durante el desarrollo, crea o actualiza un ADR para documentarla.
 **Fuera de alcance en el Sprint 1:** autenticación completa, lógica de permisos
 por rol (`OWNER`/`ADMIN`/`MIEMBRO`, `LIDER`/`MIEMBRO` — el modelo de datos ya los
 contempla desde ADR-003, pero su aplicación en el backend se decide más
-adelante), UI pulida (pendiente del diseño de Figma Make). El modelo de
-tenancy (organización/equipo) en sí **sí** entra en el Sprint 1 — ver ADR-003.
+adelante). El modelo de tenancy (organización/equipo) en sí **sí** entra en
+el Sprint 1 — ver ADR-003. La UI con el diseño de Figma Make **ya se migró**
+(ver `## Diseño` más abajo), no sigue fuera de alcance.
 
 ---
 
 ## Diseño
 
 Diseño existente en Figma Make: `figma.com/make/4bTdEWF8ubEUdfkwg1ACp8`.
-Pendiente exportar el código fuente para revisión (la integración actual no permite
-leer el contenido de los archivos directamente, solo listarlos).
-La paleta ya trasladada a código está en `frontend/src/theme/colors.ts`.
+Las 7 pantallas ya se migraron al sistema de diseño violeta/Geist (tokens en
+`frontend/theme/`, componentes compartidos en `frontend/components/ui/`,
+referencias visuales en `frontend/design/`). El tema viejo (crema/marrón en
+Manrope, `frontend/src/theme/`) se retiró por completo junto con los
+componentes que dependían de él.
 
 ---
 

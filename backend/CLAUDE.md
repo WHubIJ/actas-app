@@ -20,7 +20,7 @@ Cada módulo repite la misma estructura interna:
 ├── servicio/            → implementa los puertos de entrada, orquesta el dominio
 └── adaptadores/
     ├── entrada/         → Controllers REST
-    └── salida/          → implementaciones concretas (JPA, Supabase, Whisper...)
+    └── salida/          → implementaciones concretas (JPA, Supabase, Mistral...)
 ```
 
 ### Reglas no negociables al escribir backend
@@ -49,10 +49,10 @@ Cada módulo repite la misma estructura interna:
 
 | Módulo | Estado |
 |---|---|
-| `grabacion` | Completo de extremo a extremo salvo `SupabaseStorageAdapter` (lanza `UnsupportedOperationException`, pendiente de Épica 4) |
-| `transcripcion` | Solo dominio y puertos; falta el servicio que escuche `ReunionFinalizadaEvent` y el `WhisperAdapter` |
-| `resumen` | Solo dominio y puertos; faltan adaptadores de PDF (iText), Word (POI) y MD |
-| `compartir` | Solo el puerto de entrada |
+| `grabacion` | Completo de extremo a extremo salvo `SupabaseStorageAdapter`, que sigue lanzando `UnsupportedOperationException` — no bloquea porque el frontend sube el audio directo a Supabase Storage sin pasar por el backend (ver tabla de stack en el `CLAUDE.md` raíz) |
+| `transcripcion` | Completo: `GestorTranscripcionService` escucha `ReunionFinalizadaEvent`, transcribe con `MistralTranscriptorAdapter` y combina los clips con `MistralCombinadorAdapter`; publica `TranscripcionCompletadaEvent` al terminar |
+| `resumen` | Servicio y `MistralResumenAdapter` completos. De los 3 formatos de salida solo **MARKDOWN** está implementado en `GeneradorDocumentoAdapter`; `PDF` (iText) y `WORD` (POI) siguen lanzando `UnsupportedOperationException` |
+| `compartir` | Completo: `GestorCompartirService` genera el token y valida expiración (24h), `EnlaceCompartidoRepositorioAdapter` persiste en JPA, `CompartirController` expone generar/descargar. `SecurityConfig` permite público solo el `GET /api/compartir/*` |
 
 Los `.gitkeep` marcan los paquetes ya previstos pero vacíos.
 
@@ -90,3 +90,27 @@ expone `haySupabase` para comprobarlo sin intentar la subida. No probado en
 dispositivo/emulador real con micrófono: solo verificado que el flujo de
 permisos y errores no rompe la app (en este entorno de desarrollo no hay
 hardware de audio).
+
+`TranscripcionController` (sin prefijo propio, rutas bajo `/api/transcripcion`):
+
+- `GET /api/transcripcion/estados?reunionIds=...` → estado de varias reuniones
+  a la vez (para las tarjetas de Mis Actas, evita una petición por tarjeta)
+- `GET /api/transcripcion/{reunionId}` → detalle con el texto combinado (para
+  `DetalleActaScreen`)
+
+`ResumenController` bajo `/api/resumen`:
+
+- `POST /api/resumen` → `{resumenId, contenido}` — genera el resumen a partir
+  de `reunionId`, `transcripcion` (el frontend la pasa directo porque los
+  módulos no se llaman entre sí), `plantilla` y `formato`. `contenido` viaja
+  como texto; hoy el único formato real es MARKDOWN, `PDF`/`WORD` aún no están
+  implementados en `GeneradorDocumentoAdapter`
+
+`CompartirController` bajo `/api/compartir`:
+
+- `POST /api/compartir` → `{token}` — requiere sesión; genera un enlace
+  temporal (expira a las 24h) a partir de `contenido`, `nombreArchivo` y
+  `contentType`
+- `GET /api/compartir/{token}` → descarga el archivo — público a propósito
+  (quien recibe el enlace por WhatsApp no tiene cuenta en la app), permitido
+  explícitamente en `SecurityConfig`
