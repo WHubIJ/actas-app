@@ -11,7 +11,7 @@ import { Text, Button, Aviso, LiveIndicator, Waveform } from '../../components/u
 import { MicPulse } from '../components/MicPulse';
 import { RecorderControls } from '../components/RecorderControllers';
 import { ProcesandoIA, type Paso } from '../components/ProcesandoIA';
-import { finalizarReunion, registrarClip, ErrorApi } from '../services/api';
+import { finalizarReunion, registrarClip, obtenerEstadoTranscripcion, ErrorApi } from '../services/api';
 import {
   pedirPermisoMicrofono,
   iniciarGrabacion,
@@ -46,15 +46,19 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Grabacion'>;
  */
 type Estado = 'inactivo' | 'grabando' | 'pausado' | 'procesando';
 
+/**
+ * Sin "Creando resumen": por regla de negocio el resumen nunca se genera
+ * automáticamente (ver CLAUDE.md), así que no hay nada real que ese paso
+ * pudiera representar en este flujo.
+ */
 const PASOS: Paso[] = [
   { id: 'audio', texto: 'Analizando audio' },
   { id: 'participantes', texto: 'Detectando participantes' },
   { id: 'transcripcion', texto: 'Generando transcripción' },
-  { id: 'resumen', texto: 'Creando resumen' },
 ];
 
-/** Ritmo del checklist simulado. Sustituir por el progreso real del backend. */
-const MS_POR_PASO = 1800;
+/** Sondeo del estado real de transcripción contra el backend. */
+const MS_ENTRE_SONDEOS = 2500;
 
 const BARRAS_ONDA = 28;
 const NIVELES_REPOSO = Array.from({ length: BARRAS_ONDA }, () => 0.12);
@@ -133,20 +137,54 @@ export function GrabacionScreen({ navigation, route }: Props) {
     return () => clearInterval(id);
   }, [estado]);
 
-  // Progreso simulado del procesado con IA.
+  // Progreso real del procesado con IA: sondea GET /api/transcripcion/{id}
+  // en vez de fingir avance con un timer. El backend solo distingue
+  // PENDIENTE/EN_PROCESO/COMPLETADA/FALLIDA, sin granularidad por paso, así
+  // que "Detectando participantes" es una transición cosmética única (no hay
+  // señal real para ese paso todavía) mientras que el paso final sí está
+  // atado al estado real.
   useEffect(() => {
     if (estado !== 'procesando') return;
-    const id = setInterval(() => {
-      setPasoActual((paso) => {
-        if (paso >= PASOS.length - 1) {
-          clearInterval(id);
-          return paso;
+    let cancelado = false;
+    setPasoActual(0);
+
+    const transicionCosmetica = setTimeout(() => {
+      if (!cancelado) setPasoActual(1);
+    }, 900);
+
+    const sondear = async () => {
+      try {
+        const estadoBackend = await obtenerEstadoTranscripcion(reunionId);
+        if (cancelado) return;
+
+        if (estadoBackend === 'EN_PROCESO') {
+          setPasoActual(2);
+        } else if (estadoBackend === 'COMPLETADA') {
+          clearInterval(intervalo);
+          setPasoActual(PASOS.length - 1);
+          setTimeout(() => {
+            if (!cancelado) navigation.replace('DetalleActa', { actaId: reunionId });
+          }, 700);
+        } else if (estadoBackend === 'FALLIDA') {
+          clearInterval(intervalo);
+          navigation.replace('Tabs');
         }
-        return paso + 1;
-      });
-    }, MS_POR_PASO);
-    return () => clearInterval(id);
-  }, [estado]);
+        // PENDIENTE: se queda en el paso cosmético actual y sigue sondeando.
+      } catch {
+        // Fallo de red puntual: el backend sigue procesando igual, se
+        // reintenta en el siguiente sondeo en vez de abortar.
+      }
+    };
+
+    const intervalo = setInterval(sondear, MS_ENTRE_SONDEOS);
+    sondear();
+
+    return () => {
+      cancelado = true;
+      clearTimeout(transicionCosmetica);
+      clearInterval(intervalo);
+    };
+  }, [estado, reunionId, navigation]);
 
   /**
    * Pide permiso de micrófono y arranca la grabación real. La reunión ya

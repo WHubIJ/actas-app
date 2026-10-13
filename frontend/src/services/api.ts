@@ -191,6 +191,15 @@ async function obtenerTranscripcionDetalle(reunionId: string): Promise<Transcrip
 }
 
 /**
+ * Solo el estado, para sondear en bucle desde `GrabacionScreen` mientras el
+ * backend procesa la Épica 2, sin traer el texto combinado en cada tick.
+ */
+export async function obtenerEstadoTranscripcion(reunionId: string): Promise<EstadoTranscripcion> {
+  const { estado } = await obtenerTranscripcionDetalle(reunionId);
+  return estado;
+}
+
+/**
  * Proyección para el detalle de una acta. `resumen` queda `null` a
  * propósito: por regla de negocio no se genera automáticamente, solo cuando
  * el usuario lo pide (ver `generarResumen`) — esta función solo trae lo que
