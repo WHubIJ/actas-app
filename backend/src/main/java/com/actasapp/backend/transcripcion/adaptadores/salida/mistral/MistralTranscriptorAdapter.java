@@ -1,6 +1,7 @@
 package com.actasapp.backend.transcripcion.adaptadores.salida.mistral;
 
 import com.actasapp.backend.transcripcion.puertos.salida.TranscriptorPuerto;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
@@ -13,7 +14,10 @@ import org.springframework.web.client.RestClient;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Implementación del puerto usando Mistral (Voxtral Mini Transcribe, ADR-006).
@@ -80,6 +84,11 @@ public class MistralTranscriptorAdapter implements TranscriptorPuerto {
                 return nombreArchivo;
             }
         });
+        // Sin estos dos campos Mistral no devuelve segments con hablante (ver investigación
+        // ADR-006): diarize activa la identificación de hablantes y timestamp_granularities
+        // pide que la respuesta venga partida en segmentos en vez de un único texto.
+        body.add("diarize", "true");
+        body.add("timestamp_granularities", "segment");
 
         RespuestaTranscripcionMistral respuesta = restClient.post()
                 .uri(ENDPOINT_TRANSCRIPCIONES)
@@ -89,7 +98,30 @@ public class MistralTranscriptorAdapter implements TranscriptorPuerto {
                 .retrieve()
                 .body(RespuestaTranscripcionMistral.class);
 
-        return respuesta != null ? respuesta.text() : null;
+        return respuesta != null ? textoConHablantes(respuesta) : null;
+    }
+
+    /**
+     * TranscriptorPuerto.transcribir() sigue devolviendo solo texto (cambiar su forma para
+     * llevar hablantes estructurados hasta el dominio y la combinación de clips es un cambio
+     * más grande, pendiente de decidir — ver la investigación guardada el 2026-10-13). Como
+     * paso intermedio, se antepone el hablante a cada segmento inline; con un solo hablante
+     * (o sin segments en la respuesta) se devuelve el texto plano tal cual, para no añadir
+     * ruido a reuniones donde la diarización no aporta nada.
+     */
+    private String textoConHablantes(RespuestaTranscripcionMistral respuesta) {
+        List<SegmentoTranscripcion> segmentos = respuesta.segments();
+        boolean variosHablantes = segmentos != null && segmentos.stream()
+                .map(SegmentoTranscripcion::speakerId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .count() > 1;
+        if (!variosHablantes) {
+            return respuesta.text();
+        }
+        return segmentos.stream()
+                .map(segmento -> "Hablante %s: %s".formatted(segmento.speakerId(), segmento.text().strip()))
+                .collect(Collectors.joining("\n"));
     }
 
     private String nombreArchivoDe(String urlAudio) {
@@ -97,7 +129,10 @@ public class MistralTranscriptorAdapter implements TranscriptorPuerto {
         return ultimaBarra >= 0 ? urlAudio.substring(ultimaBarra + 1) : urlAudio;
     }
 
-    /** Solo nos interesa el texto; el resto de campos de la respuesta de Mistral (duration, segments...) se ignoran. */
-    private record RespuestaTranscripcionMistral(String text) {
+    /** duration y el resto de campos de la respuesta de Mistral siguen sin interesarnos. */
+    private record RespuestaTranscripcionMistral(String text, List<SegmentoTranscripcion> segments) {
+    }
+
+    private record SegmentoTranscripcion(String text, @JsonProperty("speaker_id") String speakerId) {
     }
 }
