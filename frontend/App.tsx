@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Linking from 'expo-linking';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -20,8 +21,11 @@ import { GrabacionScreen } from './src/screens/GrabacionScreen';
 import { DetalleActaScreen } from './src/screens/DetalleActaScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { RegistroScreen } from './src/screens/RegistroScreen';
+import { RecuperarContrasenaScreen } from './src/screens/RecuperarContrasenaScreen';
+import { NuevaContrasenaScreen } from './src/screens/NuevaContrasenaScreen';
 import { TabBar } from './src/components/TabBar';
 import { supabase, haySupabase } from './src/services/supabaseClient';
+import { procesarUrlRecuperacion } from './src/services/authService';
 import { ThemeProvider, useAppFonts, useTheme } from './theme/ThemeProvider';
 
 // Se oculta a mano cuando fuentes + sesión están listas (ver `App`). Llamarlo
@@ -48,6 +52,7 @@ export type RootStackParamList = {
 export type AuthStackParamList = {
   Login: { avisoRegistro?: string } | undefined;
   Registro: undefined;
+  RecuperarContrasena: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -71,6 +76,7 @@ function Autenticacion() {
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Registro" component={RegistroScreen} />
+      <AuthStack.Screen name="RecuperarContrasena" component={RecuperarContrasenaScreen} />
     </AuthStack.Navigator>
   );
 }
@@ -80,8 +86,27 @@ function Autenticacion() {
  * envolverse a sí mismo, así que todo lo que lee el tema vive un nivel por
  * debajo de donde se monta `<ThemeProvider>`.
  */
-function Raiz({ sesion }: { sesion: Session | null }) {
+interface PropsRaiz {
+  sesion: Session | null;
+  /** Hay una sesión de recuperación de contraseña activa (ver efecto de
+      deep links en `App`): se muestra por encima de todo lo demás, haya o
+      no sesión normal, porque el enlace del email puede llegar con la app
+      en cualquier estado. */
+  recuperacionPendiente: boolean;
+  onContrasenaActualizada: () => void;
+}
+
+function Raiz({ sesion, recuperacionPendiente, onContrasenaActualizada }: PropsRaiz) {
   const t = useTheme();
+
+  if (recuperacionPendiente) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style={t.mode === 'dark' ? 'light' : 'dark'} />
+        <NuevaContrasenaScreen onCompletado={onContrasenaActualizada} />
+      </SafeAreaProvider>
+    );
+  }
 
   // Colores de fondo/texto/borde de React Navigation en los dos temas, para
   // que las transiciones entre pantallas no muestren un fondo blanco de
@@ -132,6 +157,7 @@ export default function App() {
 
   // undefined = todavía comprobando con Supabase; null = sin sesión.
   const [sesion, setSesion] = useState<Session | null | undefined>(undefined);
+  const [recuperacionPendiente, setRecuperacionPendiente] = useState(false);
 
   useEffect(() => {
     if (!haySupabase || !supabase) {
@@ -145,10 +171,34 @@ export default function App() {
 
     supabase.auth.getSession().then(({ data }) => setSesion(data.session));
 
-    const { data: suscripcion } = supabase.auth.onAuthStateChange((_evento, nuevaSesion) => {
+    const { data: suscripcion } = supabase.auth.onAuthStateChange((evento, nuevaSesion) => {
       setSesion(nuevaSesion);
+      // Camino "web": Supabase detecta el enlace de recuperación solo en la
+      // URL (`detectSessionInUrl`) y dispara este evento. El camino nativo
+      // lo cubre el efecto de abajo (`procesarUrlRecuperacion`), que no
+      // depende de este evento por si el SDK no lo clasifica igual ahí.
+      if (evento === 'PASSWORD_RECOVERY') setRecuperacionPendiente(true);
     });
     return () => suscripcion.subscription.unsubscribe();
+  }, []);
+
+  // Enlace de recuperación de contraseña por deep link: puede llegar con la
+  // app cerrada (getInitialURL) o en primer plano (listener 'url'). Mismo
+  // tratamiento en web y nativo; `procesarUrlRecuperacion` ignora cualquier
+  // URL que no sea `type=recovery` (p.ej. el callback de OAuth), así que es
+  // seguro dejarlo escuchando siempre.
+  useEffect(() => {
+    if (!haySupabase) return;
+
+    const procesar = async (url: string | null) => {
+      if (!url) return;
+      const esRecuperacion = await procesarUrlRecuperacion(url);
+      if (esRecuperacion) setRecuperacionPendiente(true);
+    };
+
+    Linking.getInitialURL().then(procesar);
+    const suscripcion = Linking.addEventListener('url', ({ url }) => procesar(url));
+    return () => suscripcion.remove();
   }, []);
 
   useEffect(() => {
@@ -165,7 +215,11 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <Raiz sesion={sesion} />
+      <Raiz
+        sesion={sesion}
+        recuperacionPendiente={recuperacionPendiente}
+        onContrasenaActualizada={() => setRecuperacionPendiente(false)}
+      />
     </ThemeProvider>
   );
 }

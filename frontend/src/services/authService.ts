@@ -85,6 +85,79 @@ export async function registrarse(email: string, password: string, datos: DatosR
   }
 }
 
+/**
+ * Pide a Supabase que envíe un email con un enlace para restablecer la
+ * contraseña. Supabase no distingue en la respuesta si el email existe o no
+ * (evita enumerar cuentas), así que esta función siempre "funciona" salvo
+ * fallo real de red/config — el mensaje de éxito en la UI es genérico a propósito.
+ */
+export async function enviarEnlaceRecuperacion(email: string): Promise<void> {
+  if (!supabase) {
+    throw new ErrorAuth(
+      'SUPABASE_NO_CONFIGURADO',
+      'Supabase no está configurado (faltan EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).',
+    );
+  }
+
+  const redirectUrl = Linking.createURL('auth/recuperar-contrasena');
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
+  if (error) {
+    throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo enviar el enlace de recuperación. Inténtalo de nuevo.');
+  }
+}
+
+/**
+ * Procesa la URL del enlace de recuperación recibido (deep link nativo o,
+ * en web, la URL actual de la pestaña). Solo actúa si trae `type=recovery`:
+ * cualquier otra URL (p.ej. el callback de OAuth) se ignora devolviendo
+ * `false`, sin tocar la sesión.
+ *
+ * En web, Supabase ya detecta y aplica la sesión de recuperación solo
+ * (`detectSessionInUrl`, activado por defecto) antes de que este código
+ * llegue a ejecutarse — llamar aquí a `setSession`/`exchangeCodeForSession`
+ * con los mismos tokens es inofensivo (no-op). En nativo es imprescindible:
+ * no hay URL de navegador que Supabase pueda leer sola.
+ */
+export async function procesarUrlRecuperacion(url: string): Promise<boolean> {
+  const { params, errorCode } = QueryParams.getQueryParams(url);
+  if (errorCode || params.type !== 'recovery' || !supabase) return false;
+
+  if (params.access_token && params.refresh_token) {
+    const { error } = await supabase.auth.setSession({
+      access_token: params.access_token,
+      refresh_token: params.refresh_token,
+    });
+    return !error;
+  }
+
+  if (params.code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(params.code);
+    return !error;
+  }
+
+  return false;
+}
+
+/**
+ * Fija la nueva contraseña. Requiere que ya exista la sesión temporal de
+ * recuperación (ver `procesarUrlRecuperacion` / evento `PASSWORD_RECOVERY`
+ * en `App.tsx`) — sin eso, Supabase la rechaza igual que cualquier llamada
+ * sin sesión.
+ */
+export async function actualizarContrasena(password: string): Promise<void> {
+  if (!supabase) {
+    throw new ErrorAuth(
+      'SUPABASE_NO_CONFIGURADO',
+      'Supabase no está configurado (faltan EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).',
+    );
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo actualizar la contraseña. Inténtalo de nuevo.');
+  }
+}
+
 /** Cierra la sesión actual. Sin sesión que cerrar si Supabase no está configurado. */
 export async function cerrarSesion(): Promise<void> {
   if (!supabase) return;

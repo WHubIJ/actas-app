@@ -123,9 +123,12 @@ export function LoginScreen() {
               </Pressable>
             }
           />
-          {/* Sin flujo de recuperación todavía — visible porque el diseño lo pide,
-              sin acción real hasta que exista la pantalla. */}
-          <Pressable accessibilityRole="button" style={{ alignSelf: 'flex-end' }}>
+          <Pressable
+            onPress={() => navigation.navigate('RecuperarContrasena')}
+            disabled={cargando}
+            accessibilityRole="button"
+            style={{ alignSelf: 'flex-end' }}
+          >
             <Text variant="label" color="brandStrong">
               ¿Olvidaste tu contraseña?
             </Text>
