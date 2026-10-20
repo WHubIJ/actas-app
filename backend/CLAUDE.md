@@ -70,10 +70,14 @@ Los `.gitkeep` marcan los paquetes ya previstos pero vacíos.
 
 Todo endpoint que recibe un `reunionId` directo (no uno resuelto a partir del usuario,
 como `listar()`) **debe** llamar a `VerificarAccesoReunion.verificar(reunionId, usuarioId)`
-(`shared/identidad`) antes de leer o generar nada — sin eso, cualquier cuenta autenticada
-podía pedir el contenido de una reunión de otra organización solo con su UUID (IDOR).
-Ya lo hacen `GrabacionController.detalle`, `ResumenController.generar`,
-`TranscripcionController.detalle` y `ArchivosController.descargar`. El endpoint en lote
+(`shared/identidad`) antes de leer, escribir o generar nada — sin eso, cualquier cuenta
+autenticada podía leer o modificar una reunión de otra organización solo con su UUID
+(IDOR). Ya lo hacen `GrabacionController.detalle`, `GrabacionController.registrarClip`,
+`GrabacionController.finalizar`, `ResumenController.generar`,
+`TranscripcionController.detalle` y `ArchivosController.descargar`. `registrarClip` y
+`finalizar` no lo hacían hasta el fix del 2026-10-20 (ver `GrabacionControllerTest`):
+cualquier cuenta autenticada podía inyectar un clip o finalizar la reunión de otra
+organización solo con su UUID, sin pasar por `VerificarAccesoReunion`. El endpoint en lote
 `TranscripcionController.estados` queda fuera a propósito: solo devuelve un enum de
 estado por reunión, nunca contenido, y ya recibe los IDs ya filtrados por organización
 desde `GET /api/reuniones`.
