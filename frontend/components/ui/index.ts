@@ -1,6 +1,8 @@
 export { Text } from './Text';
 export { Button } from './Button';
 export { Input } from './Input';
+export { PasswordStrength } from './PasswordStrength';
+export { Checkbox } from './Checkbox';
 export { Badge, Card, AIMark, LiveIndicator, Waveform } from './misc';
 export { AppIcon } from './AppIcon';
 export { PanelProductoAuth } from './PanelProductoAuth';

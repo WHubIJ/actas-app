@@ -12,7 +12,7 @@ export type CodigoErrorAuth =
   | 'ERROR_AUTENTICACION';
 
 /** Cada proveedor se activa por separado en el Dashboard de Supabase (Authentication > Providers). */
-export type ProveedorOAuth = 'google';
+export type ProveedorOAuth = 'google' | 'apple';
 
 /** Error con código para que la UI elija el mensaje, mismo patrón que ErrorApi/ErrorSubidaAudio. */
 export class ErrorAuth extends Error {
