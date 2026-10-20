@@ -3,10 +3,10 @@ import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView, useWindowD
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { GoogleLogoIcon } from 'phosphor-react-native';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { GoogleLogoIcon, AppleLogoIcon } from 'phosphor-react-native';
+import { Mail, Lock, Eye, EyeOff, KeyRound } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Text, Button, Input, AppIcon, PanelProductoAuth, Aviso, PantallaCarga } from '../../components/ui';
+import { Text, Button, Input, Checkbox, AppIcon, PanelProductoAuth, Aviso, PantallaCarga } from '../../components/ui';
 import { iniciarSesion, iniciarSesionConProveedor, ErrorAuth } from '../services/authService';
 import type { AuthStackParamList } from '../../App';
 
@@ -31,6 +31,9 @@ export function LoginScreen() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [avisoRegistro, setAvisoRegistro] = useState<string | null>(route.params?.avisoRegistro ?? null);
+  // Puramente visual por ahora: Supabase ya persiste la sesión siempre, no
+  // hay (todavía) una vía para pedirle lo contrario por login individual.
+  const [mantenerSesion, setMantenerSesion] = useState(true);
   // Credenciales aceptadas: el tramo entre eso y que App.tsx cambie de stack
   // (al reaccionar a onAuthStateChange) queda cubierto por PantallaCarga en
   // vez de volver al formulario con el botón ya sin "cargando".
@@ -68,9 +71,16 @@ export function LoginScreen() {
   }
 
   const formulario = (
-    <View style={{ width: '100%', maxWidth: 380, gap: t.spacing[4] }}>
+    <View style={{ width: '100%', maxWidth: 380, gap: t.spacing[6] }}>
+      {esEscritorio && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[2] }}>
+          <AppIcon size={20} />
+          <Text variant="titleSm">MeetingAI</Text>
+        </View>
+      )}
+
       <View style={{ alignItems: esEscritorio ? 'flex-start' : 'center', gap: t.spacing[3] }}>
-        <AppIcon size={esEscritorio ? 28 : 64} />
+        {!esEscritorio && <AppIcon size={64} />}
         <Text
           variant="heading"
           style={{
@@ -83,7 +93,7 @@ export function LoginScreen() {
           Inicia sesión
         </Text>
         <Text variant="caption" color="text2" style={{ textAlign: esEscritorio ? 'left' : 'center', marginTop: -t.spacing[1] }}>
-          Reuniones y actas de tu organización
+          Accede a las reuniones y actas de tu organización.
         </Text>
       </View>
 
@@ -105,29 +115,30 @@ export function LoginScreen() {
           placeholder="tu@email.com"
           icon={(c) => <Mail size={18} color={c} />}
         />
-        <View style={{ gap: t.spacing[2] }}>
-          <Input
-            label="Contraseña"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!verPassword}
-            placeholder="••••••••"
-            icon={(c) => <Lock size={18} color={c} />}
-            right={
-              <Pressable
-                onPress={() => setVerPassword((v) => !v)}
-                hitSlop={8}
-                accessibilityLabel={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-              >
-                {verPassword ? <EyeOff size={18} color={t.colors.text2} /> : <Eye size={18} color={t.colors.text2} />}
-              </Pressable>
-            }
-          />
+        <Input
+          label="Contraseña"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!verPassword}
+          placeholder="••••••••"
+          icon={(c) => <Lock size={18} color={c} />}
+          right={
+            <Pressable
+              onPress={() => setVerPassword((v) => !v)}
+              hitSlop={8}
+              accessibilityLabel={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            >
+              {verPassword ? <EyeOff size={18} color={t.colors.text2} /> : <Eye size={18} color={t.colors.text2} />}
+            </Pressable>
+          }
+        />
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Checkbox checked={mantenerSesion} onChange={setMantenerSesion} label="Mantener la sesión" />
           <Pressable
             onPress={() => navigation.navigate('RecuperarContrasena')}
             disabled={cargando}
             accessibilityRole="button"
-            style={{ alignSelf: 'flex-end' }}
           >
             <Text variant="label" color="brandStrong">
               ¿Olvidaste tu contraseña?
@@ -148,20 +159,46 @@ export function LoginScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[3] }}>
         <View style={{ flex: 1, height: 1, backgroundColor: t.colors.border }} />
         <Text variant="caption" color="text2">
-          o
+          o continúa con
         </Text>
         <View style={{ flex: 1, height: 1, backgroundColor: t.colors.border }} />
       </View>
 
-      <Button
-        label="Continuar con Google"
-        variant="secondary"
-        size="xl"
-        fullWidth
-        icon={(c) => <GoogleLogoIcon size={18} weight="bold" color={c} />}
-        onPress={continuarConGoogle}
-        disabled={cargando}
-      />
+      <View style={{ flexDirection: 'row', gap: t.spacing[3] }}>
+        <Button
+          label="Google"
+          variant="secondary"
+          size="xl"
+          style={{ flex: 1 }}
+          icon={(c) => <GoogleLogoIcon size={18} weight="bold" color={c} />}
+          onPress={continuarConGoogle}
+          disabled={cargando}
+        />
+        {/* Sin proveedor Apple configurado en Supabase todavía — visible porque
+            el diseño lo pide, deshabilitado hasta que exista (mismo patrón que
+            se usó con "¿Olvidaste tu contraseña?" antes de tener esa pantalla). */}
+        <Button
+          label="Apple"
+          variant="secondary"
+          size="xl"
+          style={{ flex: 1 }}
+          icon={(c) => <AppleLogoIcon size={18} weight="fill" color={c} />}
+          disabled
+        />
+      </View>
+
+      {/* Mismo motivo que el botón de Apple: sin SSO empresarial configurado
+          en Supabase todavía. */}
+      <Pressable
+        disabled
+        accessibilityRole="button"
+        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: t.spacing[2] }}
+      >
+        <KeyRound size={14} color={t.colors.text3} />
+        <Text variant="label" color="text3" style={{ fontSize: 13 }}>
+          Usar inicio de sesión único (SSO)
+        </Text>
+      </Pressable>
 
       <Pressable onPress={() => navigation.navigate('Registro')} disabled={cargando} accessibilityRole="button">
         <Text variant="caption" color="text2" style={{ textAlign: 'center' }}>
