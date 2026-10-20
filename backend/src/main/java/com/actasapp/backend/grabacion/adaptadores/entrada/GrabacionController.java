@@ -96,13 +96,16 @@ public class GrabacionController {
     }
 
     @PostMapping("/{reunionId}/clips")
-    public Map<String, UUID> registrarClip(@PathVariable UUID reunionId, @RequestBody NuevoClipRequest req) {
+    public Map<String, UUID> registrarClip(@PathVariable UUID reunionId, @RequestBody NuevoClipRequest req,
+                                            @AuthenticationPrincipal Jwt jwt) {
+        verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject()));
         UUID clipId = registrarClip.registrarClip(reunionId, req.orden(), req.urlStorage(), req.duracionSegundos());
         return Map.of("clipId", clipId);
     }
 
     @PostMapping("/{reunionId}/finalizar")
-    public void finalizar(@PathVariable UUID reunionId) {
+    public void finalizar(@PathVariable UUID reunionId, @AuthenticationPrincipal Jwt jwt) {
+        verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject()));
         finalizarReunion.finalizarReunion(reunionId);
     }
 
