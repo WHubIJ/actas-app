@@ -18,7 +18,8 @@ import { TarjetaEstadistica } from '../components/TarjetaEstadistica';
 import { FilaAjuste } from '../components/FilaAjuste';
 import { ALTURA_FAB_SOBRESALIENTE } from '../components/TabBar';
 import { cerrarSesion, ErrorAuth } from '../services/authService';
-import { obtenerCuenta, ErrorApi, type Cuenta } from '../services/api';
+import { obtenerCuenta, obtenerActas, ErrorApi, type Cuenta } from '../services/api';
+import { formatearMinutos } from '../utils/formato';
 
 interface Ajuste {
   id: string;
@@ -33,12 +34,14 @@ interface Seccion {
   ajustes: Ajuste[];
 }
 
-/** Las métricas siguen siendo de ejemplo: no hay endpoint de estadísticas todavía. */
-const ESTADISTICAS = [
-  { id: 'reuniones', valor: '24', etiqueta: 'Reuniones' },
-  { id: 'grabadas', valor: '18h', etiqueta: 'Grabadas' },
-  { id: 'actas', valor: '142', etiqueta: 'Actas' },
-];
+interface Estadisticas {
+  reuniones: number;
+  minutosGrabados: number;
+  /** Reuniones cuya acta ya terminó de procesarse. No hay endpoint que cuente
+      archivos generados (PDF/Word/MD, reintentos incluidos), así que esto es
+      lo más fiel a "actas" que se puede derivar de los datos ya disponibles. */
+  actasCompletadas: number;
+}
 
 const SECCIONES: Seccion[] = [
   {
@@ -68,6 +71,7 @@ export function MiCuentaScreen() {
   const [error, setError] = useState<string | null>(null);
   const [cuenta, setCuenta] = useState<Cuenta | null>(null);
   const [errorCuenta, setErrorCuenta] = useState<string | null>(null);
+  const [estadisticas, setEstadisticas] = useState<Estadisticas | null>(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -79,6 +83,27 @@ export function MiCuentaScreen() {
         if (cancelado) return;
         setErrorCuenta(err instanceof ErrorApi ? err.message : 'No se pudo cargar tu cuenta.');
       });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelado = false;
+    // Sin endpoint de estadísticas propio: se derivan de la misma lista de
+    // actas que ya usa MisActasScreen. Si falla, las tarjetas se quedan en su
+    // placeholder de carga en vez de mostrar un error — no es información
+    // crítica como para interrumpir el resto de la pantalla por esto.
+    obtenerActas()
+      .then((actas) => {
+        if (cancelado) return;
+        setEstadisticas({
+          reuniones: actas.length,
+          minutosGrabados: actas.reduce((total, a) => total + a.duracionMinutos, 0),
+          actasCompletadas: actas.filter((a) => a.estadoTranscripcion === 'COMPLETADA').length,
+        });
+      })
+      .catch(() => {});
     return () => {
       cancelado = true;
     };
@@ -140,9 +165,12 @@ export function MiCuentaScreen() {
         )}
 
         <View style={{ flexDirection: 'row', gap: t.spacing[2] }}>
-          {ESTADISTICAS.map((e) => (
-            <TarjetaEstadistica key={e.id} valor={e.valor} etiqueta={e.etiqueta} />
-          ))}
+          <TarjetaEstadistica valor={estadisticas ? String(estadisticas.reuniones) : '—'} etiqueta="Reuniones" />
+          <TarjetaEstadistica
+            valor={estadisticas ? formatearMinutos(estadisticas.minutosGrabados) : '—'}
+            etiqueta="Grabadas"
+          />
+          <TarjetaEstadistica valor={estadisticas ? String(estadisticas.actasCompletadas) : '—'} etiqueta="Actas" />
         </View>
 
         {SECCIONES.map((seccion) => (
