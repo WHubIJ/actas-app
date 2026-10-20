@@ -1,12 +1,13 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { User, Mail, Lock, Eye, EyeOff, Building, Phone } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Text, Button, Input, AppIcon, PanelProductoAuth, Aviso } from '../../components/ui';
+import { Text, Button, Input, AppIcon, PanelProductoAuth, Aviso, PasswordStrength } from '../../components/ui';
 import { registrarse, ErrorAuth } from '../services/authService';
+import { calcularFuerzaPassword } from '../utils/fuerzaPassword';
 import type { AuthStackParamList } from '../../App';
 
 /** Mismo patrón que en las demás pantallas: solo se confía en el mensaje de nuestros propios errores tipados. */
@@ -35,6 +36,7 @@ export function RegistroScreen() {
   const [telefono, setTelefono] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fuerzaPassword = useMemo(() => calcularFuerzaPassword(password), [password]);
 
   const enviar = useCallback(async () => {
     setError(null);
@@ -93,23 +95,33 @@ export function RegistroScreen() {
           placeholder="tu@email.com"
           icon={(c) => <Mail size={18} color={c} />}
         />
-        <Input
-          label="Contraseña"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={!verPassword}
-          placeholder="••••••••"
-          icon={(c) => <Lock size={18} color={c} />}
-          right={
-            <Pressable
-              onPress={() => setVerPassword((v) => !v)}
-              hitSlop={8}
-              accessibilityLabel={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-            >
-              {verPassword ? <EyeOff size={18} color={t.colors.text2} /> : <Eye size={18} color={t.colors.text2} />}
-            </Pressable>
-          }
-        />
+        <View style={{ gap: t.spacing[2] }}>
+          <Input
+            label="Contraseña"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!verPassword}
+            placeholder="••••••••"
+            icon={(c) => <Lock size={18} color={c} />}
+            right={
+              <Pressable
+                onPress={() => setVerPassword((v) => !v)}
+                hitSlop={8}
+                accessibilityLabel={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {verPassword ? <EyeOff size={18} color={t.colors.text2} /> : <Eye size={18} color={t.colors.text2} />}
+              </Pressable>
+            }
+          />
+          {password.length > 0 && (
+            <View style={{ gap: 6 }}>
+              <PasswordStrength nivel={fuerzaPassword.nivel} />
+              <Text variant="caption" color="text2">
+                {fuerzaPassword.mensaje}
+              </Text>
+            </View>
+          )}
+        </View>
         <Input
           label="Nombre de la organización (opcional)"
           value={organizacionNombre}
