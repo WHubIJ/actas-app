@@ -3,11 +3,11 @@ import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView, useWindowD
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { GoogleLogoIcon } from 'phosphor-react-native';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { GoogleLogoIcon, AppleLogoIcon } from 'phosphor-react-native';
+import { Mail, Lock, Eye, EyeOff, KeyRound } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Text, Button, Input, AppIcon, PanelProductoAuth, Aviso, PantallaCarga } from '../../components/ui';
-import { iniciarSesion, iniciarSesionConProveedor, ErrorAuth } from '../services/authService';
+import { Text, Button, Input, Checkbox, AppIcon, PanelProductoAuth, Aviso, PantallaCarga } from '../../components/ui';
+import { iniciarSesion, iniciarSesionConProveedor, ErrorAuth, type ProveedorOAuth } from '../services/authService';
 import type { AuthStackParamList } from '../../App';
 
 /** Mismo patrón que en las demás pantallas: solo se confía en el mensaje de nuestros propios errores tipados. */
@@ -15,6 +15,8 @@ function mensajeError(err: unknown, porDefecto: string): string {
   if (err instanceof ErrorAuth) return err.message;
   return porDefecto;
 }
+
+const NOMBRE_PROVEEDOR: Record<ProveedorOAuth, string> = { google: 'Google', apple: 'Apple' };
 
 export function LoginScreen() {
   const t = useTheme();
@@ -28,6 +30,11 @@ export function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [verPassword, setVerPassword] = useState(false);
+  // Encendido por defecto, como en el diseño. Supabase ya persiste la sesión
+  // por defecto (`persistSession`), así que hoy es solo UI — apagarlo no hace
+  // nada todavía; conectarlo de verdad implica reconfigurar el storage del
+  // cliente de supabaseClient.ts según este valor.
+  const [mantenerSesion, setMantenerSesion] = useState(true);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [avisoRegistro, setAvisoRegistro] = useState<string | null>(route.params?.avisoRegistro ?? null);
@@ -51,13 +58,13 @@ export function LoginScreen() {
     }
   }, [email, password]);
 
-  const continuarConGoogle = useCallback(async () => {
+  const continuarConProveedor = useCallback(async (proveedor: ProveedorOAuth) => {
     setError(null);
     setCargando(true);
     try {
-      await iniciarSesionConProveedor('google');
+      await iniciarSesionConProveedor(proveedor);
     } catch (err) {
-      setError(mensajeError(err, 'No se pudo iniciar sesión con Google. Inténtalo de nuevo.'));
+      setError(mensajeError(err, `No se pudo iniciar sesión con ${NOMBRE_PROVEEDOR[proveedor]}. Inténtalo de nuevo.`));
     } finally {
       setCargando(false);
     }
@@ -82,8 +89,8 @@ export function LoginScreen() {
         >
           Inicia sesión
         </Text>
-        <Text variant="caption" color="text2" style={{ textAlign: esEscritorio ? 'left' : 'center', marginTop: -t.spacing[1] }}>
-          Reuniones y actas de tu organización
+        <Text variant="body" color="text2" style={{ textAlign: esEscritorio ? 'left' : 'center', marginTop: -t.spacing[1] }}>
+          Accede a las reuniones y actas de tu organización.
         </Text>
       </View>
 
@@ -105,32 +112,34 @@ export function LoginScreen() {
           placeholder="tu@email.com"
           icon={(c) => <Mail size={18} color={c} />}
         />
-        <View style={{ gap: t.spacing[2] }}>
-          <Input
-            label="Contraseña"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!verPassword}
-            placeholder="••••••••"
-            icon={(c) => <Lock size={18} color={c} />}
-            right={
-              <Pressable
-                onPress={() => setVerPassword((v) => !v)}
-                hitSlop={8}
-                accessibilityLabel={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-              >
-                {verPassword ? <EyeOff size={18} color={t.colors.text2} /> : <Eye size={18} color={t.colors.text2} />}
-              </Pressable>
-            }
-          />
-          {/* Sin flujo de recuperación todavía — visible porque el diseño lo pide,
-              sin acción real hasta que exista la pantalla. */}
-          <Pressable accessibilityRole="button" style={{ alignSelf: 'flex-end' }}>
-            <Text variant="label" color="brandStrong">
-              ¿Olvidaste tu contraseña?
-            </Text>
-          </Pressable>
-        </View>
+        <Input
+          label="Contraseña"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!verPassword}
+          placeholder="••••••••"
+          icon={(c) => <Lock size={18} color={c} />}
+          right={
+            <Pressable
+              onPress={() => setVerPassword((v) => !v)}
+              hitSlop={8}
+              accessibilityLabel={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            >
+              {verPassword ? <EyeOff size={18} color={t.colors.text2} /> : <Eye size={18} color={t.colors.text2} />}
+            </Pressable>
+          }
+        />
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Checkbox checked={mantenerSesion} onChange={setMantenerSesion} label="Mantener la sesión" />
+        {/* Sin flujo de recuperación todavía — visible porque el diseño lo pide,
+            sin acción real hasta que exista la pantalla. */}
+        <Pressable accessibilityRole="button">
+          <Text variant="label" color="brandStrong" style={{ fontSize: 13.5 }}>
+            ¿Olvidaste tu contraseña?
+          </Text>
+        </Pressable>
       </View>
 
       <Button
@@ -145,19 +154,40 @@ export function LoginScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[3] }}>
         <View style={{ flex: 1, height: 1, backgroundColor: t.colors.border }} />
         <Text variant="caption" color="text2">
-          o
+          o continúa con
         </Text>
         <View style={{ flex: 1, height: 1, backgroundColor: t.colors.border }} />
       </View>
 
+      <View style={{ flexDirection: 'row', gap: t.spacing[2] }}>
+        <Button
+          label="Google"
+          variant="secondary"
+          size="xl"
+          style={{ flex: 1 }}
+          icon={(c) => <GoogleLogoIcon size={18} weight="bold" color={c} />}
+          onPress={() => continuarConProveedor('google')}
+          disabled={cargando}
+        />
+        <Button
+          label="Apple"
+          variant="secondary"
+          size="xl"
+          style={{ flex: 1 }}
+          icon={(c) => <AppleLogoIcon size={18} weight="fill" color={c} />}
+          onPress={() => continuarConProveedor('apple')}
+          disabled={cargando}
+        />
+      </View>
+
+      {/* Sin SSO empresarial (SAML) todavía — visible porque el diseño lo pide,
+          sin acción real hasta que exista ese flujo. */}
       <Button
-        label="Continuar con Google"
-        variant="secondary"
-        size="xl"
+        label="Usar inicio de sesión único (SSO)"
+        variant="ghost"
+        size="lg"
         fullWidth
-        icon={(c) => <GoogleLogoIcon size={18} weight="bold" color={c} />}
-        onPress={continuarConGoogle}
-        disabled={cargando}
+        icon={(c) => <KeyRound size={18} color={c} />}
       />
 
       <Pressable onPress={() => navigation.navigate('Registro')} disabled={cargando} accessibilityRole="button">
@@ -176,12 +206,29 @@ export function LoginScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {esEscritorio ? (
           <View style={{ flex: 1, flexDirection: 'row' }}>
-            <ScrollView
-              contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: t.spacing[12] }}
-              keyboardShouldPersistTaps="handled"
-            >
-              {formulario}
-            </ScrollView>
+            <View style={{ flex: 1 }}>
+              <ScrollView
+                contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: t.spacing[12] }}
+                keyboardShouldPersistTaps="handled"
+              >
+                {formulario}
+              </ScrollView>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  paddingHorizontal: t.spacing[12],
+                  paddingBottom: t.spacing[6],
+                }}
+              >
+                <Text variant="caption" color="text2">
+                  © {new Date().getFullYear()} MeetingAI
+                </Text>
+                <Text variant="caption" color="text2">
+                  Privacidad · Términos · Español
+                </Text>
+              </View>
+            </View>
             <PanelProductoAuth />
           </View>
         ) : (
