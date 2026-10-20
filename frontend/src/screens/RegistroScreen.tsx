@@ -3,10 +3,11 @@ import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView, useWindowD
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { GoogleLogoIcon } from 'phosphor-react-native';
 import { User, Mail, Lock, Eye, EyeOff, Building, Phone } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Text, Button, Input, AppIcon, PanelProductoAuth, Aviso } from '../../components/ui';
-import { registrarse, ErrorAuth } from '../services/authService';
+import { Text, Button, Input, AppIcon, PanelProductoAuth, Aviso, PantallaCarga } from '../../components/ui';
+import { registrarse, iniciarSesionConProveedor, ErrorAuth } from '../services/authService';
 import type { AuthStackParamList } from '../../App';
 
 /** Mismo patrón que en las demás pantallas: solo se confía en el mensaje de nuestros propios errores tipados. */
@@ -35,6 +36,9 @@ export function RegistroScreen() {
   const [telefono, setTelefono] = useState('');
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Mismo patrón que LoginScreen: credenciales/OAuth aceptados, a la espera
+  // de que App.tsx reaccione a onAuthStateChange y cambie de stack.
+  const [sesionIniciada, setSesionIniciada] = useState(false);
 
   const enviar = useCallback(async () => {
     setError(null);
@@ -52,6 +56,24 @@ export function RegistroScreen() {
       setCargando(false);
     }
   }, [email, password, nombre, organizacionNombre, telefono, navigation]);
+
+  // Google no pide nada aparte: si el email no existe, Supabase crea la cuenta igual que con signUp.
+  const continuarConGoogle = useCallback(async () => {
+    setError(null);
+    setCargando(true);
+    try {
+      await iniciarSesionConProveedor('google');
+      setSesionIniciada(true);
+    } catch (err) {
+      setError(mensajeError(err, 'No se pudo continuar con Google. Inténtalo de nuevo.'));
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  if (sesionIniciada) {
+    return <PantallaCarga titulo="Creando tu cuenta…" subtitulo="Te llevamos a Mis Actas" />;
+  }
 
   const formulario = (
     <View style={{ width: '100%', maxWidth: 380, gap: t.spacing[4] }}>
@@ -134,6 +156,24 @@ export function RegistroScreen() {
         loading={cargando}
         disabled={!email || !password}
         onPress={enviar}
+      />
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[3] }}>
+        <View style={{ flex: 1, height: 1, backgroundColor: t.colors.border }} />
+        <Text variant="caption" color="text2">
+          o
+        </Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: t.colors.border }} />
+      </View>
+
+      <Button
+        label="Continuar con Google"
+        variant="secondary"
+        size="xl"
+        fullWidth
+        icon={(c) => <GoogleLogoIcon size={18} weight="bold" color={c} />}
+        onPress={continuarConGoogle}
+        disabled={cargando}
       />
 
       <Pressable onPress={() => navigation.navigate('Login')} disabled={cargando} accessibilityRole="button">
