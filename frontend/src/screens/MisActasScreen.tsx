@@ -98,11 +98,18 @@ export function MisActasScreen() {
   // ahí se funde a 1 lo nuevo.
   const [actasVisibles, setActasVisibles] = useState(actas);
   const aparicion = useRef(new Animated.Value(1)).current;
-  const montada = useRef(false);
+  // Distinto de "montado": sigue en `true` mientras `actasBackend` es `null`
+  // (todavía cargando, con `PantallaCarga` en pantalla), así que cuando el
+  // backend responde por primera vez la sincronización es instantánea, no
+  // animada. Sin esto, ese primer fade (160ms de ida) deja un hueco en
+  // blanco justo en el instante en que `PantallaCarga` da paso a la lista.
+  const primeraSincronizacion = useRef(true);
 
   useEffect(() => {
-    if (!montada.current) {
-      montada.current = true;
+    if (actasBackend === null) return; // sigue cargando: nada que sincronizar todavía
+    if (primeraSincronizacion.current) {
+      primeraSincronizacion.current = false;
+      setActasVisibles(actas);
       return;
     }
     Animated.timing(aparicion, {
@@ -123,7 +130,7 @@ export function MisActasScreen() {
         useNativeDriver: true,
       }).start();
     });
-  }, [actas, aparicion]);
+  }, [actas, aparicion, actasBackend]);
 
   if (actasBackend === null && !errorCarga) {
     return <PantallaCarga titulo="Cargando tus actas…" />;
