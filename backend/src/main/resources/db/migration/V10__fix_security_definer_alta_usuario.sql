@@ -1,0 +1,15 @@
+-- V10: restaurar `security definer` en gestionar_alta_usuario() (bug en
+-- producción: registro de usuarios daba 500 en /auth/v1/signup).
+--
+-- La función se creó con `security definer` en V3 (ver su comentario: corre
+-- con privilegios propios para no depender de las políticas RLS de las
+-- tablas que toca, porque el trigger se dispara sin sesión autenticada).
+-- En algún momento posterior quedó sin ese atributo en la base real de
+-- Supabase (prosecdef = false), fuera de Flyway -- Flyway no detecta este
+-- tipo de drift porque solo rastrea qué migraciones ya corrieron, no si el
+-- objeto vivo sigue coincidiendo con lo que la migración definió. Sin
+-- `security definer`, el trigger corre con el rol `supabase_auth_admin`
+-- (el que usa el servicio de Auth), que no tiene permiso de escritura sobre
+-- `perfil`/`organizacion`/`membresia` -> "permission denied for table
+-- perfil" (SQLSTATE 42501) y el alta falla con un 500.
+alter function public.gestionar_alta_usuario() security definer;
