@@ -94,6 +94,32 @@ class ClipAudioTest {
     }
 
     @Test
+    void reconstruirNoAplicaLaValidacionDeRutaNiDeDuracion() {
+        // Clips ya persistidos antes del fix del Hallazgo 3 (urlStorage en un
+        // formato distinto al nuevo) tienen que poder seguir leyéndose: leer
+        // de la base de datos no es la misma operación que registrar una
+        // subida nueva, igual que Reunion.reconstruir salta las reglas de
+        // creación de Reunion.
+        UUID id = UUID.randomUUID();
+        ClipAudio clip = assertDoesNotThrow(() -> ClipAudio.reconstruir(
+                id, reunionId, 1, "https://storage-antiguo/clip.mp3",
+                ClipAudio.DURACION_MAXIMA_SEGUNDOS + 1000, EstadoSubida.COMPLETADO));
+
+        assertEquals(id, clip.getId());
+        assertEquals(EstadoSubida.COMPLETADO, clip.getEstadoSubida());
+        assertEquals("https://storage-antiguo/clip.mp3", clip.getUrlStorage());
+        assertEquals(ClipAudio.DURACION_MAXIMA_SEGUNDOS + 1000, clip.getDuracionSegundos());
+    }
+
+    @Test
+    void reconstruirConservaElEstadoPendienteSinUrlStorage() {
+        ClipAudio clip = ClipAudio.reconstruir(UUID.randomUUID(), reunionId, 1, null, null, EstadoSubida.PENDIENTE);
+
+        assertEquals(EstadoSubida.PENDIENTE, clip.getEstadoSubida());
+        assertNull(clip.getUrlStorage());
+    }
+
+    @Test
     void marcarErrorActualizaElEstado() {
         ClipAudio clip = nuevoClip();
 

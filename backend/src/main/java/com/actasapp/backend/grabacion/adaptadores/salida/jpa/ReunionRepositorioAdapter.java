@@ -1,7 +1,6 @@
 package com.actasapp.backend.grabacion.adaptadores.salida.jpa;
 
 import com.actasapp.backend.grabacion.domain.ClipAudio;
-import com.actasapp.backend.grabacion.domain.EstadoSubida;
 import com.actasapp.backend.grabacion.domain.Reunion;
 import com.actasapp.backend.grabacion.puertos.salida.ReunionRepositorioPuerto;
 import org.springframework.stereotype.Component;
@@ -65,10 +64,8 @@ public class ReunionRepositorioAdapter implements ReunionRepositorioPuerto {
         Reunion reunion = Reunion.reconstruir(entity.getId(), entity.getOrganizacionId(), entity.getEquipoId(),
                 entity.getFecha(), entity.isFinalizada(), entity.getTitulo(), participantes);
         for (ClipAudioJpaEntity c : entity.getClips()) {
-            ClipAudio clip = new ClipAudio(c.getId(), entity.getId(), c.getOrden());
-            if (c.getEstadoSubida() == EstadoSubida.COMPLETADO) {
-                clip.marcarSubidaCompletada(c.getUrlStorage(), c.getDuracionSegundos());
-            }
+            ClipAudio clip = ClipAudio.reconstruir(c.getId(), entity.getId(), c.getOrden(),
+                    c.getUrlStorage(), c.getDuracionSegundos(), c.getEstadoSubida());
             reunion.agregarClip(clip);
         }
         return reunion;

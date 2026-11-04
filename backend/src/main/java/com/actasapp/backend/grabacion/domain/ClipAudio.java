@@ -18,6 +18,24 @@ public class ClipAudio {
         this.estadoSubida = EstadoSubida.PENDIENTE;
     }
 
+    /**
+     * Reconstruye un clip ya persistido, sin pasar por las reglas de creación
+     * (mismo patrón que {@code Reunion.reconstruir}): la validación de
+     * {@code marcarSubidaCompletada} (duración máxima, ruta dentro de la
+     * propia reunión) es para una transición de negocio en vivo, no para leer
+     * de la base de datos. Reutilizarla aquí rompía la lectura de cualquier
+     * clip ya guardado antes del fix del Hallazgo 3 (urlStorage en un formato
+     * distinto al nuevo) con un 400 en cuanto se listaba o abría la reunión.
+     */
+    public static ClipAudio reconstruir(UUID id, UUID reunionId, int orden, String urlStorage,
+                                         Integer duracionSegundos, EstadoSubida estadoSubida) {
+        ClipAudio clip = new ClipAudio(id, reunionId, orden);
+        clip.urlStorage = urlStorage;
+        clip.duracionSegundos = duracionSegundos;
+        clip.estadoSubida = estadoSubida;
+        return clip;
+    }
+
     /** Duración máxima permitida por clip: 2 horas (decisión de grooming, Épica 1). */
     public static final int DURACION_MAXIMA_SEGUNDOS = 2 * 60 * 60;
 

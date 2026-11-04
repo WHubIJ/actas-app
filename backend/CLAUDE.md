@@ -122,6 +122,19 @@ propio clip y robar su transcripción. `ClipAudio.marcarSubidaCompletada`
 por `{reunionId}/` — mismo sitio, misma regla de negocio, sin tocar
 `servicio/` ni el controller. Tests en `ClipAudioTest`.
 
+**Corrección del mismo día:** ese fix rompió la lectura de cualquier reunión
+con clips ya persistidos (`GET /api/reuniones` y `GET /api/reuniones/{id}`
+daban 400 "La ruta del audio no pertenece a esta reunión") porque
+`ReunionRepositorioAdapter.aDominio` reconstruía los clips llamando a
+`marcarSubidaCompletada`, la misma validación que ahora exige el formato
+nuevo de ruta — aplicándola también a clips guardados antes del fix. Mismo
+error de fondo que `Reunion.reconstruir` ya evita para `Reunion` (ver más
+arriba, "doble representación de cada entidad"): reconstruir desde BD no es
+la misma operación que una transición de negocio en vivo. Añadido
+`ClipAudio.reconstruir(...)`, que fija los campos sin pasar por esa
+validación; `ReunionRepositorioAdapter` ya lo usa en vez de
+`marcarSubidaCompletada`.
+
 El enlace público de `compartir` (`EnlaceCompartido`) valida en el propio dominio que
 `contentType` esté en una lista blanca (`text/markdown`, `text/plain`, `application/pdf`,
 `application/vnd.openxmlformats-officedocument.wordprocessingml.document` — nunca
