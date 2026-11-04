@@ -59,7 +59,7 @@ class ReunionTest {
     void finalizarConAlMenosUnClipCompletadoMarcaLaReunion() {
         Reunion reunion = nuevaReunion();
         ClipAudio clip = nuevoClip(reunion, 1);
-        clip.marcarSubidaCompletada("https://storage/clip.mp3", 120);
+        clip.marcarSubidaCompletada(reunion.getId() + "/clip-1.mp3", 120);
         reunion.agregarClip(clip);
 
         reunion.finalizar();

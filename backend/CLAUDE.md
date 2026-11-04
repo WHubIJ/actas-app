@@ -82,6 +82,46 @@ organización solo con su UUID, sin pasar por `VerificarAccesoReunion`. El endpo
 estado por reunión, nunca contenido, y ya recibe los IDs ya filtrados por organización
 desde `GET /api/reuniones`.
 
+**Fix del 2026-11-04 (auditoría de seguridad, Hallazgo 2):** el nombre de
+organización era opcional en el registro (`RegistroScreen`), y el login con
+Google nunca lo envía — sin él, `gestionar_alta_usuario()` (trigger de alta
+en Supabase, `V3__alta_perfil_organizacion.sql`) no creaba `organizacion`/
+`membresia`, y el usuario caía en el fallback compartido
+`actas-app.organizacion-por-defecto-id` junto con cualquier otro usuario no
+relacionado en la misma situación (IDOR: lectura cruzada de reuniones/
+transcripciones/resúmenes entre organizaciones distintas, ya que el
+aislamiento por organización es el único control de acceso del sistema).
+`V11__organizacion_propia_siempre_en_alta.sql` hace que toda alta cree
+siempre su propia organización, con un nombre genérico derivado del email
+si no se indicó uno. El fallback a `organizacionPorDefectoId` en
+`VerificarAccesoReunion`/`GrabacionController` queda solo como red de
+seguridad para datos ya existentes antes de este fix — no debería volver a
+activarse para altas nuevas.
+
+**Fix del 2026-11-04 (auditoría de seguridad, Hallazgo 1):** las políticas RLS
+de `storage.objects` para el bucket `meeting_audio` (`subida_temporal_meeting_audio`,
+`borrado_temporal_meeting_audio`, `lectura_temporal_meeting_audio`, documentadas
+en `V5__rls_storage_meeting_audio_authenticated.sql`) solo comprobaban
+`bucket_id = 'meeting_audio'` — cualquier usuario autenticado podía listar,
+leer, sobrescribir o borrar el audio de reuniones de cualquier otra
+organización directo contra la API REST de Storage, sin pasar por el backend.
+`V12__rls_storage_meeting_audio_por_organizacion.sql` añade
+`public.es_miembro_de_reunion_del_objeto(name)` (función `security definer`,
+mismo motivo que `gestionar_alta_usuario()`: `reunion`/`membresia` tienen RLS
+propio) y la exige en las 3 políticas: el primer segmento de la ruta del
+objeto (`{reunionId}/...`) tiene que ser una reunión de una organización de
+la que el `auth.uid()` que hace la petición sea miembro.
+
+**Fix del 2026-11-04 (auditoría de seguridad, Hallazgo 3):** `registrarClip`
+aceptaba el `urlStorage` del cliente sin comprobar que la ruta perteneciera a
+la propia reunión (`{reunionId}/...`); al finalizar, `MistralTranscriptorAdapter`
+la descarga con la service-role key (bypasea RLS), así que alguien que
+conociera/adivinara la ruta de otra organización podía registrarla como su
+propio clip y robar su transcripción. `ClipAudio.marcarSubidaCompletada`
+(ya validaba `duracionSegundos`) ahora exige también que `urlStorage` empiece
+por `{reunionId}/` — mismo sitio, misma regla de negocio, sin tocar
+`servicio/` ni el controller. Tests en `ClipAudioTest`.
+
 El enlace público de `compartir` (`EnlaceCompartido`) valida en el propio dominio que
 `contentType` esté en una lista blanca (`text/markdown`, `text/plain`, `application/pdf`,
 `application/vnd.openxmlformats-officedocument.wordprocessingml.document` — nunca
