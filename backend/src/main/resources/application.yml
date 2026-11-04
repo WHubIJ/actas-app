@@ -16,6 +16,16 @@ spring:
     url: ${SUPABASE_DB_URL:jdbc:postgresql://localhost:5432/actas_app}
     username: ${SUPABASE_DB_USER:postgres}
     password: ${SUPABASE_DB_PASSWORD:}
+    hikari:
+      # SUPABASE_DB_URL usa el pooler en modo sesión (puerto 5432), con un
+      # límite compartido de 15 conexiones cliente para todo el proyecto
+      # (prod en Render + cualquier backend local a la vez). Sin este límite,
+      # el valor por defecto de Hikari (10) por instancia agota ese cupo con
+      # solo Render + un local corriendo a la vez -> EMAXCONNSESSION en el
+      # pooler, y el redeploy de Render no consigue ni arrancar su propio
+      # pool (incidente del 2026-11-04).
+      maximum-pool-size: 3
+      minimum-idle: 1
 
   jpa:
     hibernate:
