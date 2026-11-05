@@ -1,0 +1,4 @@
+# Previews HTML/CSS estáticas del design kit (referencia visual, no código de
+# la app) — sin esto, GitHub cuenta ~1.5 MB de HTML y marca el repo como
+# "HTML" en vez de Java/TypeScript, que es lo que realmente se ejecuta.
+design/** linguist-documentation
