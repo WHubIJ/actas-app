@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing } from 'react-native';
+import { Animated, Easing, Platform } from 'react-native';
 import { Check, Clock, LoaderCircle, TriangleAlert } from 'lucide-react-native';
 import { Badge, type BadgeTone } from './misc';
 import type { EstadoTranscripcion } from '../../src/types';
@@ -11,7 +11,14 @@ function IconoGirando({ color }: { color: string }) {
   const giro = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
-      Animated.timing(giro, { toValue: 1, duration: 900, easing: Easing.linear, useNativeDriver: true }),
+      Animated.timing(giro, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.linear,
+        // Mismo bug que AnilloCarga (ver ese componente): en react-native-web
+        // el driver nativo deja el loop congelado tras la primera vuelta.
+        useNativeDriver: Platform.OS !== 'web',
+      }),
     );
     loop.start();
     return () => loop.stop();

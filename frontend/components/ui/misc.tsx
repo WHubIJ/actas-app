@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, View, type ViewProps } from 'react-native';
+import { Animated, Easing, Platform, View, type ViewProps } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Text } from './Text';
@@ -80,7 +80,14 @@ export function LiveIndicator({ label = 'Grabando', time, tone = 'soft' }: { lab
   useEffect(() => {
     if (tone === 'off') return;
     const loop = Animated.loop(
-      Animated.timing(pulse, { toValue: 1, duration: 1800, easing: Easing.bezier(...t.easing.standard), useNativeDriver: true }),
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: 1800,
+        easing: Easing.bezier(...t.easing.standard),
+        // Mismo bug que AnilloCarga (ver ese componente): en react-native-web
+        // el driver nativo deja el loop congelado tras la primera vuelta.
+        useNativeDriver: Platform.OS !== 'web',
+      }),
     );
     loop.start();
     return () => loop.stop();
