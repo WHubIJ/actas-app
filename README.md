@@ -62,7 +62,7 @@ roles), no un campo de texto libre — ver [ADR-003](docs/ADRs/ADR-003-modelo-mu
 
 ## Demo en vivo
 
-- **Web:** _[pendiente — pégame aquí la URL de producción de Vercel]_
+- **Web:** [actas-app-frontend.vercel.app](https://actas-app-frontend.vercel.app)
 - **API:** `https://actas-app.onrender.com` (plan gratuito de Render: el primer
   arranque tras inactividad puede tardar 20-40s)
 
