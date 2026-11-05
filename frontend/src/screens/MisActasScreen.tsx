@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Search, Mic, TriangleAlert } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Text, EstadoVacio, PantallaCarga } from '../../components/ui';
+import { Text, EstadoVacio, FilaEsqueleto } from '../../components/ui';
 import type { RootStackParamList } from '../../App';
 import { TarjetaNuevaGrabacion } from '../components/TarjetaNuevaGrabacion';
 import { Buscador } from '../components/Buscador';
@@ -24,6 +24,10 @@ const FILTROS: ReadonlyArray<Filtro<IdFiltro>> = [
   { id: 'procesado', etiqueta: 'Procesado' },
   { id: 'enProceso', etiqueta: 'En proceso' },
 ];
+
+/** Ni tan pocas que se note el hueco debajo en pantallas altas, ni tantas que
+    se note el coste de montarlas todas para una carga que dura un instante. */
+const FILAS_ESQUELETO = 5;
 
 /**
  * "Esta semana" no se puede resolver hasta que `fecha` llegue como ISO desde
@@ -99,10 +103,10 @@ export function MisActasScreen() {
   const [actasVisibles, setActasVisibles] = useState(actas);
   const aparicion = useRef(new Animated.Value(1)).current;
   // Distinto de "montado": sigue en `true` mientras `actasBackend` es `null`
-  // (todavía cargando, con `PantallaCarga` en pantalla), así que cuando el
-  // backend responde por primera vez la sincronización es instantánea, no
-  // animada. Sin esto, ese primer fade (160ms de ida) deja un hueco en
-  // blanco justo en el instante en que `PantallaCarga` da paso a la lista.
+  // (todavía cargando, con las filas de `FilaEsqueleto` en pantalla), así que
+  // cuando el backend responde por primera vez la sincronización es
+  // instantánea, no animada. Sin esto, ese primer fade (160ms de ida) deja un
+  // hueco en blanco justo en el instante en que el esqueleto da paso a la lista.
   const primeraSincronizacion = useRef(true);
 
   useEffect(() => {
@@ -133,7 +137,25 @@ export function MisActasScreen() {
   }, [actas, aparicion, actasBackend]);
 
   if (actasBackend === null && !errorCarga) {
-    return <PantallaCarga titulo="Cargando tus actas…" />;
+    return (
+      <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+        <View
+          style={{
+            gap: t.spacing[3],
+            paddingHorizontal: t.spacing[5],
+            // El mínimo superior cubre web y Android sin notch, donde `insets.top` es 0.
+            paddingTop: Math.max(insets.top, t.spacing[6]) + t.spacing[4],
+          }}
+        >
+          <Text variant="heading" style={{ marginBottom: t.spacing[1] }}>
+            Mis actas
+          </Text>
+          {Array.from({ length: FILAS_ESQUELETO }, (_, i) => (
+            <FilaEsqueleto key={i} />
+          ))}
+        </View>
+      </View>
+    );
   }
 
   if (actasBackend === null && errorCarga) {

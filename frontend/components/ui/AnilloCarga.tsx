@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { View, Animated, Easing } from 'react-native';
+import { View, Animated, Easing, Platform } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeProvider';
 import { AppIcon } from './AppIcon';
@@ -15,7 +15,17 @@ export function AnilloCarga({ size = 72 }: Props) {
 
   useEffect(() => {
     const animacion = Animated.loop(
-      Animated.timing(giro, { toValue: 1, duration: 1400, easing: Easing.linear, useNativeDriver: true }),
+      Animated.timing(giro, {
+        toValue: 1,
+        duration: 1400,
+        easing: Easing.linear,
+        // En react-native-web, Animated.loop + driver nativo deja el giro
+        // congelado tras la primera vuelta: el reset a 0 entre iteraciones no
+        // dispara el final de la transición CSS que usa ese driver, así que
+        // `restart()` nunca ve `finished: true` y el loop no continúa (bug de
+        // react-native-web, no de esta app). Nativo sí soporta el driver.
+        useNativeDriver: Platform.OS !== 'web',
+      }),
     );
     animacion.start();
     return () => animacion.stop();

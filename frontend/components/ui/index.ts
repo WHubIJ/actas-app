@@ -11,3 +11,4 @@ export { EstadoVacio } from './EstadoVacio';
 export { Aviso } from './Aviso';
 export { AnilloCarga } from './AnilloCarga';
 export { PantallaCarga } from './PantallaCarga';
+export { FilaEsqueleto } from './FilaEsqueleto';
