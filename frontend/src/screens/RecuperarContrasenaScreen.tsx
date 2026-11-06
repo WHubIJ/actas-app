@@ -123,7 +123,13 @@ export function RecuperarContrasenaScreen() {
         {esEscritorio ? (
           <View style={{ flex: 1, flexDirection: 'row' }}>
             <ScrollView
-              contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: t.spacing[12] }}
+              style={{ flex: 1 }}
+              contentContainerStyle={{
+                flexGrow: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: t.spacing[12],
+              }}
               keyboardShouldPersistTaps="handled"
             >
               {formulario}
