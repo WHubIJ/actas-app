@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
@@ -24,6 +25,7 @@ import { RegistroScreen } from './src/screens/RegistroScreen';
 import { RecuperarContrasenaScreen } from './src/screens/RecuperarContrasenaScreen';
 import { NuevaContrasenaScreen } from './src/screens/NuevaContrasenaScreen';
 import { TabBar } from './src/components/TabBar';
+import { Sidebar } from './src/components/Sidebar';
 import { supabase, haySupabase } from './src/services/supabaseClient';
 import { procesarUrlRecuperacion } from './src/services/authService';
 import { ThemeProvider, useAppFonts, useTheme } from './theme/ThemeProvider';
@@ -60,10 +62,25 @@ const Tab = createBottomTabNavigator<TabParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 
 function Pestanas() {
+  const t = useTheme();
+  const { width } = useWindowDimensions();
+  // Mismo umbral que `esEscritorio` en las pantallas de auth (LoginScreen):
+  // por debajo, barra inferior con FAB; por encima, columna fija a la izquierda.
+  const esEscritorio = width >= t.size.bpTablet;
+
   return (
     <Tab.Navigator
-      screenOptions={{ headerShown: false }}
-      tabBar={(props) => <TabBar {...props} onGrabar={() => props.navigation.navigate('NuevaGrabacion')} />}
+      screenOptions={{
+        headerShown: false,
+        // Deja sitio a la columna del Sidebar, que se posiciona absoluto
+        // encima de esta misma vista (ver `Sidebar`, no cambia el layout del
+        // propio Tab.Navigator).
+        sceneStyle: esEscritorio ? { marginLeft: t.size.sidebarW } : undefined,
+      }}
+      tabBar={(props) => {
+        const onGrabar = () => props.navigation.navigate('NuevaGrabacion');
+        return esEscritorio ? <Sidebar {...props} onGrabar={onGrabar} /> : <TabBar {...props} onGrabar={onGrabar} />;
+      }}
     >
       <Tab.Screen name="Inicio" component={MisActasScreen} options={{ title: 'Inicio' }} />
       <Tab.Screen name="Cuenta" component={MiCuentaScreen} options={{ title: 'Cuenta' }} />
