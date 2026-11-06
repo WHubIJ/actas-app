@@ -41,7 +41,15 @@ export function EstadoVacio({ icono: Icono, titulo, descripcion, accion }: Props
       </Text>
 
       {accion && (
-        <Button label={accion.titulo} size="lg" onPress={accion.onPress} style={{ marginTop: t.spacing[5], maxWidth: 280 }} />
+        <Button
+          label={accion.titulo}
+          size="lg"
+          onPress={accion.onPress}
+          // `Button` por defecto se alinea a la izquierda (`alignSelf: 'flex-start'`
+          // cuando no es `fullWidth`): sin este override queda pegado al borde
+          // izquierdo en vez de centrado con el icono y el texto de encima.
+          style={{ marginTop: t.spacing[5], maxWidth: 280, alignSelf: 'center' }}
+        />
       )}
     </View>
   );

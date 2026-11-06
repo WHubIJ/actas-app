@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, FlatList, Animated, Easing } from 'react-native';
+import { View, FlatList, Animated, Easing, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Search, Mic, TriangleAlert } from 'lucide-react-native';
+import { Search, Mic, TriangleAlert, AudioLines, Share2, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Text, EstadoVacio, FilaEsqueleto } from '../../components/ui';
 import type { RootStackParamList } from '../../App';
@@ -29,6 +29,13 @@ const FILTROS: ReadonlyArray<Filtro<IdFiltro>> = [
     se note el coste de montarlas todas para una carga que dura un instante. */
 const FILAS_ESQUELETO = 5;
 
+/** Franja de 3 pasos bajo el estado vacío de biblioteca (sin reuniones aún). */
+const PASOS: ReadonlyArray<{ icono: LucideIcon; titulo: string; descripcion: string }> = [
+  { icono: Mic, titulo: 'Graba', descripcion: 'Desde el navegador, el escritorio o el móvil' },
+  { icono: AudioLines, titulo: 'Revisa', descripcion: 'Resumen, decisiones y tareas con su timecode' },
+  { icono: Share2, titulo: 'Aprueba y comparte', descripcion: 'La junta aprueba y se envía en PDF o Word' },
+];
+
 /**
  * "Esta semana" no se puede resolver hasta que `fecha` llegue como ISO desde
  * el backend — hoy es una cadena ya formateada ("12 septiembre 2026"), y
@@ -52,6 +59,10 @@ export function MisActasScreen() {
   const t = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  // Mismo umbral que el resto del shell de escritorio (Sidebar/LoginScreen):
+  // la franja de 3 pasos va en fila a partir de aquí, apilada por debajo.
+  const esEscritorio = width >= t.size.bpTablet;
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<IdFiltro>('todas');
 
@@ -172,7 +183,10 @@ export function MisActasScreen() {
   }
 
   // Biblioteca realmente vacía (nunca hubo actas): sin CTA ni chips, el
-  // propio estado vacío ya invita a grabar la primera reunión.
+  // propio estado vacío ya invita a grabar la primera reunión. Debajo, una
+  // franja de 3 pasos puramente informativa (sin botones: "Subir audio" se
+  // quitó de GrabacionScreen por no estar implementado, y aquí tampoco se
+  // inventa una acción que no existe).
   if (bibliotecaVacia) {
     return (
       <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
@@ -184,13 +198,49 @@ export function MisActasScreen() {
         >
           <Text variant="heading">Mis actas</Text>
         </View>
-        <View style={{ flex: 1, justifyContent: 'center' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: t.spacing[6], paddingBottom: t.spacing[8] }}>
           <EstadoVacio
             icono={Mic}
             titulo="Aún no tienes actas"
             descripcion="Graba tu primera reunión y tendrás la transcripción, el resumen y el acta en minutos."
             accion={{ titulo: 'Grabar mi primera reunión', onPress: () => navigation.navigate('NuevaGrabacion') }}
           />
+
+          <View
+            style={{
+              flexDirection: esEscritorio ? 'row' : 'column',
+              gap: t.spacing[6],
+              maxWidth: 640,
+              width: '100%',
+              marginTop: t.spacing[8],
+              padding: t.spacing[5],
+              borderRadius: t.radius.lg,
+              backgroundColor: t.colors.surface2,
+            }}
+          >
+            {PASOS.map(({ icono: Icono, titulo, descripcion }) => (
+              <View key={titulo} style={{ flex: esEscritorio ? 1 : undefined, flexDirection: 'row', alignItems: 'flex-start', gap: t.spacing[3] }}>
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: t.radius.md + 2,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: t.colors.surface,
+                  }}
+                >
+                  <Icono size={20} color={t.colors.text2} strokeWidth={1.8} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text variant="bodyStrong">{titulo}</Text>
+                  <Text variant="caption" color="text2">
+                    {descripcion}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
         </View>
       </View>
     );
