@@ -6,7 +6,8 @@ en `docs/ADRs/`.
 ## Stack (ADR-001)
 
 Backend Java + Spring Boot, base de datos Supabase (Postgres), storage de audios
-en Supabase Storage, autenticación propia en Spring Boot, frontend React (Expo),
+en Supabase Storage, autenticación con Supabase Auth (ADR-005: el backend valida el
+JWT, no lo emite), frontend React Native (Expo),
 transcripción/resumen vía Mistral (Voxtral Mini Transcribe V2 — ver ADR-006),
 notificaciones push vía Firebase Cloud Messaging.
 
@@ -43,17 +44,19 @@ Cada módulo sigue la misma estructura interna:
 **Comunicación entre módulos:** eventos internos de Spring
 (`ApplicationEventPublisher`), no llamadas directas entre módulos. Ejemplo real
 ya implementado: `grabacion` publica `ReunionFinalizadaEvent` al finalizar una
-reunión; `transcripcion` lo escuchará (Épica 2) para arrancar la transcripción,
+reunión; `transcripcion` lo escucha para arrancar la transcripción,
 sin que `grabacion` necesite conocer la existencia de `transcripcion`.
 
 **Estado de implementación por módulo:**
 
 | Módulo | Estado |
 |---|---|
-| `grabacion` | Estructura completa (domain, puertos, servicio, adaptadores) |
-| `transcripcion` | Dominio y puertos definidos; adaptadores pendientes (Épica 2) |
-| `resumen` | Dominio y puertos definidos; adaptadores pendientes (Épica 3) |
-| `compartir` | Puerto de entrada definido; resto pendiente (Épica 4) |
+| `grabacion` | Completo |
+| `transcripcion` | Completo (Mistral, ADR-006) |
+| `resumen` | Completo (Mistral, ADR-006); se persiste en Markdown y PDF/Word se generan al descargar |
+| `compartir` | Completo (enlace hosted con expiración de 24h) |
+
+El detalle por módulo está en `backend/CLAUDE.md`.
 
 ## Modelo multi-tenant y pivote a MeetingAI (ADR-003)
 
@@ -61,7 +64,7 @@ sin que `grabacion` necesite conocer la existencia de `transcripcion`.
 con `equipo` opcional dentro de ella:
 
 ```
-organizacion → membresia (usuario + rol OWNER/ADMIN/MIEMBRO)
+organizacion → membresia (usuario de Supabase Auth + rol OWNER/ADMIN/MIEMBRO)
              → equipo (opcional) → miembro_equipo (rol LIDER/MIEMBRO)
 ```
 

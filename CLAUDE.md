@@ -32,7 +32,7 @@ aprender bien cada pieza del stack sobre la velocidad de entrega (ver
 | Backend | Java 21 + Spring Boot 3.3.4 | Mismo stack que IPUE Management System, reutiliza patrones ya conocidos |
 | Base de datos | Supabase (Postgres), vía Spring Data JPA | Solo BD relacional |
 | Storage de audios | Supabase Storage | Subida directa desde el frontend, sin pasar por el backend |
-| Autenticación | Propia, en Spring Boot | No se usa Supabase Auth. Aún sin implementar |
+| Autenticación | Supabase Auth (ADR-005) | El frontend inicia sesión con `@supabase/supabase-js`; el backend solo valida el JWT (resource server, firma ES256 vía JWKS) y no emite tokens. Autorización por rol aún sin aplicar |
 | Frontend | React Native + Expo SDK 57 (TypeScript strict) | Navegación con React Navigation (native-stack) |
 | Transcripción y resumen | API externa (Mistral: Voxtral Mini Transcribe V2 + resumen, mismo proveedor) | Llamada desde el backend (ver ADR-006) |
 | Generación de archivos | Backend (iText 7 para PDF, Apache POI para Word) | Transcripción solo en PDF. Resumen en PDF, Word o MD |
@@ -81,16 +81,22 @@ Ninguna credencial se commitea. El backend lee todo desde variables de entorno
 con valores por defecto en `backend/src/main/resources/application.yml`:
 
 - `SUPABASE_DB_URL`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD` — conexión JDBC a Postgres
-- `SUPABASE_STORAGE_URL`, `SUPABASE_STORAGE_BUCKET` (por defecto `audios-reuniones`), `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY` — Whisper/OpenAI
+- `SUPABASE_STORAGE_URL`, `SUPABASE_STORAGE_BUCKET` (por defecto `meeting_audio`), `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_URL` — URL base del proyecto Supabase; de ella se deriva el endpoint JWKS
+- `SUPABASE_JWKS_URI` — endpoint JWKS con el que se validan los JWT (por defecto `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`, ver ADR-005)
+- `MISTRAL_API_KEY` — transcripción (`voxtral-mini-latest`) y combinación/resumen (`mistral-small-latest`), ver ADR-006
+- `ORGANIZACION_POR_DEFECTO_ID` — organización de respaldo para datos anteriores a que toda alta creara la suya; la siembra `V2__reunion_organizacion.sql`
 - `FIREBASE_CREDENTIALS_PATH` — FCM
+- `PORT` — puerto del servidor (por defecto 8080)
 - Parámetros de negocio bajo `actas-app.*`: expiración del enlace compartido (24h),
   máximo de reintentos de transcripción (3), duración máxima de grabación (120 min)
 
 Alternativa local: `backend/.env` o un `application-local.yml` (ambos ignorados por git).
 
-`spring.jpa.hibernate.ddl-auto: update` — el esquema lo genera Hibernate. Cambiar a
-`validate` cuando se introduzcan migraciones formales (Flyway/Liquibase).
+`spring.jpa.hibernate.ddl-auto: validate` — el esquema lo gestionan las migraciones
+de Flyway en `backend/src/main/resources/db/migration/` (ADR-004); Hibernate solo
+verifica que las entidades JPA coinciden. Todo cambio de esquema va en una migración
+nueva, nunca editando una ya aplicada.
 
 El frontend usa variables con prefijo `EXPO_PUBLIC_`: `EXPO_PUBLIC_SUPABASE_URL`,
 `EXPO_PUBLIC_SUPABASE_ANON_KEY` (ver `frontend/src/services/supabaseClient.ts`) y
@@ -113,9 +119,8 @@ Ver `frontend/CLAUDE.md` (reglas no negociables, estructura de pantallas y servi
 
 ## Modelo de dominio
 
-Detalle completo en `docs/01-Domain/modelo.md` (ojo: ese doc apunta a un paquete
-`backend/.../model/` que no existe; las entidades reales viven en
-`<modulo>/domain/` de cada módulo).
+Detalle completo en `docs/01-Domain/modelo.md`. Las entidades reales viven en
+`<modulo>/domain/` de cada módulo.
 
 Reglas de negocio clave:
 
@@ -137,6 +142,8 @@ Las decisiones técnicas se documentan en `docs/ADRs/`.
 - **ADR-002**: Arquitectura Hexagonal + Modular Monolito
 - **ADR-003**: Modelo de datos multi-tenant (organización/equipo/membresía) y pivote de producto a MeetingAI
 - **ADR-004**: Migraciones de esquema versionadas con Flyway
+- **ADR-005**: Autenticación vía Supabase Auth (sustituye la de ADR-001); el backend valida el JWT, no lo emite
+- **ADR-006**: Mistral (Voxtral + resumen) para transcripción y resumen (sustituye Whisper/OpenAI de ADR-001)
 
 **Directiva del Asistente de IA:** al discutir arquitectura o tomar decisiones técnicas,
 siempre haz referencia a los ADRs relevantes. Si se toma una nueva decisión arquitectónica
@@ -155,8 +162,8 @@ durante el desarrollo, crea o actualiza un ADR para documentarla.
    metadata (organización, equipo opcional, fecha, duración) en la base de datos.
 
 2. **Transcripción**
-   El backend llama a la API de Whisper/OpenAI con el audio y guarda el texto
-   transcrito asociado a la reunión.
+   El backend llama a la API de Mistral (Voxtral, ADR-006) con el audio y guarda el
+   texto transcrito asociado a la reunión.
 
 3. **Resumen y generación de archivos**
    Generar el resumen con IA a partir de la transcripción. El backend genera
@@ -166,10 +173,11 @@ durante el desarrollo, crea o actualiza un ADR para documentarla.
    La app descarga el archivo generado y abre el share sheet nativo del sistema
    operativo para compartirlo por cualquier app instalada.
 
-**Fuera de alcance en el Sprint 1:** autenticación completa, lógica de permisos
-por rol (`OWNER`/`ADMIN`/`MIEMBRO`, `LIDER`/`MIEMBRO` — el modelo de datos ya los
+**Fuera de alcance en el Sprint 1:** lógica de permisos por rol
+(`OWNER`/`ADMIN`/`MIEMBRO`, `LIDER`/`MIEMBRO` — el modelo de datos ya los
 contempla desde ADR-003, pero su aplicación en el backend se decide más
-adelante). El modelo de tenancy (organización/equipo) en sí **sí** entra en
+adelante). La autenticación en sí **ya está** (Supabase Auth + JWT verificado
+en el backend, ver ADR-005); lo que sigue fuera es la autorización por rol. El modelo de tenancy (organización/equipo) en sí **sí** entra en
 el Sprint 1 — ver ADR-003. La UI con el diseño de Figma Make **ya se migró**
 (ver `## Diseño` más abajo), no sigue fuera de alcance.
 
@@ -180,7 +188,7 @@ el Sprint 1 — ver ADR-003. La UI con el diseño de Figma Make **ya se migró**
 Diseño existente en Figma Make: `figma.com/make/4bTdEWF8ubEUdfkwg1ACp8`.
 Las 7 pantallas ya se migraron al sistema de diseño violeta/Geist (tokens en
 `frontend/theme/`, componentes compartidos en `frontend/components/ui/`,
-referencias visuales en `frontend/design/`). El tema viejo (crema/marrón en
+referencias visuales en `design/` en la raíz del repo). El tema viejo (crema/marrón en
 Manrope, `frontend/src/theme/`) se retiró por completo junto con los
 componentes que dependían de él.
 
@@ -239,7 +247,7 @@ aunque la de prioridad más baja sea "mejor práctica" en abstracto.
   `npx tsc --noEmit`.
 - No crear ficheros de documentación nuevos salvo que se pida explícitamente;
   actualizar los `docs/` existentes cuando una decisión los deje desactualizados
-  (ej. `docs/01-Domain/modelo.md`, pendiente de reflejar ADR-003).
+  (ej. `docs/01-Domain/modelo.md` tras un cambio de dominio o de migraciones).
 - Cambios de seguridad temporales (`SecurityConfig`, CORS) se marcan siempre con
   un comentario explicando el motivo y la condición de reversión, como ya hace
   el `SecurityConfig` actual con el TODO de la épica de autenticación.
@@ -252,25 +260,28 @@ aunque la de prioridad más baja sea "mejor práctica" en abstracto.
 - ~~Jest en frontend~~ — hecho: preset `jest-expo` en `package.json`. Primeros
   tests en `src/utils/formato.test.ts` y `src/utils/markdownActa.test.ts`
   (lógica pura, sin RN ni red — mismo criterio que los tests de dominio del
-  backend). Falta cobertura de componentes/pantallas.
+  backend). Primeros tests de componentes con `@testing-library/react-native`
+  (`Button`, `BadgeEstado`, `ChipsFiltro`, `PasoProceso`, junto a cada
+  archivo). Falta cobertura de pantallas.
 - ~~Tests unitarios de dominio en backend~~ — hecho: `ReunionTest` y
   `ClipAudioTest` (JUnit puro, sin `@SpringBootTest`) para `grabacion/domain`.
-  Los módulos `transcripcion`, `resumen` y `compartir` no tienen dominio con
-  lógica todavía, así que no les toca test.
-- Antes de fusionar `feat/backend-autenticacion` a esta rama: revisar que su
-  `SecurityConfig` reemplace el `permitAll()` provisional documentado en
-  `## Arquitectura del backend`, para que ambas ramas no diverjan sobre la
-  misma clase.
+  Después se añadieron tests de dominio en `transcripcion`, `resumen` y
+  `compartir`, y de adaptadores/controllers donde hay lógica (generadores de
+  PDF/Word, `ArchivosController`, `GrabacionController`).
+- ~~Fusionar `feat/backend-autenticacion`~~ — hecho: `SecurityConfig` en
+  `master` ya valida el JWT de Supabase (ADR-005); el `permitAll()` provisional
+  solo queda para `GET /api/compartir/*` y el preflight CORS, a propósito.
 
 ---
 
 ## Documentación
 
+- `docs/README.md` — índice de toda la documentación
 - `docs/00-Foundations/vision.md` — visión, monetización, alcance
 - `docs/01-Domain/modelo.md` — modelo de datos y reglas de negocio
 - `docs/02-Architecture/decisiones.md` — resumen de arquitectura
 - `docs/ADRs/` — decisiones con contexto y alternativas descartadas
 - `docs/03-Roadmap/` — vacío por ahora (backlog de épicas y estado de sprints)
 
-Pendientes de crear, referenciados pero inexistentes: `docs/README.md` (índice) y
+Pendiente de crear, referenciado pero inexistente:
 `docs/04-Execution/06-Sprint-Grooming-Process.md` (proceso de grooming de épicas).
