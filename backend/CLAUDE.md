@@ -40,12 +40,15 @@ Cada módulo repite la misma estructura interna:
   `transcripcion` publicará `TranscripcionCompletadaEvent` para notificar vía FCM.
   **Excepción documentada, generalizada:** `shared/` puede depender del puerto de
   entrada de un módulo de épica cuando necesita orquestar algo transversal — nunca al
-  revés, y nunca a través de los adaptadores internos de ese módulo. Dos casos hoy:
+  revés, y nunca a través de los adaptadores internos de ese módulo. Tres casos hoy:
   `shared/archivos/ArchivosController` depende de `ObtenerResumenUseCase` (`resumen`)
-  para servir una descarga; `shared/identidad/VerificarAccesoReunion` depende de
+  y de `ObtenerTranscripcionUseCase` (`transcripcion`) para servir una descarga
+  (la fecha de la reunión, que necesita el título del PDF de la transcripción, la
+  saca del `Reunion` que ya devuelve `VerificarAccesoReunion`, sin una dependencia
+  más hacia `grabacion`); `shared/identidad/VerificarAccesoReunion` depende de
   `ConsultarReunionesUseCase` (`grabacion`) para comprobar que un `reunionId` recibido
   por `resumen`, `transcripcion` o `shared/archivos` pertenezca a la organización del
-  usuario autenticado (ver nota de seguridad abajo). No añadir un tercer caso sin
+  usuario autenticado (ver nota de seguridad abajo). No añadir un cuarto caso sin
   documentarlo aquí igual de explícito.
 - **Cambiar de proveedor externo = reemplazar un adaptador**, nunca tocar dominio ni servicio.
 - **Errores:** centralizados en `shared/exception/GlobalExceptionHandler`.
@@ -60,8 +63,8 @@ Cada módulo repite la misma estructura interna:
 | Módulo | Estado |
 |---|---|
 | `grabacion` | Completo de extremo a extremo salvo `SupabaseStorageAdapter`, que sigue lanzando `UnsupportedOperationException` — no bloquea porque el frontend sube el audio directo a Supabase Storage sin pasar por el backend (ver tabla de stack en el `CLAUDE.md` raíz) |
-| `transcripcion` | Completo: `GestorTranscripcionService` escucha `ReunionFinalizadaEvent`, transcribe con `MistralTranscriptorAdapter` y combina los clips con `MistralCombinadorAdapter`; publica `TranscripcionCompletadaEvent` al terminar |
-| `resumen` | Completo: `MistralResumenAdapter` genera el texto (solo plantilla RESUMEN_EJECUTIVO) y `GeneradorDocumentoAdapter` ya renderiza los 3 formatos — MARKDOWN tal cual, PDF (iText) y WORD (POI) línea a línea desde ese mismo Markdown (párrafos, encabezados "#"/"##" y bullets "-"; no es un parser de Markdown completo). El resumen en sí se genera y persiste **solo en MARKDOWN** (`POST /api/resumen` sigue rechazando otro formato ahí); PDF/WORD son una conversión al vuelo de ese contenido al descargarlo (`ObtenerResumenUseCase.obtenerUltimoComoArchivo`, usado por `ArchivosController`), no una llamada nueva a Mistral ni una fila nueva en `resumen` |
+| `transcripcion` | Completo: `GestorTranscripcionService` escucha `ReunionFinalizadaEvent`, transcribe con `MistralTranscriptorAdapter` y combina los clips con `MistralCombinadorAdapter`; publica `TranscripcionCompletadaEvent` al terminar. `GeneradorPdfTranscripcionAdapter` (iText, propio del módulo — no reutiliza el de `resumen` porque los módulos no se llaman entre sí, y el texto aquí es plano, sin Markdown) renderiza el texto combinado a PDF para la descarga (`ObtenerTranscripcionUseCase.obtenerComoPdf`): título con la fecha de la reunión, una línea por párrafo y las etiquetas "Hablante N:" en negrita |
+| `resumen` | Completo: `MistralResumenAdapter` genera el texto con las 3 plantillas (RESUMEN_EJECUTIVO, ACTA_FORMAL, LISTA_ACUERDOS; una instrucción de sistema por plantilla, misma llamada HTTP, siempre Markdown con párrafos, "#"/"##" y bullets "-") y `GeneradorDocumentoAdapter` ya renderiza los 3 formatos — MARKDOWN tal cual, PDF (iText) y WORD (POI) línea a línea desde ese mismo Markdown (párrafos, encabezados "#"/"##" y bullets "-"; no es un parser de Markdown completo). El resumen en sí se genera y persiste **solo en MARKDOWN** (`POST /api/resumen` sigue rechazando otro formato ahí); PDF/WORD son una conversión al vuelo de ese contenido al descargarlo (`ObtenerResumenUseCase.obtenerUltimoComoArchivo`, usado por `ArchivosController`), no una llamada nueva a Mistral ni una fila nueva en `resumen` |
 | `compartir` | Completo: `GestorCompartirService` genera el token y valida expiración (24h), `EnlaceCompartidoRepositorioAdapter` persiste en JPA, `CompartirController` expone generar/descargar. `SecurityConfig` permite público solo el `GET /api/compartir/*` |
 
 Los `.gitkeep` marcan los paquetes ya previstos pero vacíos.
@@ -188,9 +191,12 @@ hardware de audio).
 
 - `POST /api/resumen` → `{resumenId, contenido}` — genera el resumen a partir
   de `reunionId`, `transcripcion` (el frontend la pasa directo porque los
-  módulos no se llaman entre sí), `plantilla` y `formato`. `contenido` viaja
-  como texto; hoy el único formato real es MARKDOWN, `PDF`/`WORD` aún no están
-  implementados en `GeneradorDocumentoAdapter`
+  módulos no se llaman entre sí), `plantilla` (acepta las 3: `RESUMEN_EJECUTIVO`,
+  `ACTA_FORMAL`, `LISTA_ACUERDOS`) y `formato`. `contenido` viaja como texto. El
+  resumen se genera y persiste solo en MARKDOWN: otro `formato` se rechaza a
+  propósito (400). PDF/WORD se obtienen al descargar con
+  `GET /api/reuniones/{reunionId}/archivos` (`ArchivosController`), que convierte
+  ese Markdown al vuelo con `GeneradorDocumentoAdapter`
 
 `CompartirController` bajo `/api/compartir`:
 
@@ -213,6 +219,11 @@ hardware de audio).
   (único formato que persiste `POST /api/resumen`) y, si se pidió PDF o WORD,
   lo convierte al vuelo con `GeneradorDocumentoAdapter`
   (`ObtenerResumenUseCase.obtenerUltimoComoArchivo`) — sin volver a llamar a
-  Mistral ni guardar una fila nueva. `contenido=transcripcion` sigue dando 400
-  `SOLICITUD_INVALIDA`: por regla de negocio solo se entrega en PDF, y esa
-  todavía no tiene generador.
+  Mistral ni guardar una fila nueva. `contenido=transcripcion` funciona solo con
+  `formato=PDF` (regla de negocio; WORD/MARKDOWN dan 400 `SOLICITUD_INVALIDA`):
+  renderiza al vuelo el texto combinado con `GeneradorPdfTranscripcionAdapter`
+  (`ObtenerTranscripcionUseCase.obtenerComoPdf`), con la fecha de la reunión como
+  título. Si la reunión aún no tiene transcripción combinada (en proceso o con
+  algún clip `FALLIDA`), también 400 `SOLICITUD_INVALIDA`, igual que pedir un
+  resumen que todavía no existe. El archivo se descarga como
+  `resumen-{reunionId}.{ext}` o `transcripcion-{reunionId}.pdf`.

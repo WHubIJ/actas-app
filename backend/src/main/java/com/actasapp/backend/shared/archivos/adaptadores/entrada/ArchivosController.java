@@ -4,6 +4,7 @@ import com.actasapp.backend.resumen.domain.FormatoArchivo;
 import com.actasapp.backend.resumen.puertos.entrada.ObtenerResumenUseCase;
 import com.actasapp.backend.shared.archivos.domain.ContenidoArchivo;
 import com.actasapp.backend.shared.identidad.VerificarAccesoReunion;
+import com.actasapp.backend.transcripcion.puertos.entrada.ObtenerTranscripcionUseCase;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -15,28 +16,28 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
 
 /**
  * Descarga un archivo ya generado para una reunión (lo que `compartirService.ts`
- * pide antes de abrir el share sheet nativo). Vive en shared/, no en `grabacion`
- * ni en `resumen`: necesita el caso de uso de lectura de `resumen` para servir
- * el archivo, y `grabacion`/`resumen`/`transcripcion` no pueden depender entre
- * sí. Es la única excepción documentada a esa regla — aquí es `shared` quien
- * conoce a un módulo (vía su puerto de entrada, nunca sus adaptadores internos),
- * no al revés, igual que `shared/identidad` ya es infraestructura común para
- * `grabacion`.
+ * pide antes de abrir el share sheet nativo). Vive en shared/, no en `grabacion`,
+ * `resumen` ni `transcripcion`: necesita los casos de uso de lectura de
+ * `resumen` y `transcripcion` (y la fecha de la reunión, de `grabacion` vía
+ * `VerificarAccesoReunion`), y esos módulos no pueden depender entre sí. Es
+ * una excepción documentada a esa regla (ver `backend/CLAUDE.md`) — aquí es
+ * `shared` quien conoce a un módulo (vía su puerto de entrada, nunca sus
+ * adaptadores internos), no al revés.
  *
  * Sin puerto/adaptador propio ni servicio de por medio a propósito (mismo
  * criterio que `ResolverOrganizacionUsuario`): no hay regla de negocio aquí,
  * solo una comprobación de qué combinación está disponible hoy y delegar.
  *
- * Hoy solo sirve `RESUMEN`, en cualquiera de los 3 formatos (MARKDOWN, PDF,
- * WORD — ver `ObtenerResumenUseCase.obtenerUltimoComoArchivo`); la
- * transcripción, que por regla de negocio solo se entrega en PDF, sigue sin
- * generador. Pedir esa combinación da un 400 claro, no un 500 ni un archivo
- * a medias.
+ * `RESUMEN` se sirve en los 3 formatos (MARKDOWN, PDF, WORD — ver
+ * `ObtenerResumenUseCase.obtenerUltimoComoArchivo`); `TRANSCRIPCION` solo en
+ * PDF, por regla de negocio. Pedir otra combinación da un 400 claro, no un
+ * 500 ni un archivo a medias.
  */
 @RestController
 @RequestMapping("/api/reuniones/{reunionId}/archivos")
@@ -53,10 +54,14 @@ public class ArchivosController {
                     "docx"));
 
     private final ObtenerResumenUseCase obtenerResumen;
+    private final ObtenerTranscripcionUseCase obtenerTranscripcion;
     private final VerificarAccesoReunion verificarAcceso;
 
-    public ArchivosController(ObtenerResumenUseCase obtenerResumen, VerificarAccesoReunion verificarAcceso) {
+    public ArchivosController(ObtenerResumenUseCase obtenerResumen,
+                              ObtenerTranscripcionUseCase obtenerTranscripcion,
+                              VerificarAccesoReunion verificarAcceso) {
         this.obtenerResumen = obtenerResumen;
+        this.obtenerTranscripcion = obtenerTranscripcion;
         this.verificarAcceso = verificarAcceso;
     }
 
@@ -65,16 +70,24 @@ public class ArchivosController {
                                              @RequestParam String contenido,
                                              @RequestParam FormatoArchivo formato,
                                              @AuthenticationPrincipal Jwt jwt) {
-        verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject()));
+        LocalDate fechaReunion = verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject())).getFecha();
         ContenidoArchivo tipoContenido = parsearContenido(contenido);
-        if (tipoContenido != ContenidoArchivo.RESUMEN) {
-            throw new IllegalArgumentException(
-                    "Todavía solo se puede descargar el resumen; la transcripción está pendiente de implementar");
-        }
 
-        byte[] archivo = obtenerResumen.obtenerUltimoComoArchivo(reunionId, formato);
+        byte[] archivo = switch (tipoContenido) {
+            case RESUMEN -> obtenerResumen.obtenerUltimoComoArchivo(reunionId, formato);
+            case TRANSCRIPCION -> {
+                // La regla "solo PDF" se comprueba aquí y no en el caso de uso:
+                // `FormatoArchivo` es del dominio de `resumen` y `transcripcion`
+                // no puede importarlo, así que su puerto ya solo expone PDF.
+                if (formato != FormatoArchivo.PDF) {
+                    throw new IllegalArgumentException(
+                            "La transcripción solo se puede descargar en PDF (formato pedido: " + formato + ")");
+                }
+                yield obtenerTranscripcion.obtenerComoPdf(reunionId, fechaReunion);
+            }
+        };
         PerfilFormato perfil = PERFILES.get(formato);
-        String nombreArchivo = "resumen-" + reunionId + "." + perfil.extension();
+        String nombreArchivo = tipoContenido.name().toLowerCase() + "-" + reunionId + "." + perfil.extension();
         return ResponseEntity.ok()
                 .contentType(perfil.tipo())
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + nombreArchivo + "\"")

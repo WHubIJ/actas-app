@@ -12,6 +12,7 @@ export type CodigoErrorCompartir =
   | 'COMPARTIR_NO_DISPONIBLE'
   | 'PLATAFORMA_NO_SOPORTADA'
   | 'SIN_CONTENIDO'
+  | 'FORMATO_NO_PERMITIDO'
   | 'REQUIERE_BACKEND'
   | 'DESCARGA_FALLIDA';
 
@@ -87,13 +88,13 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
     throw new ErrorCompartir('SIN_CONTENIDO', 'Todavía no hay transcripción que compartir.');
   }
 
-  // Por regla de negocio la transcripción solo se entrega en PDF, y el
-  // backend todavía no lo genera (`ArchivosController` responde
-  // SOLICITUD_INVALIDA para cualquier combinación que no sea resumen).
-  if (contenido === 'transcripcion') {
+  // Por regla de negocio la transcripción solo se entrega en PDF; el backend
+  // responde 400 a cualquier otro formato, así que se corta aquí antes de
+  // gastar una descarga que solo puede fallar.
+  if (contenido === 'transcripcion' && formato !== 'PDF') {
     throw new ErrorCompartir(
-      'REQUIERE_BACKEND',
-      'La transcripción solo se entrega en PDF, y el servidor todavía no lo genera.',
+      'FORMATO_NO_PERMITIDO',
+      'La transcripción solo se puede compartir en PDF.',
     );
   }
   // Sin backend (mock), `componerMarkdownEnDispositivo` solo sabe escribir

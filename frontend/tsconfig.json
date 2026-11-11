@@ -3,5 +3,9 @@
   "compilerOptions": {
     "strict": true,
     "types": ["node", "jest"]
-  }
+  },
+  // Solo TS/TSX como raíces: con allowJs (heredado de Expo) y sin "include",
+  // tsc se tragaba el bundle minificado de `npx expo export` en dist/ (9 MB)
+  // y reventaba la pila analizando su flujo de control.
+  "include": ["**/*.ts", "**/*.tsx"]
 }

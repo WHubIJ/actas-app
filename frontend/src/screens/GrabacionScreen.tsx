@@ -146,7 +146,6 @@ export function GrabacionScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (estado !== 'procesando') return;
     let cancelado = false;
-    setPasoActual(0);
 
     const transicionCosmetica = setTimeout(() => {
       if (!cancelado) setPasoActual(1);
