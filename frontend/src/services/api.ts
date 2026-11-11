@@ -21,10 +21,19 @@ export const hayBackend = API_URL.length > 0;
 export type CodigoErrorApi =
   | 'BACKEND_NO_CONFIGURADO'
   | 'ERROR_RED'
+  | 'TIEMPO_AGOTADO'
   | 'NO_AUTENTICADO'
   | 'SOLICITUD_INVALIDA'
   | 'ESTADO_INVALIDO'
   | 'ERROR_INTERNO';
+
+/**
+ * Backend en Render (plan gratuito): si no recibió tráfico se duerme, y la
+ * petición que lo despierta puede no responder en bastante tiempo (hemos
+ * visto >45s) — sin límite, un fetch así deja la pantalla de carga girando
+ * para siempre en vez de ofrecer reintentar.
+ */
+const TIEMPO_ESPERA_MS = 20_000;
 
 /** Error con código para que la UI elija el mensaje, no lo improvise (mismo patrón que ErrorCompartir). */
 export class ErrorApi extends Error {
@@ -63,10 +72,20 @@ async function peticion<T>(ruta: string, opciones: RequestInit = {}): Promise<T>
   }
 
   let respuesta: Response;
+  const controlador = new AbortController();
+  const temporizador = setTimeout(() => controlador.abort(), TIEMPO_ESPERA_MS);
   try {
-    respuesta = await fetch(`${API_URL}${ruta}`, { ...opciones, headers: cabeceras });
-  } catch {
+    respuesta = await fetch(`${API_URL}${ruta}`, { ...opciones, headers: cabeceras, signal: controlador.signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ErrorApi(
+        'TIEMPO_AGOTADO',
+        'El servidor está tardando en responder (puede estar arrancando tras un rato inactivo). Inténtalo de nuevo en unos segundos.',
+      );
+    }
     throw new ErrorApi('ERROR_RED', 'No se pudo contactar con el servidor. Revisa la conexión.');
+  } finally {
+    clearTimeout(temporizador);
   }
 
   // Algunos endpoints (p. ej. finalizar) devuelven 200 sin cuerpo.
