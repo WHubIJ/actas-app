@@ -5,6 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   AudioLines,
   ChevronLeft,
+  FileText,
   Hash,
   RotateCw,
   Share2,
@@ -42,11 +43,11 @@ const PESTANAS: ReadonlyArray<Segmento<Pestana>> = [
 ];
 
 /**
- * Solo RESUMEN_EJECUTIVO tiene prompt implementado en el backend hoy
- * (`MistralResumenAdapter`); ACTA_FORMAL y LISTA_ACUERDOS responden
- * `ERROR_INTERNO`. Se ocultan en vez de ofrecerlas y dejar que el usuario
- * choque con un 500 genérico — vuelven a la lista en cuanto el backend las
- * implemente (Épica 3 ampliada).
+ * El backend ya genera las 3 plantillas (`MistralResumenAdapter`), pero aquí
+ * solo se ofrece RESUMEN_EJECUTIVO: `parsearResumenEjecutivo`
+ * (`utils/markdownActa.ts`) descarta los encabezados `#`/`##`, así que
+ * ACTA_FORMAL perdería sus secciones (orden del día, desarrollo, acuerdos) al
+ * mostrarse. Vuelven a la lista cuando el parser sepa representarlas.
  */
 const PLANTILLAS: ReadonlyArray<OpcionHoja<PlantillaResumen>> = [
   {
@@ -58,14 +59,16 @@ const PLANTILLAS: ReadonlyArray<OpcionHoja<PlantillaResumen>> = [
 ];
 
 /**
- * Formatos de exportación del resumen. PDF y Word los generaría el backend
- * (iText/POI) pero `GeneradorDocumentoAdapter` aún no los implementa — se
- * ocultan por el mismo motivo que las plantillas de arriba. La transcripción
- * por regla de negocio solo sale en PDF, que tampoco existe: por eso no
- * tiene pestaña de compartir propia (ver `puedeCompartir`).
+ * Formatos de exportación del resumen. El backend los convierte al vuelo
+ * desde el Markdown ya generado (`GeneradorDocumentoAdapter`, iText/POI), sin
+ * volver a llamar a la IA. La transcripción por regla de negocio solo sale en
+ * PDF, así que su pestaña comparte directo sin pasar por esta hoja (ver
+ * `onCompartir`).
  */
 const FORMATOS_RESUMEN: ReadonlyArray<OpcionHoja<FormatoArchivo>> = [
   { id: 'MARKDOWN', titulo: 'Markdown', descripcion: 'Texto plano para notas o wiki.', icono: Hash },
+  { id: 'PDF', titulo: 'PDF', descripcion: 'Listo para imprimir o archivar.', icono: FileText },
+  { id: 'WORD', titulo: 'Word', descripcion: 'Documento editable (.docx).', icono: FileText },
 ];
 
 /** Ritmo de la generación simulada del resumen (solo sin backend). */
@@ -146,7 +149,9 @@ export function DetalleActaScreen({ route, navigation }: Props) {
     async (formatoElegido: FormatoArchivo) => {
       if (!acta) return;
       setHojaFormatos(false);
-      setFormato(formatoElegido);
+      // La hoja de formatos es solo del resumen: el PDF forzado de la
+      // transcripción no debe cambiar su selección.
+      if (pestana === 'resumen') setFormato(formatoElegido);
       setErrorCompartir(null);
       setCompartiendo(true);
       try {
@@ -185,9 +190,10 @@ export function DetalleActaScreen({ route, navigation }: Props) {
       }
 
       try {
-        // Formato fijo a MARKDOWN: es el único que `GeneradorDocumentoAdapter`
-        // tiene implementado hoy (ver backend/CLAUDE.md). El formato que elige
-        // el usuario al compartir es un paso aparte, sobre este mismo contenido.
+        // Formato fijo a MARKDOWN: es lo que esta pantalla parsea para pintar
+        // las secciones del resumen. El formato que elige el usuario al
+        // compartir es un paso aparte — el backend convierte este mismo
+        // contenido a PDF/Word al descargarlo, sin generarlo de nuevo.
         const { contenido } = await generarResumen(actaId, acta.textoTranscripcion ?? '', plantilla, 'MARKDOWN');
         setResumen(parsearResumenEjecutivo(contenido));
       } catch (error) {
@@ -255,11 +261,12 @@ export function DetalleActaScreen({ route, navigation }: Props) {
     );
   }
 
-  // Compartir la transcripción exige PDF por regla de negocio, y el backend
-  // todavía no lo genera (ver compartirService.ts) — no tiene botón propio
-  // hasta que exista esa pieza, para no ofrecer una acción que solo puede
-  // fallar.
-  const puedeCompartir = pestana === 'resumen' && resumen !== null;
+  // Misma comprobación que hace compartirService antes de descargar: sin
+  // texto no hay PDF de transcripción que pedir al backend.
+  const hayTranscripcion = acta.intervenciones.length > 0 || !!acta.textoTranscripcion;
+  const puedeCompartir = pestana === 'resumen' ? resumen !== null : hayTranscripcion;
+  // La transcripción solo sale en PDF: elegir formato no tiene sentido ahí.
+  const onCompartir = () => (pestana === 'resumen' ? setHojaFormatos(true) : compartir('PDF'));
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
@@ -311,7 +318,7 @@ export function DetalleActaScreen({ route, navigation }: Props) {
             fullWidth
             loading={compartiendo}
             icon={(c) => <Share2 size={18} color={c} strokeWidth={1.8} />}
-            onPress={() => setHojaFormatos(true)}
+            onPress={onCompartir}
           />
         </View>
       )}

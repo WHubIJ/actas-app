@@ -6,8 +6,10 @@ import com.actasapp.backend.transcripcion.domain.EstadoTranscripcion;
 import com.actasapp.backend.transcripcion.domain.Transcripcion;
 import com.actasapp.backend.transcripcion.domain.TranscripcionCombinada;
 import com.actasapp.backend.transcripcion.puertos.entrada.ConsultarEstadoTranscripcionUseCase;
+import com.actasapp.backend.transcripcion.puertos.entrada.ObtenerTranscripcionUseCase;
 import com.actasapp.backend.transcripcion.puertos.entrada.TranscribirReunionUseCase;
 import com.actasapp.backend.transcripcion.puertos.salida.CombinarTranscripcionesPuerto;
+import com.actasapp.backend.transcripcion.puertos.salida.GeneradorPdfTranscripcionPuerto;
 import com.actasapp.backend.transcripcion.puertos.salida.TranscripcionCombinadaRepositorioPuerto;
 import com.actasapp.backend.transcripcion.puertos.salida.TranscripcionRepositorioPuerto;
 import com.actasapp.backend.transcripcion.puertos.salida.TranscriptorPuerto;
@@ -19,6 +21,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,7 +35,8 @@ import java.util.stream.Collectors;
  * los adaptadores.
  */
 @Service
-public class GestorTranscripcionService implements TranscribirReunionUseCase, ConsultarEstadoTranscripcionUseCase {
+public class GestorTranscripcionService implements TranscribirReunionUseCase, ConsultarEstadoTranscripcionUseCase,
+        ObtenerTranscripcionUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(GestorTranscripcionService.class);
 
@@ -43,6 +47,7 @@ public class GestorTranscripcionService implements TranscribirReunionUseCase, Co
     private final TranscripcionCombinadaRepositorioPuerto transcripcionCombinadaRepositorio;
     private final TranscriptorPuerto transcriptor;
     private final CombinarTranscripcionesPuerto combinador;
+    private final GeneradorPdfTranscripcionPuerto generadorPdf;
     private final ApplicationEventPublisher eventos;
     private final int maxReintentos;
 
@@ -50,12 +55,14 @@ public class GestorTranscripcionService implements TranscribirReunionUseCase, Co
                                        TranscripcionCombinadaRepositorioPuerto transcripcionCombinadaRepositorio,
                                        TranscriptorPuerto transcriptor,
                                        CombinarTranscripcionesPuerto combinador,
+                                       GeneradorPdfTranscripcionPuerto generadorPdf,
                                        ApplicationEventPublisher eventos,
                                        @Value("${actas-app.transcripcion.max-reintentos}") int maxReintentos) {
         this.transcripcionRepositorio = transcripcionRepositorio;
         this.transcripcionCombinadaRepositorio = transcripcionCombinadaRepositorio;
         this.transcriptor = transcriptor;
         this.combinador = combinador;
+        this.generadorPdf = generadorPdf;
         this.eventos = eventos;
         this.maxReintentos = maxReintentos;
     }
@@ -153,6 +160,19 @@ public class GestorTranscripcionService implements TranscribirReunionUseCase, Co
                 .map(TranscripcionCombinada::getTexto)
                 .orElse(null);
         return new TranscripcionDetalle(estado, texto);
+    }
+
+    /**
+     * Mismo tipo de error que "no hay resumen generado todavía" en
+     * GestorResumenService, para que el frontend reciba el mismo código
+     * (SOLICITUD_INVALIDA) en ambos casos de "aún no hay nada que descargar".
+     */
+    @Override
+    public byte[] obtenerComoPdf(UUID reunionId, LocalDate fechaReunion) {
+        TranscripcionCombinada combinada = transcripcionCombinadaRepositorio.buscarPorReunion(reunionId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Todavía no hay transcripción completa para esta reunión"));
+        return generadorPdf.generar(fechaReunion, combinada.getTexto());
     }
 
     /**
