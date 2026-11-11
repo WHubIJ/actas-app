@@ -61,7 +61,7 @@ Cada módulo repite la misma estructura interna:
 |---|---|
 | `grabacion` | Completo de extremo a extremo salvo `SupabaseStorageAdapter`, que sigue lanzando `UnsupportedOperationException` — no bloquea porque el frontend sube el audio directo a Supabase Storage sin pasar por el backend (ver tabla de stack en el `CLAUDE.md` raíz) |
 | `transcripcion` | Completo: `GestorTranscripcionService` escucha `ReunionFinalizadaEvent`, transcribe con `MistralTranscriptorAdapter` y combina los clips con `MistralCombinadorAdapter`; publica `TranscripcionCompletadaEvent` al terminar |
-| `resumen` | Servicio y `MistralResumenAdapter` completos. De los 3 formatos de salida solo **MARKDOWN** está implementado en `GeneradorDocumentoAdapter`; `PDF` (iText) y `WORD` (POI) siguen lanzando `UnsupportedOperationException` |
+| `resumen` | Completo: `MistralResumenAdapter` genera el texto (solo plantilla RESUMEN_EJECUTIVO) y `GeneradorDocumentoAdapter` ya renderiza los 3 formatos — MARKDOWN tal cual, PDF (iText) y WORD (POI) línea a línea desde ese mismo Markdown (párrafos, encabezados "#"/"##" y bullets "-"; no es un parser de Markdown completo). El resumen en sí se genera y persiste **solo en MARKDOWN** (`POST /api/resumen` sigue rechazando otro formato ahí); PDF/WORD son una conversión al vuelo de ese contenido al descargarlo (`ObtenerResumenUseCase.obtenerUltimoComoArchivo`, usado por `ArchivosController`), no una llamada nueva a Mistral ni una fila nueva en `resumen` |
 | `compartir` | Completo: `GestorCompartirService` genera el token y valida expiración (24h), `EnlaceCompartidoRepositorioAdapter` persiste en JPA, `CompartirController` expone generar/descargar. `SecurityConfig` permite público solo el `GET /api/compartir/*` |
 
 Los `.gitkeep` marcan los paquetes ya previstos pero vacíos.
@@ -208,10 +208,11 @@ hardware de audio).
 
 - `GET /api/reuniones/{reunionId}/archivos?contenido=resumen|transcripcion&formato=PDF|WORD|MARKDOWN`
   → descarga el archivo ya generado para `compartirService.ts` (share sheet
-  nativo). Requiere sesión, como el resto de `/api/reuniones`. Hoy solo
-  `contenido=resumen&formato=MARKDOWN` funciona de verdad (busca el resumen
-  más reciente de esa reunión en ese formato vía `ObtenerResumenUseCase`,
-  nuevo puerto de entrada de `resumen`); cualquier otra combinación da 400
-  `SOLICITUD_INVALIDA` con un mensaje explícito, no un 500 — PDF/WORD siguen
-  sin implementar en `GeneradorDocumentoAdapter` y la transcripción, que por
-  regla de negocio solo se entrega en PDF, tampoco tiene generador todavía.
+  nativo). Requiere sesión, como el resto de `/api/reuniones`. `contenido=resumen`
+  funciona en los 3 formatos: busca el último resumen MARKDOWN de la reunión
+  (único formato que persiste `POST /api/resumen`) y, si se pidió PDF o WORD,
+  lo convierte al vuelo con `GeneradorDocumentoAdapter`
+  (`ObtenerResumenUseCase.obtenerUltimoComoArchivo`) — sin volver a llamar a
+  Mistral ni guardar una fila nueva. `contenido=transcripcion` sigue dando 400
+  `SOLICITUD_INVALIDA`: por regla de negocio solo se entrega en PDF, y esa
+  todavía no tiene generador.

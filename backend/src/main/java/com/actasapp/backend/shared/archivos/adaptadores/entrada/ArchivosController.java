@@ -1,7 +1,6 @@
 package com.actasapp.backend.shared.archivos.adaptadores.entrada;
 
 import com.actasapp.backend.resumen.domain.FormatoArchivo;
-import com.actasapp.backend.resumen.domain.Resumen;
 import com.actasapp.backend.resumen.puertos.entrada.ObtenerResumenUseCase;
 import com.actasapp.backend.shared.archivos.domain.ContenidoArchivo;
 import com.actasapp.backend.shared.identidad.VerificarAccesoReunion;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -32,14 +32,25 @@ import java.util.UUID;
  * criterio que `ResolverOrganizacionUsuario`): no hay regla de negocio aquí,
  * solo una comprobación de qué combinación está disponible hoy y delegar.
  *
- * Hoy solo sirve `RESUMEN` en `MARKDOWN`: es el único formato que
- * `GeneradorDocumentoAdapter` genera de verdad (PDF/WORD siguen pendientes),
- * y la transcripción por regla de negocio solo se entrega en PDF. Pedir otra
- * combinación da un 400 claro, no un 500 ni un archivo a medias.
+ * Hoy solo sirve `RESUMEN`, en cualquiera de los 3 formatos (MARKDOWN, PDF,
+ * WORD — ver `ObtenerResumenUseCase.obtenerUltimoComoArchivo`); la
+ * transcripción, que por regla de negocio solo se entrega en PDF, sigue sin
+ * generador. Pedir esa combinación da un 400 claro, no un 500 ni un archivo
+ * a medias.
  */
 @RestController
 @RequestMapping("/api/reuniones/{reunionId}/archivos")
 public class ArchivosController {
+
+    /** Content-Type y extensión de archivo por formato, para la descarga. */
+    private record PerfilFormato(MediaType tipo, String extension) {}
+
+    private static final Map<FormatoArchivo, PerfilFormato> PERFILES = Map.of(
+            FormatoArchivo.MARKDOWN, new PerfilFormato(MediaType.parseMediaType("text/markdown"), "md"),
+            FormatoArchivo.PDF, new PerfilFormato(MediaType.APPLICATION_PDF, "pdf"),
+            FormatoArchivo.WORD, new PerfilFormato(
+                    MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+                    "docx"));
 
     private final ObtenerResumenUseCase obtenerResumen;
     private final VerificarAccesoReunion verificarAcceso;
@@ -56,18 +67,18 @@ public class ArchivosController {
                                              @AuthenticationPrincipal Jwt jwt) {
         verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject()));
         ContenidoArchivo tipoContenido = parsearContenido(contenido);
-        if (tipoContenido != ContenidoArchivo.RESUMEN || formato != FormatoArchivo.MARKDOWN) {
+        if (tipoContenido != ContenidoArchivo.RESUMEN) {
             throw new IllegalArgumentException(
-                    "Todavía solo se puede descargar el resumen en Markdown; "
-                            + "PDF, Word y la transcripción están pendientes de implementar");
+                    "Todavía solo se puede descargar el resumen; la transcripción está pendiente de implementar");
         }
 
-        Resumen resumen = obtenerResumen.obtenerUltimoPorReunionId(reunionId, formato);
-        String nombreArchivo = "resumen-" + reunionId + ".md";
+        byte[] archivo = obtenerResumen.obtenerUltimoComoArchivo(reunionId, formato);
+        PerfilFormato perfil = PERFILES.get(formato);
+        String nombreArchivo = "resumen-" + reunionId + "." + perfil.extension();
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("text/markdown"))
+                .contentType(perfil.tipo())
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + nombreArchivo + "\"")
-                .body(resumen.getContenido());
+                .body(archivo);
     }
 
     // El frontend manda "resumen"/"transcripcion" en minúscula (ContenidoCompartible);
