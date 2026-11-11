@@ -10,6 +10,7 @@ import com.actasapp.backend.resumen.puertos.salida.GeneradorDocumentoPuerto;
 import com.actasapp.backend.resumen.puertos.salida.ResumenRepositorioPuerto;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /**
@@ -53,5 +54,16 @@ public class GestorResumenService implements GenerarResumenUseCase, ObtenerResum
         return resumenRepositorio.buscarUltimoPorReunionIdYFormato(reunionId, formato)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No hay resumen en formato " + formato + " generado todavía para esta reunión"));
+    }
+
+    @Override
+    public byte[] obtenerUltimoComoArchivo(UUID reunionId, FormatoArchivo formato) {
+        // El resumen persistido siempre está en MARKDOWN (es el único formato
+        // que genera POST /api/resumen) — convertirlo aquí evita volver a
+        // llamar a Mistral solo porque el usuario pide descargarlo en otro
+        // formato de salida.
+        Resumen resumen = obtenerUltimoPorReunionId(reunionId, FormatoArchivo.MARKDOWN);
+        String texto = new String(resumen.getContenido(), StandardCharsets.UTF_8);
+        return generadorDocumento.generar(texto, formato);
     }
 }

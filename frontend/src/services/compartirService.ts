@@ -89,17 +89,20 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
 
   // Por regla de negocio la transcripción solo se entrega en PDF, y el
   // backend todavía no lo genera (`ArchivosController` responde
-  // SOLICITUD_INVALIDA para cualquier combinación que no sea resumen+Markdown).
+  // SOLICITUD_INVALIDA para cualquier combinación que no sea resumen).
   if (contenido === 'transcripcion') {
     throw new ErrorCompartir(
       'REQUIERE_BACKEND',
       'La transcripción solo se entrega en PDF, y el servidor todavía no lo genera.',
     );
   }
-  if (formato !== 'MARKDOWN') {
+  // Sin backend (mock), `componerMarkdownEnDispositivo` solo sabe escribir
+  // Markdown — sin esta comprobación, pedir PDF/Word ahí generaría un archivo
+  // con esa extensión pero contenido de texto plano, no un PDF/Word real.
+  if (!hayBackend && formato !== 'MARKDOWN') {
     throw new ErrorCompartir(
       'REQUIERE_BACKEND',
-      'PDF y Word los genera el servidor, y todavía no están implementados. Prueba con Markdown.',
+      'PDF y Word los genera el servidor. Sin backend configurado, prueba con Markdown.',
     );
   }
 
