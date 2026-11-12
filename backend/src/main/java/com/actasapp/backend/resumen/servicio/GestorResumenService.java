@@ -40,7 +40,7 @@ public class GestorResumenService implements GenerarResumenUseCase, ObtenerResum
     @Override
     public Resumen generarResumen(UUID reunionId, String transcripcion, PlantillaResumen plantilla, FormatoArchivo formato) {
         if (transcripcion == null || transcripcion.isBlank()) {
-            throw new IllegalArgumentException("No hay transcripción disponible para generar el resumen");
+            throw new IllegalStateException("No hay transcripción disponible para generar el resumen");
         }
 
         String texto = generadorTexto.generarTexto(transcripcion, plantilla);
@@ -52,7 +52,7 @@ public class GestorResumenService implements GenerarResumenUseCase, ObtenerResum
     @Override
     public Resumen obtenerUltimoPorReunionId(UUID reunionId, FormatoArchivo formato) {
         return resumenRepositorio.buscarUltimoPorReunionIdYFormato(reunionId, formato)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new IllegalStateException(
                         "No hay resumen en formato " + formato + " generado todavía para esta reunión"));
     }
 

@@ -245,14 +245,14 @@ excepción documentada arriba) bajo `/api/reuniones`:
   (único formato que persiste `POST /api/resumen`) y, si se pidió PDF o WORD,
   lo convierte al vuelo con `GeneradorDocumentoAdapter`
   (`ObtenerResumenUseCase.obtenerUltimoComoArchivo`) — sin volver a llamar a
-  Mistral ni guardar una fila nueva. `contenido=transcripcion` funciona solo con
-  `formato=PDF` (regla de negocio; WORD/MARKDOWN dan 400 `SOLICITUD_INVALIDA`):
+  Mistral ni guardar una fila nueva. Si la reunión aún no tiene resumen MARKDOWN,
+  responde 409 `ESTADO_INVALIDO` (mismo criterio que la transcripción, abajo).
+  `contenido=transcripcion` funciona solo con `formato=PDF` (regla de negocio; WORD/MARKDOWN dan 400 `SOLICITUD_INVALIDA`):
   renderiza al vuelo el texto combinado con `GeneradorPdfTranscripcionAdapter`
   (`ObtenerTranscripcionUseCase.obtenerComoPdf`), con la fecha de la reunión como
   título. Si la reunión aún no tiene transcripción combinada (en proceso o con
   algún clip `FALLIDA`), responde 409 `ESTADO_INVALIDO`: la petición es válida, lo
-  que falla es el estado de la reunión (a diferencia de "no hay resumen", que sigue
-  en 400 `SOLICITUD_INVALIDA`). El archivo se descarga como
+  que falla es el estado de la reunión. El archivo se descarga como
   `resumen-{reunionId}.{ext}` o `transcripcion-{reunionId}.pdf`.
 - `POST /api/reuniones/{reunionId}/archivos/enlace?contenido=resumen|transcripcion&formato=PDF|WORD|MARKDOWN`
   → `{token, expiraEn}` (`expiraEn` como instante ISO-8601). Requiere sesión.
