@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
-import { Directory, File, Paths } from 'expo-file-system';
+// `File` de expo se renombra para no pisar el `File` del DOM, que la rama web necesita.
+import { Directory, File as ArchivoExpo, Paths } from 'expo-file-system';
 import { hayBackend, urlArchivo } from './api';
 import { componerMarkdownResumen, nombreArchivoActa } from '../utils/markdownActa';
 import type { ActaDetalle, FormatoArchivo } from '../types';
@@ -10,7 +11,6 @@ export type ContenidoCompartible = 'resumen' | 'transcripcion';
 
 export type CodigoErrorCompartir =
   | 'COMPARTIR_NO_DISPONIBLE'
-  | 'PLATAFORMA_NO_SOPORTADA'
   | 'SIN_CONTENIDO'
   | 'FORMATO_NO_PERMITIDO'
   | 'REQUIERE_BACKEND'
@@ -55,29 +55,21 @@ interface Peticion {
 }
 
 /**
- * Prepara el archivo del acta y abre el share sheet nativo.
+ * Entrega el archivo del acta: share sheet nativo en móvil, share/descarga del
+ * navegador en web.
  *
- * El orden importa: primero se comprueba que el sistema pueda compartir y que
- * haya contenido, y solo después se toca el sistema de ficheros. En web la
- * clase `File` de expo-file-system es un stub vacío, así que construirla antes
- * de esa comprobación reventaría en el preview.
+ * El orden importa: en nativo primero se comprueba que el sistema pueda
+ * compartir y que haya contenido, y solo después se toca el sistema de
+ * ficheros. En web la clase `File` de expo-file-system es un stub vacío, así
+ * que construirla antes de bifurcar por plataforma reventaría en el navegador.
  */
 export async function compartirActa({ acta, formato, contenido }: Peticion): Promise<void> {
-  if (!(await Sharing.isAvailableAsync())) {
+  // En web `isAvailableAsync` devuelve false aunque el navegador pueda
+  // descargar, así que solo bloquea en nativo.
+  if (Platform.OS !== 'web' && !(await Sharing.isAvailableAsync())) {
     throw new ErrorCompartir(
       'COMPARTIR_NO_DISPONIBLE',
       'Este dispositivo no puede abrir el menú de compartir.',
-    );
-  }
-
-  // La API nueva de expo-file-system (`File`/`Directory`) no tiene
-  // implementación web: son clases vacías. Sin poder escribir el archivo en
-  // disco no hay nada que pasarle al share sheet, así que se corta aquí con un
-  // motivo real en vez de dejar que el stub reviente con un error genérico.
-  if (Platform.OS === 'web') {
-    throw new ErrorCompartir(
-      'PLATAFORMA_NO_SOPORTADA',
-      'Compartir actas solo funciona en la app móvil, no en el navegador.',
     );
   }
 
@@ -97,9 +89,9 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
       'La transcripción solo se puede compartir en PDF.',
     );
   }
-  // Sin backend (mock), `componerMarkdownEnDispositivo` solo sabe escribir
-  // Markdown — sin esta comprobación, pedir PDF/Word ahí generaría un archivo
-  // con esa extensión pero contenido de texto plano, no un PDF/Word real.
+  // Sin backend (mock), solo se sabe componer Markdown — sin esta comprobación,
+  // pedir PDF/Word ahí generaría un archivo con esa extensión pero contenido
+  // de texto plano, no un PDF/Word real.
   if (!hayBackend && formato !== 'MARKDOWN') {
     throw new ErrorCompartir(
       'REQUIERE_BACKEND',
@@ -109,11 +101,20 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
 
   const perfil = PERFILES[formato];
   const nombre = nombreArchivoActa(acta.titulo, contenido, perfil.extension);
+
   // Con backend, el resumen ya está persistido ahí (se generó con
   // POST /api/resumen antes de poder compartir — ver DetalleActaScreen): se
   // descarga de vuelta en vez de reserializar `acta.resumen` a mano, para
   // que el archivo compartido sea el mismo que generó el servidor. Sin
   // backend (mock), no hay nada que descargar y se compone en el dispositivo.
+  if (Platform.OS === 'web') {
+    const blob = hayBackend
+      ? await descargarBlobDelBackend(acta.id, contenido, formato, perfil.mimeType)
+      : new Blob([componerMarkdownResumen(acta)], { type: perfil.mimeType });
+    await entregarEnNavegador(blob, nombre, acta.titulo);
+    return;
+  }
+
   const archivo = hayBackend
     ? await descargarDelBackend(acta.id, contenido, formato, nombre)
     : componerMarkdownEnDispositivo(acta, nombre);
@@ -123,6 +124,36 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
     UTI: perfil.uti,
     dialogTitle: acta.titulo,
   });
+}
+
+/**
+ * Entrega un archivo en el navegador: hoja de compartir del sistema si admite
+ * ficheros (móvil), descarga clásica si no (escritorio).
+ */
+export async function entregarEnNavegador(blob: Blob, nombre: string, titulo: string): Promise<void> {
+  const archivo = new File([blob], nombre, { type: blob.type });
+
+  if (navigator.canShare?.({ files: [archivo] })) {
+    try {
+      await navigator.share({ files: [archivo], title: titulo });
+      return;
+    } catch (error) {
+      // Cancelar el diálogo no es un fallo. Cualquier otro motivo (p. ej.
+      // NotAllowedError porque la descarga del backend consumió el gesto del
+      // usuario) cae a la descarga directa, que no necesita ese permiso.
+      if (error instanceof Error && error.name === 'AbortError') return;
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement('a');
+  enlace.href = url;
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  // Revocar en el mismo tick cancela la descarga en Safari.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**
@@ -140,44 +171,61 @@ async function descargarDelBackend(
   contenido: ContenidoCompartible,
   formato: FormatoArchivo,
   nombre: string,
-): Promise<File> {
+): Promise<ArchivoExpo> {
+  const respuesta = await pedirAlBackend(actaId, contenido, formato);
+
+  try {
+    const bytes = new Uint8Array(await respuesta.arrayBuffer());
+    const archivo = new ArchivoExpo(carpetaCache(), nombre);
+    // `overwrite` permite reintentar sin que falle por existir ya el archivo.
+    archivo.create({ overwrite: true, intermediates: true });
+    archivo.write(bytes);
+    return archivo;
+  } catch {
+    throw errorDescarga();
+  }
+}
+
+/** Versión web de `descargarDelBackend`: el navegador no tiene sistema de ficheros, se queda en memoria. */
+async function descargarBlobDelBackend(
+  actaId: string,
+  contenido: ContenidoCompartible,
+  formato: FormatoArchivo,
+  mimeType: string,
+): Promise<Blob> {
+  const respuesta = await pedirAlBackend(actaId, contenido, formato);
+  // Se fuerza el mime del perfil: el `Content-Type` del backend podría llevar parámetros extra.
+  return new Blob([await respuesta.arrayBuffer()], { type: mimeType });
+}
+
+/** `fetch` con JWT a `GET /api/reuniones/{id}/archivos`; solo devuelve respuestas `ok`. */
+async function pedirAlBackend(
+  actaId: string,
+  contenido: ContenidoCompartible,
+  formato: FormatoArchivo,
+): Promise<Response> {
   const { url, cabeceras } = await urlArchivo(actaId, contenido, formato);
 
   let respuesta: Response;
   try {
     respuesta = await fetch(url, { headers: cabeceras });
   } catch {
-    throw new ErrorCompartir(
-      'DESCARGA_FALLIDA',
-      'No pudimos preparar el archivo. Revisa la conexión e inténtalo otra vez.',
-    );
+    throw errorDescarga();
   }
+  if (!respuesta.ok) throw errorDescarga();
+  return respuesta;
+}
 
-  if (!respuesta.ok) {
-    throw new ErrorCompartir(
-      'DESCARGA_FALLIDA',
-      'No pudimos preparar el archivo. Revisa la conexión e inténtalo otra vez.',
-    );
-  }
-
-  try {
-    const bytes = new Uint8Array(await respuesta.arrayBuffer());
-    const archivo = new File(carpetaCache(), nombre);
-    // `overwrite` permite reintentar sin que falle por existir ya el archivo.
-    archivo.create({ overwrite: true, intermediates: true });
-    archivo.write(bytes);
-    return archivo;
-  } catch {
-    throw new ErrorCompartir(
-      'DESCARGA_FALLIDA',
-      'No pudimos preparar el archivo. Revisa la conexión e inténtalo otra vez.',
-    );
-  }
+function errorDescarga(): ErrorCompartir {
+  return new ErrorCompartir(
+    'DESCARGA_FALLIDA',
+    'No pudimos preparar el archivo. Revisa la conexión e inténtalo otra vez.',
+  );
 }
 
 /** Compone el resumen en Markdown y lo deja en caché, listo para el share sheet (solo mock, sin backend). */
-function componerMarkdownEnDispositivo(acta: ActaDetalle, nombre: string): File {
-  const archivo = new File(carpetaCache(), nombre);
+function componerMarkdownEnDispositivo(acta: ActaDetalle, nombre: string): ArchivoExpo {
+  const archivo = new ArchivoExpo(carpetaCache(), nombre);
   // `create` con `overwrite` evita que un segundo intento falle por existir ya.
   archivo.create({ overwrite: true, intermediates: true });
   archivo.write(componerMarkdownResumen(acta));
