@@ -88,6 +88,7 @@ con valores por defecto en `backend/src/main/resources/application.yml`:
 - `ORGANIZACION_POR_DEFECTO_ID` — organización de respaldo para datos anteriores a que toda alta creara la suya; la siembra `V2__reunion_organizacion.sql`
 - `FIREBASE_CREDENTIALS_PATH` — FCM
 - `PORT` — puerto del servidor (por defecto 8080)
+- `CORS_ALLOWED_ORIGINS` — orígenes del navegador permitidos por CORS, separados por comas (por defecto: el frontend en Vercel, sus previews `*.vercel.app` y `localhost:8081`); ver `SecurityConfig`
 - Parámetros de negocio bajo `actas-app.*`: expiración del enlace compartido (24h),
   máximo de reintentos de transcripción (3), duración máxima de grabación (120 min)
 

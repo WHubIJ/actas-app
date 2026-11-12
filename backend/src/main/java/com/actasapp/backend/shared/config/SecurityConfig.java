@@ -48,6 +48,12 @@ import java.util.List;
 @Configuration
 public class SecurityConfig implements WebMvcConfigurer {
 
+    private final String[] origenesPermitidos;
+
+    public SecurityConfig(@Value("${actas-app.cors.allowed-origins}") String[] origenesPermitidos) {
+        this.origenesPermitidos = origenesPermitidos;
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
         return http
@@ -118,14 +124,15 @@ public class SecurityConfig implements WebMvcConfigurer {
     }
 
     /**
-     * La app de Expo corre en otro origen (localhost:8081 en web, o la IP del
-     * dispositivo con Expo Go), así que el navegador bloquearía las llamadas sin esto.
-     * Solo afecta a clientes que apliquen la política del mismo origen; los nativos no.
+     * El frontend web corre en otro origen (Vercel y localhost:8081 para Expo web), así que
+     * el navegador bloquearía las llamadas sin esto. Las apps nativas (Android/iOS) no envían
+     * cabecera {@code Origin}, así que la restricción solo afecta al navegador. Los previews de
+     * Vercel cambian de URL en cada deploy: por eso van por comodín ({@code allowedOriginPatterns}).
      */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOriginPatterns("*") // TODO: restringir al desplegar
+                .allowedOriginPatterns(origenesPermitidos)
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS");
     }
 }

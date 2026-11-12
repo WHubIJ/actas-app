@@ -68,6 +68,10 @@ actas-app:
   organizacion-por-defecto-id: ${ORGANIZACION_POR_DEFECTO_ID:00000000-0000-0000-0000-000000000001}
   enlace-compartido:
     expiracion-horas: 24
+  # Orígenes del navegador permitidos por CORS (ver SecurityConfig). Lista separada por comas.
+  # El patrón con * cubre los previews de Vercel; el localhost es el dev server de Expo web.
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://actas-app-frontend.vercel.app,https://actas-app-frontend-*.vercel.app,http://localhost:8081}
   transcripcion:
     max-reintentos: 3
   grabacion:
