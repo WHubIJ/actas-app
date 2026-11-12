@@ -3,16 +3,18 @@ import { View, FlatList, Animated, Easing, useWindowDimensions } from 'react-nat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Search, Mic, TriangleAlert, AudioLines, Share2, type LucideIcon } from 'lucide-react-native';
+import { Search, Mic, TriangleAlert, AudioLines, Share2, Trash2, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Text, EstadoVacio, FilaEsqueleto } from '../../components/ui';
+import { Text, Aviso, EstadoVacio, FilaEsqueleto } from '../../components/ui';
 import type { RootStackParamList } from '../../App';
 import { TarjetaNuevaGrabacion } from '../components/TarjetaNuevaGrabacion';
 import { Buscador } from '../components/Buscador';
 import { ChipsFiltro, type Filtro } from '../components/ChipsFiltro';
 import { TarjetaActa } from '../components/TarjetaActa';
+import { TarjetaDeslizable } from '../components/TarjetaDeslizable';
+import { HojaOpciones, type OpcionHoja } from '../components/HojaOpciones';
 import { ALTURA_FAB_SOBRESALIENTE } from '../components/TabBar';
-import { obtenerActas, hayBackend, ErrorApi } from '../services/api';
+import { obtenerActas, eliminarReunion, hayBackend, ErrorApi } from '../services/api';
 import { ACTAS_EJEMPLO } from '../mocks/actas';
 import type { ActaResumen } from '../types';
 
@@ -28,6 +30,12 @@ const FILTROS: ReadonlyArray<Filtro<IdFiltro>> = [
 /** Ni tan pocas que se note el hueco debajo en pantallas altas, ni tantas que
     se note el coste de montarlas todas para una carga que dura un instante. */
 const FILAS_ESQUELETO = 5;
+
+/** Misma confirmación que en `DetalleActaScreen`: `Alert.alert` no existe en web. */
+const OPCIONES_ELIMINAR: ReadonlyArray<OpcionHoja<'eliminar' | 'cancelar'>> = [
+  { id: 'eliminar', titulo: 'Eliminar acta', icono: Trash2, destructiva: true },
+  { id: 'cancelar', titulo: 'Cancelar' },
+];
 
 /** Franja de 3 pasos bajo el estado vacío de biblioteca (sin reuniones aún). */
 const PASOS: ReadonlyArray<{ icono: LucideIcon; titulo: string; descripcion: string }> = [
@@ -71,6 +79,8 @@ export function MisActasScreen() {
   const [actasBackend, setActasBackend] = useState<ActaResumen[] | null>(hayBackend ? null : ACTAS_EJEMPLO);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [intento, setIntento] = useState(0);
+  const [actaAEliminar, setActaAEliminar] = useState<ActaResumen | null>(null);
+  const [errorEliminar, setErrorEliminar] = useState<string | null>(null);
 
   // Al recuperar el foco y no solo al montar: las pestañas siguen montadas
   // mientras se ve `DetalleActa`, y sin esto un acta eliminada seguiría en la lista.
@@ -107,6 +117,28 @@ export function MisActasScreen() {
         a.participantes.some((p) => p.toLowerCase().includes(termino)),
     );
   }, [actasBackend, busqueda, filtro]);
+
+  const eliminar = useCallback(
+    async (opcion: 'eliminar' | 'cancelar') => {
+      const acta = actaAEliminar;
+      setActaAEliminar(null);
+      if (opcion === 'cancelar' || !acta) return;
+      setErrorEliminar(null);
+      try {
+        await eliminarReunion(acta.id);
+        setActasBackend((previas) => previas?.filter((a) => a.id !== acta.id) ?? previas);
+      } catch (error) {
+        // Con estos dos códigos el mensaje ya dice qué hacer; el resto es
+        // ruido técnico que no ayuda al usuario.
+        setErrorEliminar(
+          error instanceof ErrorApi && (error.codigo === 'ESTADO_INVALIDO' || error.codigo === 'BACKEND_NO_CONFIGURADO')
+            ? error.message
+            : 'No pudimos eliminar el acta. Inténtalo de nuevo.',
+        );
+      }
+    },
+    [actaAEliminar],
+  );
 
   const hayBusquedaActiva = busqueda.trim().length > 0 || filtro !== 'todas';
   const bibliotecaVacia = actasBackend !== null && actasBackend.length === 0;
@@ -277,6 +309,7 @@ export function MisActasScreen() {
         ListHeaderComponent={
           <View style={{ gap: t.spacing[4], marginBottom: t.spacing[5] }}>
             <Text variant="heading">Mis actas</Text>
+            {errorEliminar && <Aviso tono="error" mensaje={errorEliminar} onCerrar={() => setErrorEliminar(null)} />}
             <TarjetaNuevaGrabacion onPress={() => navigation.navigate('NuevaGrabacion')} />
             <Buscador valor={busqueda} onCambiar={setBusqueda} />
             <ChipsFiltro filtros={FILTROS} activo={filtro} onSeleccionar={setFiltro} />
@@ -284,7 +317,9 @@ export function MisActasScreen() {
         }
         renderItem={({ item }) => (
           <Animated.View style={{ opacity: aparicion }}>
-            <TarjetaActa acta={item} onPress={() => navigation.navigate('DetalleActa', { actaId: item.id })} />
+            <TarjetaDeslizable onDeslizar={() => setActaAEliminar(item)}>
+              <TarjetaActa acta={item} onPress={() => navigation.navigate('DetalleActa', { actaId: item.id })} />
+            </TarjetaDeslizable>
           </Animated.View>
         )}
         ItemSeparatorComponent={() => <View style={{ height: t.spacing[3] }} />}
@@ -306,6 +341,14 @@ export function MisActasScreen() {
             ) : null}
           </Animated.View>
         }
+      />
+      <HojaOpciones
+        visible={actaAEliminar !== null}
+        titulo="¿Eliminar esta acta?"
+        descripcion="Se borrarán el audio, la transcripción y el resumen. No se puede deshacer."
+        opciones={OPCIONES_ELIMINAR}
+        onSeleccionar={eliminar}
+        onCerrar={() => setActaAEliminar(null)}
       />
     </View>
   );

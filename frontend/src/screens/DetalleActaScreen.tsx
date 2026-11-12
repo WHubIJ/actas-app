@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Pressable, ScrollView, Animated, Easing } from 'react-native';
+import { View, Pressable, ScrollView, Animated, Easing, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
@@ -251,23 +251,44 @@ export function DetalleActaScreen({ route, navigation }: Props) {
   );
 
   const encabezado = (
-    <Pressable
-      onPress={volver}
-      accessibilityRole="button"
+    <View
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 2,
-        alignSelf: 'flex-start',
+        justifyContent: 'space-between',
         paddingTop: Math.max(insets.top, t.spacing[3]) + t.spacing[2],
         paddingHorizontal: t.spacing[4],
       }}
     >
-      <ChevronLeft size={22} color={t.colors.brandStrong} strokeWidth={2} />
-      <Text variant="body" color="brandStrong">
-        Mis actas
-      </Text>
-    </Pressable>
+      <Pressable
+        onPress={volver}
+        accessibilityRole="button"
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 44 }}
+      >
+        <ChevronLeft size={22} color={t.colors.brandStrong} strokeWidth={2} />
+        <Text variant="body" color="brandStrong">
+          Mis actas
+        </Text>
+      </Pressable>
+
+      {/* Solo con el acta cargada: en los estados de error no hay nada que eliminar. */}
+      {acta && (
+        <Pressable
+          onPress={() => setHojaEliminar(true)}
+          disabled={eliminando}
+          accessibilityRole="button"
+          accessibilityLabel="Eliminar acta"
+          accessibilityState={{ disabled: eliminando, busy: eliminando }}
+          style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+        >
+          {eliminando ? (
+            <ActivityIndicator size="small" color={t.colors.danger} />
+          ) : (
+            <Trash2 size={20} color={t.colors.danger} strokeWidth={1.8} />
+          )}
+        </Pressable>
+      )}
+    </View>
   );
 
   if (!acta && errorCarga) {
@@ -315,6 +336,12 @@ export function DetalleActaScreen({ route, navigation }: Props) {
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
       {encabezado}
 
+      {errorEliminar && (
+        <View style={{ paddingHorizontal: t.spacing[5], paddingTop: t.spacing[2] }}>
+          <Aviso tono="error" mensaje={errorEliminar} onCerrar={() => setErrorEliminar(null)} />
+        </View>
+      )}
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: t.spacing[5], paddingBottom: t.spacing[16], gap: t.spacing[5] }}>
         <View style={{ gap: t.spacing[2], paddingTop: t.spacing[2] }}>
           <BadgeEstado estado={acta.estadoTranscripcion} />
@@ -350,18 +377,6 @@ export function DetalleActaScreen({ route, navigation }: Props) {
             />
           )}
         </Animated.View>
-
-        <View style={{ gap: t.spacing[3], marginTop: t.spacing[8] }}>
-          {errorEliminar && <Aviso tono="error" mensaje={errorEliminar} onCerrar={() => setErrorEliminar(null)} />}
-          <Button
-            label={eliminando ? 'Eliminando acta' : 'Eliminar acta'}
-            variant="danger"
-            fullWidth
-            loading={eliminando}
-            icon={(c) => <Trash2 size={16} color={c} strokeWidth={1.8} />}
-            onPress={() => setHojaEliminar(true)}
-          />
-        </View>
       </ScrollView>
 
       {puedeCompartir && (
