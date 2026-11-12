@@ -249,9 +249,7 @@ export async function obtenerActaDetalle(reunionId: string): Promise<ActaDetalle
  * no se llaman entre sí) — el frontend ya la tiene (`obtenerActaDetalle`) y
  * la reenvía tal cual.
  *
- * Hoy el backend solo tiene implementadas la plantilla RESUMEN_EJECUTIVO y
- * el formato MARKDOWN; el resto responde `ERROR_INTERNO` (ver
- * `backend/CLAUDE.md`, estado de `resumen`). `contenido` llega como texto.
+ * `contenido` llega como texto en el formato pedido.
  */
 export async function generarResumen(
   reunionId: string,

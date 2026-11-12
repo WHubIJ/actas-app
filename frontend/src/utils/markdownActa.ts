@@ -7,9 +7,8 @@ import type { ActaDetalle, SeccionResumen } from '../types';
  * puede ejecutar y probar en cualquier entorno, incluido Node.
  */
 
-/** `"Reunión equipo marketing"` → `"reunion-equipo-marketing-resumen.md"`. */
-export function nombreArchivoActa(titulo: string, sufijo: string, extension: string): string {
-  const base = titulo
+function slug(texto: string): string {
+  return texto
     .normalize('NFD')
     // Quita los diacríticos que `NFD` acaba de separar de su letra base.
     // Escapado a propósito: el rango literal son caracteres combinantes
@@ -18,7 +17,11 @@ export function nombreArchivoActa(titulo: string, sufijo: string, extension: str
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
-  return `${base || 'acta'}-${sufijo}.${extension}`;
+}
+
+/** `"Reunión equipo marketing"` → `"reunion-equipo-marketing-resumen.md"`. */
+export function nombreArchivoActa(titulo: string, sufijo: string, extension: string): string {
+  return `${slug(titulo) || 'acta'}-${sufijo}.${extension}`;
 }
 
 /** Resumen del acta en Markdown, listo para escribir a disco. */
@@ -44,31 +47,58 @@ export function componerMarkdownResumen(acta: ActaDetalle): string {
   return [...cabecera, ...cuerpo, '---', '', 'Generado con MeetingAI.'].join('\n');
 }
 
-/**
- * Convierte el Markdown que devuelve `POST /api/resumen` en una única
- * `SeccionResumen`, para reutilizar `TarjetaSeccionResumen` sin cambiar su
- * forma. El backend no estructura el texto en secciones con encabezado: el
- * prompt a Mistral (ver `MistralResumenAdapter`, plantilla RESUMEN_EJECUTIVO)
- * pide un párrafo corto seguido de bullets, no varios `##`. El párrafo se
- * trata como un punto más — se pierde si se descarta, y el componente no
- * tiene un hueco separado para prosa suelta.
- */
-export function parsearResumenEjecutivo(markdown: string): SeccionResumen[] {
-  const lineas = markdown
-    .split('\n')
-    .map((linea) => linea.trim())
-    .filter((linea) => linea.length > 0 && !linea.startsWith('#'));
+const ENCABEZADO = /^#{1,6}\s+(.+)$/;
+const TITULO_SECCION_INICIAL = 'Resumen';
 
-  const puntos: string[] = [];
-  const parrafo: string[] = [];
-  for (const linea of lineas) {
-    if (linea.startsWith('- ')) {
-      puntos.push(linea.slice(2).trim());
+/**
+ * Convierte el Markdown que devuelve `POST /api/resumen` en secciones para
+ * `TarjetaSeccionResumen`. Cubre las 3 plantillas de `MistralResumenAdapter`,
+ * que solo usan párrafos, encabezados y bullets `- `:
+ * - Cada encabezado (`#`, `##`...) abre una sección. El texto previo al
+ *   primero va a una sección inicial titulada "Resumen"; si el modelo
+ *   abre con `# Título` (ACTA_FORMAL), ese título es el de la sección que
+ *   contiene la fecha/lugar, en lugar de perderlo.
+ * - Cada bullet es un punto y cada párrafo (líneas contiguas, cortado por
+ *   línea en blanco o bullet) también: la prosa de "Desarrollo" o del
+ *   resumen ejecutivo no puede descartarse porque la tarjeta solo pinta puntos.
+ * - Las secciones sin puntos se omiten, y el `id` lleva el índice porque
+ *   el modelo puede repetir títulos.
+ */
+export function parsearResumenMarkdown(markdown: string): SeccionResumen[] {
+  const secciones: { titulo: string; puntos: string[] }[] = [
+    { titulo: TITULO_SECCION_INICIAL, puntos: [] },
+  ];
+  let parrafo: string[] = [];
+
+  const cerrarParrafo = () => {
+    if (parrafo.length > 0) {
+      secciones[secciones.length - 1].puntos.push(parrafo.join(' '));
+      parrafo = [];
+    }
+  };
+
+  for (const bruta of markdown.split('\n')) {
+    const linea = bruta.trim();
+    const encabezado = ENCABEZADO.exec(linea);
+    if (encabezado) {
+      cerrarParrafo();
+      secciones.push({ titulo: encabezado[1].trim(), puntos: [] });
+    } else if (linea.startsWith('- ')) {
+      cerrarParrafo();
+      secciones[secciones.length - 1].puntos.push(linea.slice(2).trim());
+    } else if (linea === '' || linea === '---') {
+      cerrarParrafo();
     } else {
       parrafo.push(linea);
     }
   }
+  cerrarParrafo();
 
-  const todosLosPuntos = parrafo.length > 0 ? [parrafo.join(' '), ...puntos] : puntos;
-  return [{ id: 'resumen', titulo: 'Resumen ejecutivo', puntos: todosLosPuntos }];
+  return secciones
+    .filter((seccion) => seccion.puntos.length > 0)
+    .map((seccion, indice) => ({
+      id: `${slug(seccion.titulo) || 'seccion'}-${indice}`,
+      titulo: seccion.titulo,
+      puntos: seccion.puntos,
+    }));
 }

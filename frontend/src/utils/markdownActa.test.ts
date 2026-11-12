@@ -1,4 +1,4 @@
-import { componerMarkdownResumen, nombreArchivoActa, parsearResumenEjecutivo } from './markdownActa';
+import { componerMarkdownResumen, nombreArchivoActa, parsearResumenMarkdown } from './markdownActa';
 import type { ActaDetalle } from '../types';
 
 describe('nombreArchivoActa', () => {
@@ -62,8 +62,8 @@ describe('componerMarkdownResumen', () => {
   });
 });
 
-describe('parsearResumenEjecutivo', () => {
-  it('junta el párrafo inicial y los bullets en una sola sección', () => {
+describe('parsearResumenMarkdown', () => {
+  describe('RESUMEN_EJECUTIVO (párrafo + bullets, sin encabezados)', () => {
     const markdown = [
       'El equipo revisó los resultados del trimestre y definió los próximos pasos.',
       '',
@@ -71,28 +71,149 @@ describe('parsearResumenEjecutivo', () => {
       '- El alcance del trimestre queda cerrado con tres tareas asignadas.',
     ].join('\n');
 
-    const secciones = parsearResumenEjecutivo(markdown);
+    it('devuelve una sola sección con el párrafo como primer punto', () => {
+      const secciones = parsearResumenMarkdown(markdown);
 
-    expect(secciones).toHaveLength(1);
-    expect(secciones[0].titulo).toBe('Resumen ejecutivo');
-    expect(secciones[0].puntos).toEqual([
-      'El equipo revisó los resultados del trimestre y definió los próximos pasos.',
-      'La integración de pagos entra en esta fase, limitada al cobro recurrente.',
-      'El alcance del trimestre queda cerrado con tres tareas asignadas.',
-    ]);
+      expect(secciones).toEqual([
+        {
+          id: 'resumen-0',
+          titulo: 'Resumen',
+          puntos: [
+            'El equipo revisó los resultados del trimestre y definió los próximos pasos.',
+            'La integración de pagos entra en esta fase, limitada al cobro recurrente.',
+            'El alcance del trimestre queda cerrado con tres tareas asignadas.',
+          ],
+        },
+      ]);
+    });
+
+    it('funciona con solo bullets, sin párrafo inicial', () => {
+      const secciones = parsearResumenMarkdown('- Único acuerdo de la reunión.');
+
+      expect(secciones[0].puntos).toEqual(['Único acuerdo de la reunión.']);
+    });
   });
 
-  it('funciona con solo bullets, sin párrafo inicial', () => {
-    const secciones = parsearResumenEjecutivo('- Único acuerdo de la reunión.');
+  describe('ACTA_FORMAL (# título y secciones ##)', () => {
+    const markdown = [
+      '# Acta de la reunión',
+      '',
+      'Fecha: 12 de septiembre de 2026. Lugar: salón principal.',
+      '',
+      '## Orden del día',
+      '- Lectura del acta anterior',
+      '- Presupuesto del segundo semestre',
+      '',
+      '## Desarrollo',
+      '',
+      'Se dio lectura al acta anterior, que fue aprobada sin enmiendas.',
+      '',
+      'La tesorera presentó el presupuesto y se debatió el gasto en mantenimiento.',
+      '',
+      '## Acuerdos adoptados',
+      '- Aprobar el presupuesto del segundo semestre.',
+      '- Convocar la próxima reunión para octubre.',
+      '',
+      '## Cierre',
+      'Se levantó la sesión a las 21:00.',
+    ].join('\n');
 
-    expect(secciones[0].puntos).toEqual(['Único acuerdo de la reunión.']);
+    it('crea una sección por encabezado, en orden', () => {
+      const secciones = parsearResumenMarkdown(markdown);
+
+      expect(secciones.map((s) => s.titulo)).toEqual([
+        'Acta de la reunión',
+        'Orden del día',
+        'Desarrollo',
+        'Acuerdos adoptados',
+        'Cierre',
+      ]);
+    });
+
+    it('usa el # inicial como título de la sección con la fecha y el lugar', () => {
+      const [inicial] = parsearResumenMarkdown(markdown);
+
+      expect(inicial.puntos).toEqual(['Fecha: 12 de septiembre de 2026. Lugar: salón principal.']);
+    });
+
+    it('convierte cada párrafo de "Desarrollo" en un punto y cada bullet en otro', () => {
+      const secciones = parsearResumenMarkdown(markdown);
+
+      expect(secciones[1].puntos).toHaveLength(2);
+      expect(secciones[2].puntos).toEqual([
+        'Se dio lectura al acta anterior, que fue aprobada sin enmiendas.',
+        'La tesorera presentó el presupuesto y se debatió el gasto en mantenimiento.',
+      ]);
+      expect(secciones[3].puntos).toEqual([
+        'Aprobar el presupuesto del segundo semestre.',
+        'Convocar la próxima reunión para octubre.',
+      ]);
+      expect(secciones[4].puntos).toEqual(['Se levantó la sesión a las 21:00.']);
+    });
+
+    it('genera ids únicos y estables', () => {
+      const ids = parsearResumenMarkdown(markdown).map((s) => s.id);
+
+      expect(ids).toEqual([
+        'acta-de-la-reunion-0',
+        'orden-del-dia-1',
+        'desarrollo-2',
+        'acuerdos-adoptados-3',
+        'cierre-4',
+      ]);
+      expect(parsearResumenMarkdown(markdown).map((s) => s.id)).toEqual(ids);
+    });
   });
 
-  it('ignora encabezados Markdown si el modelo los añade pese a la instrucción', () => {
-    const markdown = ['## Resumen', '- Un punto cualquiera.'].join('\n');
+  describe('LISTA_ACUERDOS (solo bullets con responsable y plazo)', () => {
+    it('deja cada bullet entero como un punto de una única sección', () => {
+      const markdown = [
+        '- Contratar al electricista. Responsable: Luis. Plazo: 30 de septiembre.',
+        '- Publicar la convocatoria. Responsable: Ana.',
+        '- Revisar el seguro del local.',
+      ].join('\n');
 
-    const secciones = parsearResumenEjecutivo(markdown);
+      const secciones = parsearResumenMarkdown(markdown);
 
-    expect(secciones[0].puntos).toEqual(['Un punto cualquiera.']);
+      expect(secciones).toHaveLength(1);
+      expect(secciones[0].puntos).toEqual([
+        'Contratar al electricista. Responsable: Luis. Plazo: 30 de septiembre.',
+        'Publicar la convocatoria. Responsable: Ana.',
+        'Revisar el seguro del local.',
+      ]);
+    });
+
+    it('conserva el bullet único cuando no hay acuerdos', () => {
+      const secciones = parsearResumenMarkdown('- No se identificaron acuerdos ni tareas en la reunión');
+
+      expect(secciones[0].puntos).toEqual(['No se identificaron acuerdos ni tareas en la reunión']);
+    });
+  });
+
+  describe('casos límite', () => {
+    it('omite secciones vacías y los separadores ---', () => {
+      const markdown = ['## Vacía', '', '---', '## Con contenido', '- Un punto.'].join('\n');
+
+      const secciones = parsearResumenMarkdown(markdown);
+
+      expect(secciones).toHaveLength(1);
+      expect(secciones[0].titulo).toBe('Con contenido');
+    });
+
+    it('une en un solo punto las líneas contiguas de un párrafo', () => {
+      const secciones = parsearResumenMarkdown('Primera línea\ndel mismo párrafo.');
+
+      expect(secciones[0].puntos).toEqual(['Primera línea del mismo párrafo.']);
+    });
+
+    it('distingue ids de títulos repetidos', () => {
+      const secciones = parsearResumenMarkdown('## Notas\n- a\n## Notas\n- b');
+
+      expect(secciones.map((s) => s.id)).toEqual(['notas-0', 'notas-1']);
+    });
+
+    it('devuelve una lista vacía con texto vacío', () => {
+      expect(parsearResumenMarkdown('')).toEqual([]);
+    });
   });
 });

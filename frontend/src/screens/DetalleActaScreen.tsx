@@ -7,7 +7,9 @@ import {
   ChevronLeft,
   FileText,
   Hash,
+  ListChecks,
   RotateCw,
+  ScrollText,
   Share2,
   Sparkles,
   TriangleAlert,
@@ -23,7 +25,7 @@ import { buscarActa } from '../mocks/actas';
 import { obtenerActaDetalle, generarResumen, hayBackend, ErrorApi } from '../services/api';
 import { compartirActa, ErrorCompartir } from '../services/compartirService';
 import { formatearMinutos } from '../utils/formato';
-import { parsearResumenEjecutivo } from '../utils/markdownActa';
+import { parsearResumenMarkdown } from '../utils/markdownActa';
 import type {
   ActaDetalle,
   EstadoTranscripcion,
@@ -42,19 +44,24 @@ const PESTANAS: ReadonlyArray<Segmento<Pestana>> = [
   { id: 'transcripcion', etiqueta: 'Transcripción' },
 ];
 
-/**
- * El backend ya genera las 3 plantillas (`MistralResumenAdapter`), pero aquí
- * solo se ofrece RESUMEN_EJECUTIVO: `parsearResumenEjecutivo`
- * (`utils/markdownActa.ts`) descarta los encabezados `#`/`##`, así que
- * ACTA_FORMAL perdería sus secciones (orden del día, desarrollo, acuerdos) al
- * mostrarse. Vuelven a la lista cuando el parser sepa representarlas.
- */
 const PLANTILLAS: ReadonlyArray<OpcionHoja<PlantillaResumen>> = [
   {
     id: 'RESUMEN_EJECUTIVO',
     titulo: 'Resumen ejecutivo',
     descripcion: 'Media página con lo esencial de la reunión.',
     icono: Sparkles,
+  },
+  {
+    id: 'ACTA_FORMAL',
+    titulo: 'Acta formal',
+    descripcion: 'Orden del día, desarrollo, acuerdos y cierre.',
+    icono: ScrollText,
+  },
+  {
+    id: 'LISTA_ACUERDOS',
+    titulo: 'Lista de acuerdos',
+    descripcion: 'Solo decisiones y tareas, con responsable y plazo.',
+    icono: ListChecks,
   },
 ];
 
@@ -195,7 +202,7 @@ export function DetalleActaScreen({ route, navigation }: Props) {
         // compartir es un paso aparte — el backend convierte este mismo
         // contenido a PDF/Word al descargarlo, sin generarlo de nuevo.
         const { contenido } = await generarResumen(actaId, acta.textoTranscripcion ?? '', plantilla, 'MARKDOWN');
-        setResumen(parsearResumenEjecutivo(contenido));
+        setResumen(parsearResumenMarkdown(contenido));
       } catch (error) {
         setErrorResumen(error instanceof ErrorApi ? error.message : 'No se pudo generar el resumen.');
       } finally {
