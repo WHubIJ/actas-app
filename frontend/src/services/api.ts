@@ -276,10 +276,10 @@ export async function generarResumen(
 /**
  * Corresponde a `GET /api/reuniones/{id}/archivos`: descarga el archivo de un
  * resumen ya generado (`ArchivosController`, en `shared/` porque necesita leer
- * de `resumen` para servirlo — ver `backend/CLAUDE.md`). Hoy solo sirve
- * `contenido: 'resumen'` con `formato: 'MARKDOWN'`; cualquier otra combinación
- * responde `SOLICITUD_INVALIDA` porque PDF, Word y la transcripción todavía no
- * se generan.
+ * de `resumen` para servirlo — ver `backend/CLAUDE.md`). Si aún no hay
+ * resumen o transcripción responde `ESTADO_INVALIDO` (409); `SOLICITUD_INVALIDA`
+ * (400) queda para parámetros inválidos, p. ej. la transcripción en un formato
+ * que no sea PDF.
  *
  * No usa `peticion()`: esa función espera JSON y aquí la respuesta son los
  * bytes del archivo. Quien llama (`compartirService.ts`) hace su propio
@@ -303,6 +303,27 @@ export async function urlArchivo(
     url: `${API_URL}/api/reuniones/${reunionId}/archivos?contenido=${contenido}&formato=${formato}`,
     cabeceras,
   };
+}
+
+/**
+ * Corresponde a `POST /api/reuniones/{id}/archivos/enlace`: el backend guarda
+ * el archivo ya generado bajo un token y lo sirve sin sesión en
+ * `GET /api/compartir/{token}` durante 24 h (ver `expiraEn`).
+ */
+export async function crearEnlaceCompartir(
+  reunionId: string,
+  contenido: 'resumen' | 'transcripcion',
+  formato: FormatoArchivo,
+): Promise<{ token: string; expiraEn: string }> {
+  return peticion<{ token: string; expiraEn: string }>(
+    `/api/reuniones/${reunionId}/archivos/enlace?contenido=${contenido}&formato=${formato}`,
+    { method: 'POST' },
+  );
+}
+
+/** URL pública (sin sesión) con la que quien recibe el enlace descarga el archivo. */
+export function urlEnlaceCompartido(token: string): string {
+  return `${API_URL}/api/compartir/${encodeURIComponent(token)}`;
 }
 
 /**

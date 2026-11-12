@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   FileText,
   Hash,
+  Link2,
   ListChecks,
   RotateCw,
   ScrollText,
@@ -24,7 +25,7 @@ import { FilaIntervencion } from '../components/FilaIntervencion';
 import { HojaOpciones, type OpcionHoja } from '../components/HojaOpciones';
 import { buscarActa } from '../mocks/actas';
 import { obtenerActaDetalle, generarResumen, eliminarReunion, hayBackend, ErrorApi } from '../services/api';
-import { compartirActa, ErrorCompartir } from '../services/compartirService';
+import { compartirActa, compartirEnlace, ErrorCompartir } from '../services/compartirService';
 import { formatearMinutos } from '../utils/formato';
 import { parsearResumenMarkdown } from '../utils/markdownActa';
 import type {
@@ -124,9 +125,13 @@ export function DetalleActaScreen({ route, navigation }: Props) {
   const [errorResumen, setErrorResumen] = useState<string | null>(null);
   const [hojaPlantillas, setHojaPlantillas] = useState(false);
   const [hojaFormatos, setHojaFormatos] = useState(false);
+  // La misma hoja de formatos sirve a "Compartir" (archivo) y a "Enlace de 24 h".
+  const [modoHoja, setModoHoja] = useState<'archivo' | 'enlace'>('archivo');
   const [formato, setFormato] = useState<FormatoArchivo>('MARKDOWN');
   const [compartiendo, setCompartiendo] = useState(false);
+  const [enlazando, setEnlazando] = useState(false);
   const [errorCompartir, setErrorCompartir] = useState<string | null>(null);
+  const [avisoEnlace, setAvisoEnlace] = useState<string | null>(null);
   const [hojaEliminar, setHojaEliminar] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [errorEliminar, setErrorEliminar] = useState<string | null>(null);
@@ -185,6 +190,38 @@ export function DetalleActaScreen({ route, navigation }: Props) {
         );
       } finally {
         setCompartiendo(false);
+      }
+    },
+    [acta, resumen, pestana],
+  );
+
+  /**
+   * Crea el enlace de 24 h y lo entrega. En web sin `navigator.share` solo se
+   * copia al portapapeles, y es el aviso quien confirma que se hizo.
+   */
+  const compartirPorEnlace = useCallback(
+    async (formatoElegido: FormatoArchivo) => {
+      if (!acta) return;
+      setHojaFormatos(false);
+      if (pestana === 'resumen') setFormato(formatoElegido);
+      setErrorCompartir(null);
+      setAvisoEnlace(null);
+      setEnlazando(true);
+      try {
+        const { copiado } = await compartirEnlace({
+          acta: { ...acta, resumen },
+          formato: formatoElegido,
+          contenido: pestana,
+        });
+        if (copiado) setAvisoEnlace('Enlace copiado. Caduca en 24 h.');
+      } catch (error) {
+        setErrorCompartir(
+          error instanceof ErrorCompartir
+            ? error.message
+            : 'No pudimos crear el enlace. Inténtalo de nuevo.',
+        );
+      } finally {
+        setEnlazando(false);
       }
     },
     [acta, resumen, pestana],
@@ -330,7 +367,12 @@ export function DetalleActaScreen({ route, navigation }: Props) {
   const hayTranscripcion = acta.intervenciones.length > 0 || !!acta.textoTranscripcion;
   const puedeCompartir = pestana === 'resumen' ? resumen !== null : hayTranscripcion;
   // La transcripción solo sale en PDF: elegir formato no tiene sentido ahí.
-  const onCompartir = () => (pestana === 'resumen' ? setHojaFormatos(true) : compartir('PDF'));
+  const abrirFormatos = (modo: 'archivo' | 'enlace') => {
+    setModoHoja(modo);
+    setHojaFormatos(true);
+  };
+  const onCompartir = () => (pestana === 'resumen' ? abrirFormatos('archivo') : compartir('PDF'));
+  const onEnlace = () => (pestana === 'resumen' ? abrirFormatos('enlace') : compartirPorEnlace('PDF'));
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
@@ -382,14 +424,29 @@ export function DetalleActaScreen({ route, navigation }: Props) {
       {puedeCompartir && (
         <View style={{ gap: t.spacing[3], paddingHorizontal: t.spacing[5], paddingTop: t.spacing[3], paddingBottom: Math.max(insets.bottom, t.spacing[5]), backgroundColor: t.colors.surface, borderTopWidth: 1, borderTopColor: t.colors.border }}>
           {errorCompartir && <Aviso tono="error" mensaje={errorCompartir} onCerrar={() => setErrorCompartir(null)} />}
+          {avisoEnlace && <Aviso tono="info" mensaje={avisoEnlace} onCerrar={() => setAvisoEnlace(null)} />}
           <Button
             label={compartiendo ? 'Preparando archivo' : 'Compartir'}
             size="xl"
             fullWidth
             loading={compartiendo}
+            disabled={enlazando}
             icon={(c) => <Share2 size={18} color={c} strokeWidth={1.8} />}
             onPress={onCompartir}
           />
+          {/* Sin backend no hay enlace posible (lo sirve el servidor), así que ni se ofrece. */}
+          {hayBackend && (
+            <Button
+              label={enlazando ? 'Creando enlace' : 'Enlace de 24 h'}
+              variant="secondary"
+              size="xl"
+              fullWidth
+              loading={enlazando}
+              disabled={compartiendo}
+              icon={(c) => <Link2 size={18} color={c} strokeWidth={1.8} />}
+              onPress={onEnlace}
+            />
+          )}
         </View>
       )}
 
@@ -404,11 +461,15 @@ export function DetalleActaScreen({ route, navigation }: Props) {
 
       <HojaOpciones
         visible={hojaFormatos}
-        titulo="Compartir como"
-        descripcion="Se genera el archivo y se abre el menú de compartir del sistema."
+        titulo={modoHoja === 'enlace' ? 'Enlace de 24 h como' : 'Compartir como'}
+        descripcion={
+          modoHoja === 'enlace'
+            ? 'Quien abra el enlace descarga el archivo sin iniciar sesión. Caduca en 24 h.'
+            : 'Se genera el archivo y se abre el menú de compartir del sistema.'
+        }
         opciones={FORMATOS_RESUMEN}
         seleccionada={formato}
-        onSeleccionar={compartir}
+        onSeleccionar={modoHoja === 'enlace' ? compartirPorEnlace : compartir}
         onCerrar={() => setHojaFormatos(false)}
       />
 

@@ -1,8 +1,8 @@
-import { Platform } from 'react-native';
+import { Platform, Share } from 'react-native';
 import * as Sharing from 'expo-sharing';
 // `File` de expo se renombra para no pisar el `File` del DOM, que la rama web necesita.
 import { Directory, File as ArchivoExpo, Paths } from 'expo-file-system';
-import { hayBackend, urlArchivo } from './api';
+import { ErrorApi, crearEnlaceCompartir, hayBackend, urlArchivo, urlEnlaceCompartido } from './api';
 import { componerMarkdownResumen, nombreArchivoActa } from '../utils/markdownActa';
 import type { ActaDetalle, FormatoArchivo } from '../types';
 
@@ -14,7 +14,8 @@ export type CodigoErrorCompartir =
   | 'SIN_CONTENIDO'
   | 'FORMATO_NO_PERMITIDO'
   | 'REQUIERE_BACKEND'
-  | 'DESCARGA_FALLIDA';
+  | 'DESCARGA_FALLIDA'
+  | 'ENLACE_FALLIDO';
 
 /** Error con código para que la UI elija el mensaje, no lo improvise. */
 export class ErrorCompartir extends Error {
@@ -48,7 +49,7 @@ const PERFILES: Record<FormatoArchivo, PerfilFormato> = {
 /** Subcarpeta de caché propia: así se puede vaciar sin tocar nada más. */
 const CARPETA = 'actas-compartidas';
 
-interface Peticion {
+export interface Peticion {
   acta: ActaDetalle;
   formato: FormatoArchivo;
   contenido: ContenidoCompartible;
@@ -73,22 +74,7 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
     );
   }
 
-  if (contenido === 'resumen' && (!acta.resumen || acta.resumen.length === 0)) {
-    throw new ErrorCompartir('SIN_CONTENIDO', 'Todavía no hay resumen que compartir.');
-  }
-  if (contenido === 'transcripcion' && acta.intervenciones.length === 0 && !acta.textoTranscripcion) {
-    throw new ErrorCompartir('SIN_CONTENIDO', 'Todavía no hay transcripción que compartir.');
-  }
-
-  // Por regla de negocio la transcripción solo se entrega en PDF; el backend
-  // responde 400 a cualquier otro formato, así que se corta aquí antes de
-  // gastar una descarga que solo puede fallar.
-  if (contenido === 'transcripcion' && formato !== 'PDF') {
-    throw new ErrorCompartir(
-      'FORMATO_NO_PERMITIDO',
-      'La transcripción solo se puede compartir en PDF.',
-    );
-  }
+  validarPeticion({ acta, formato, contenido });
   // Sin backend (mock), solo se sabe componer Markdown — sin esta comprobación,
   // pedir PDF/Word ahí generaría un archivo con esa extensión pero contenido
   // de texto plano, no un PDF/Word real.
@@ -124,6 +110,108 @@ export async function compartirActa({ acta, formato, contenido }: Peticion): Pro
     UTI: perfil.uti,
     dialogTitle: acta.titulo,
   });
+}
+
+/** Enlace público ya creado; `expiraEn` es ISO-8601. */
+export interface EnlaceTemporal {
+  url: string;
+  expiraEn: string;
+}
+
+/** Reglas comunes a archivo y enlace: no se pide al backend algo que solo puede responder 400. */
+function validarPeticion({ acta, formato, contenido }: Peticion): void {
+  if (contenido === 'resumen' && (!acta.resumen || acta.resumen.length === 0)) {
+    throw new ErrorCompartir('SIN_CONTENIDO', 'Todavía no hay resumen que compartir.');
+  }
+  if (contenido === 'transcripcion' && acta.intervenciones.length === 0 && !acta.textoTranscripcion) {
+    throw new ErrorCompartir('SIN_CONTENIDO', 'Todavía no hay transcripción que compartir.');
+  }
+  // Por regla de negocio la transcripción solo se entrega en PDF; el backend
+  // responde 400 a cualquier otro formato.
+  if (contenido === 'transcripcion' && formato !== 'PDF') {
+    throw new ErrorCompartir(
+      'FORMATO_NO_PERMITIDO',
+      'La transcripción solo se puede compartir en PDF.',
+    );
+  }
+}
+
+/**
+ * Pide al backend un enlace público que caduca a las 24 h. A diferencia del
+ * archivo, no hay versión mock: un enlace solo existe si lo sirve el backend.
+ */
+export async function generarEnlaceTemporal(peticion: Peticion): Promise<EnlaceTemporal> {
+  if (!hayBackend) {
+    throw new ErrorCompartir(
+      'REQUIERE_BACKEND',
+      'Los enlaces los genera el servidor. Sin backend configurado no hay enlace que compartir.',
+    );
+  }
+  validarPeticion(peticion);
+
+  try {
+    const { token, expiraEn } = await crearEnlaceCompartir(
+      peticion.acta.id,
+      peticion.contenido,
+      peticion.formato,
+    );
+    return { url: urlEnlaceCompartido(token), expiraEn };
+  } catch (error) {
+    if (error instanceof ErrorApi) {
+      // Se decide por el código del cuerpo, no por el status HTTP. SOLICITUD_INVALIDA
+      // (parámetros) no puede darse aquí: el formato ya se validó arriba.
+      if (error.codigo === 'ESTADO_INVALIDO') {
+        throw new ErrorCompartir('SIN_CONTENIDO', 'Todavía no hay contenido que compartir.');
+      }
+      // Tiempo agotado y red tienen un mensaje propio que dice qué hacer (p. ej. el cold start de Render).
+      if (error.codigo === 'TIEMPO_AGOTADO' || error.codigo === 'ERROR_RED') {
+        throw new ErrorCompartir('ENLACE_FALLIDO', error.message);
+      }
+    }
+    throw new ErrorCompartir('ENLACE_FALLIDO', 'No pudimos crear el enlace. Inténtalo otra vez.');
+  }
+}
+
+/** Resultado de `compartirEnlace`: `copiado` es `true` cuando solo se pudo dejar en el portapapeles (web sin share). */
+export interface ResultadoEnlace extends EnlaceTemporal {
+  copiado: boolean;
+}
+
+/**
+ * Crea el enlace de 24 h y lo entrega: share sheet nativo en móvil; en web,
+ * `navigator.share` si existe y, si no, portapapeles (la UI avisa "Enlace
+ * copiado" con `copiado`).
+ */
+export async function compartirEnlace(peticion: Peticion): Promise<ResultadoEnlace> {
+  const enlace = await generarEnlaceTemporal(peticion);
+  const titulo = peticion.acta.titulo;
+
+  if (Platform.OS !== 'web') {
+    // Texto + URL en `message`: Android ignora el campo `url` de Share.
+    await Share.share({ message: `${titulo}\n${enlace.url}`, title: titulo });
+    return { ...enlace, copiado: false };
+  }
+
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ url: enlace.url, title: titulo });
+      return { ...enlace, copiado: false };
+    } catch (error) {
+      // Cancelar no es un fallo. Cualquier otro motivo (p. ej. NotAllowedError
+      // porque crear el enlace consumió el gesto del usuario) cae al portapapeles.
+      if (error instanceof Error && error.name === 'AbortError') return { ...enlace, copiado: false };
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(enlace.url);
+  } catch {
+    throw new ErrorCompartir(
+      'COMPARTIR_NO_DISPONIBLE',
+      'El navegador no permite copiar el enlace. Prueba desde otro navegador.',
+    );
+  }
+  return { ...enlace, copiado: true };
 }
 
 /**
