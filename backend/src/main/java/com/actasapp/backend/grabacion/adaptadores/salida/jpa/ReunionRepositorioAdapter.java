@@ -57,6 +57,11 @@ public class ReunionRepositorioAdapter implements ReunionRepositorioPuerto {
                 .toList();
     }
 
+    @Override
+    public void eliminar(UUID id) {
+        jpaRepository.deleteById(id);
+    }
+
     private Reunion aDominio(ReunionJpaEntity entity) {
         List<String> participantes = entity.getParticipantes().stream()
                 .map(ParticipanteReunionJpaEntity::getNombre)

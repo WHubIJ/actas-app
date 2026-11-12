@@ -12,6 +12,7 @@ import {
   ScrollText,
   Share2,
   Sparkles,
+  Trash2,
   TriangleAlert,
 } from 'lucide-react-native';
 import type { RootStackParamList } from '../../App';
@@ -22,7 +23,7 @@ import { TarjetaSeccionResumen } from '../components/TarjetaSeccionResumen';
 import { FilaIntervencion } from '../components/FilaIntervencion';
 import { HojaOpciones, type OpcionHoja } from '../components/HojaOpciones';
 import { buscarActa } from '../mocks/actas';
-import { obtenerActaDetalle, generarResumen, hayBackend, ErrorApi } from '../services/api';
+import { obtenerActaDetalle, generarResumen, eliminarReunion, hayBackend, ErrorApi } from '../services/api';
 import { compartirActa, ErrorCompartir } from '../services/compartirService';
 import { formatearMinutos } from '../utils/formato';
 import { parsearResumenMarkdown } from '../utils/markdownActa';
@@ -78,6 +79,12 @@ const FORMATOS_RESUMEN: ReadonlyArray<OpcionHoja<FormatoArchivo>> = [
   { id: 'WORD', titulo: 'Word', descripcion: 'Documento editable (.docx).', icono: FileText },
 ];
 
+/** `Alert.alert` no existe en web, donde se usa la app sobre todo: la confirmación es una hoja propia. */
+const OPCIONES_ELIMINAR: ReadonlyArray<OpcionHoja<'eliminar' | 'cancelar'>> = [
+  { id: 'eliminar', titulo: 'Eliminar acta', icono: Trash2, destructiva: true },
+  { id: 'cancelar', titulo: 'Cancelar' },
+];
+
 /** Ritmo de la generación simulada del resumen (solo sin backend). */
 const MS_GENERACION = 2200;
 
@@ -120,6 +127,9 @@ export function DetalleActaScreen({ route, navigation }: Props) {
   const [formato, setFormato] = useState<FormatoArchivo>('MARKDOWN');
   const [compartiendo, setCompartiendo] = useState(false);
   const [errorCompartir, setErrorCompartir] = useState<string | null>(null);
+  const [hojaEliminar, setHojaEliminar] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+  const [errorEliminar, setErrorEliminar] = useState<string | null>(null);
 
   const aparicion = useRef(new Animated.Value(0)).current;
   // Lo que de verdad pinta el panel va un paso por detrás de `pestana` /
@@ -212,7 +222,33 @@ export function DetalleActaScreen({ route, navigation }: Props) {
     [acta, actaId],
   );
 
-  const volver = () => navigation.goBack();
+  const volver = useCallback(() => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('Tabs', { screen: 'Inicio' });
+  }, [navigation]);
+
+  const eliminar = useCallback(
+    async (opcion: 'eliminar' | 'cancelar') => {
+      setHojaEliminar(false);
+      if (opcion === 'cancelar' || eliminando) return;
+      setErrorEliminar(null);
+      setEliminando(true);
+      try {
+        await eliminarReunion(actaId);
+        volver();
+      } catch (error) {
+        // Con estos dos códigos el mensaje ya dice qué hacer; el resto es
+        // ruido técnico que no ayuda al usuario.
+        setErrorEliminar(
+          error instanceof ErrorApi && (error.codigo === 'ESTADO_INVALIDO' || error.codigo === 'BACKEND_NO_CONFIGURADO')
+            ? error.message
+            : 'No pudimos eliminar el acta. Inténtalo de nuevo.',
+        );
+        setEliminando(false);
+      }
+    },
+    [actaId, eliminando, volver],
+  );
 
   const encabezado = (
     <Pressable
@@ -314,6 +350,18 @@ export function DetalleActaScreen({ route, navigation }: Props) {
             />
           )}
         </Animated.View>
+
+        <View style={{ gap: t.spacing[3], marginTop: t.spacing[8] }}>
+          {errorEliminar && <Aviso tono="error" mensaje={errorEliminar} onCerrar={() => setErrorEliminar(null)} />}
+          <Button
+            label={eliminando ? 'Eliminando acta' : 'Eliminar acta'}
+            variant="danger"
+            fullWidth
+            loading={eliminando}
+            icon={(c) => <Trash2 size={16} color={c} strokeWidth={1.8} />}
+            onPress={() => setHojaEliminar(true)}
+          />
+        </View>
       </ScrollView>
 
       {puedeCompartir && (
@@ -347,6 +395,15 @@ export function DetalleActaScreen({ route, navigation }: Props) {
         seleccionada={formato}
         onSeleccionar={compartir}
         onCerrar={() => setHojaFormatos(false)}
+      />
+
+      <HojaOpciones
+        visible={hojaEliminar}
+        titulo="¿Eliminar esta acta?"
+        descripcion="Se borrarán el audio, la transcripción y el resumen. No se puede deshacer."
+        opciones={OPCIONES_ELIMINAR}
+        onSeleccionar={eliminar}
+        onCerrar={() => setHojaEliminar(false)}
       />
     </View>
   );

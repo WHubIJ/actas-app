@@ -1,5 +1,7 @@
 package com.actasapp.backend.grabacion.puertos.salida;
 
+import java.util.UUID;
+
 /**
  * Puerto de salida hacia el almacenamiento de audios.
  * Hoy lo implementa Supabase Storage; si algún día cambia, solo se reemplaza el adaptador.
@@ -10,4 +12,7 @@ public interface AlmacenamientoPuerto {
     String generarUrlFirmada(String path, int horasExpiracion);
 
     boolean existeArchivo(String path);
+
+    /** Borra todo el audio de la reunión (los objetos bajo `{reunionId}/`, ver ClipAudio). */
+    void eliminarAudios(UUID reunionId);
 }

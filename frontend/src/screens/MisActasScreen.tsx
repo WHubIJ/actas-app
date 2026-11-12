@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, FlatList, Animated, Easing, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Search, Mic, TriangleAlert, AudioLines, Share2, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -72,23 +72,30 @@ export function MisActasScreen() {
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [intento, setIntento] = useState(0);
 
-  useEffect(() => {
-    if (!hayBackend) return;
-    let cancelado = false;
-    obtenerActas()
-      .then((actas) => {
-        if (cancelado) return;
-        setActasBackend(actas);
-        setErrorCarga(null);
-      })
-      .catch((err) => {
-        if (cancelado) return;
-        setErrorCarga(err instanceof ErrorApi ? err.message : 'No se pudieron cargar tus actas.');
-      });
-    return () => {
-      cancelado = true;
-    };
-  }, [intento]);
+  // Al recuperar el foco y no solo al montar: las pestañas siguen montadas
+  // mientras se ve `DetalleActa`, y sin esto un acta eliminada seguiría en la lista.
+  // No vacía `actasBackend` al refrescar, así que no reaparece el esqueleto.
+  useFocusEffect(
+    useCallback(() => {
+      if (!hayBackend) return;
+      let cancelado = false;
+      obtenerActas()
+        .then((actas) => {
+          if (cancelado) return;
+          setActasBackend(actas);
+          setErrorCarga(null);
+        })
+        .catch((err) => {
+          if (cancelado) return;
+          setErrorCarga(err instanceof ErrorApi ? err.message : 'No se pudieron cargar tus actas.');
+        });
+      return () => {
+        cancelado = true;
+      };
+    // `intento` no se lee dentro: cambiarlo es lo que relanza la carga desde "Reintentar".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [intento]),
+  );
 
   const actas = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();

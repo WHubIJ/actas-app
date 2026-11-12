@@ -88,7 +88,7 @@ async function peticion<T>(ruta: string, opciones: RequestInit = {}): Promise<T>
     clearTimeout(temporizador);
   }
 
-  // Algunos endpoints (p. ej. finalizar) devuelven 200 sin cuerpo.
+  // Algunos endpoints (finalizar, eliminar) responden sin cuerpo.
   const texto = await respuesta.text();
   let cuerpo: unknown;
   try {
@@ -140,6 +140,15 @@ export async function registrarClip(
 /** Marca la reunión como finalizada. Corresponde a `POST /api/reuniones/{id}/finalizar`. */
 export async function finalizarReunion(reunionId: string): Promise<void> {
   await peticion<void>(`/api/reuniones/${reunionId}/finalizar`, { method: 'POST' });
+}
+
+/**
+ * Elimina la reunión con su audio, transcripción y resumen. Corresponde a
+ * `DELETE /api/reuniones/{id}` (204 sin cuerpo; `ESTADO_INVALIDO` si se está
+ * transcribiendo).
+ */
+export async function eliminarReunion(reunionId: string): Promise<void> {
+  await peticion<void>(`/api/reuniones/${reunionId}`, { method: 'DELETE' });
 }
 
 interface ReunionResumenBackend {

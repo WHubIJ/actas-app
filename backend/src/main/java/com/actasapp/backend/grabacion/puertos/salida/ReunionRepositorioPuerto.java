@@ -17,4 +17,6 @@ public interface ReunionRepositorioPuerto {
     Optional<Reunion> buscarPorId(UUID id);
 
     List<Reunion> buscarPorOrganizacion(UUID organizacionId);
+
+    void eliminar(UUID id);
 }

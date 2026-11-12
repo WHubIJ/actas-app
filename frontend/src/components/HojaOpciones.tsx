@@ -11,6 +11,8 @@ export interface OpcionHoja<T extends string> {
   titulo: string;
   descripcion?: string;
   icono?: LucideIcon;
+  /** Acción irreversible: título e icono en el color de error. */
+  destructiva?: boolean;
 }
 
 interface Props<T extends string> {
@@ -107,6 +109,7 @@ export function HojaOpciones<T extends string>({
           {opciones.map((opcion) => {
             const activa = opcion.id === seleccionada;
             const Icono = opcion.icono;
+            const colorTexto = opcion.destructiva ? 'danger' : 'text';
             const entradaOpcion = entradaOpciones.get(opcion.id)!;
             return (
               <Animated.View
@@ -143,12 +146,12 @@ export function HojaOpciones<T extends string>({
                         backgroundColor: t.colors.surface2,
                       }}
                     >
-                      <Icono size={19} color={t.colors.text2} strokeWidth={1.8} />
+                      <Icono size={19} color={opcion.destructiva ? t.colors.danger : t.colors.text2} strokeWidth={1.8} />
                     </View>
                   )}
 
                   <View style={{ flex: 1, gap: 1 }}>
-                    <Text variant="bodyStrong" numberOfLines={1}>
+                    <Text variant="bodyStrong" color={colorTexto} numberOfLines={1}>
                       {opcion.titulo}
                     </Text>
                     {opcion.descripcion && (

@@ -40,7 +40,7 @@ Cada módulo repite la misma estructura interna:
   `transcripcion` publicará `TranscripcionCompletadaEvent` para notificar vía FCM.
   **Excepción documentada, generalizada:** `shared/` puede depender del puerto de
   entrada de un módulo de épica cuando necesita orquestar algo transversal — nunca al
-  revés, y nunca a través de los adaptadores internos de ese módulo. Tres casos hoy:
+  revés, y nunca a través de los adaptadores internos de ese módulo. Cuatro casos hoy:
   `shared/archivos/ArchivosController` depende de `ObtenerResumenUseCase` (`resumen`)
   y de `ObtenerTranscripcionUseCase` (`transcripcion`) para servir una descarga
   (la fecha de la reunión, que necesita el título del PDF de la transcripción, la
@@ -48,7 +48,12 @@ Cada módulo repite la misma estructura interna:
   más hacia `grabacion`); `shared/identidad/VerificarAccesoReunion` depende de
   `ConsultarReunionesUseCase` (`grabacion`) para comprobar que un `reunionId` recibido
   por `resumen`, `transcripcion` o `shared/archivos` pertenezca a la organización del
-  usuario autenticado (ver nota de seguridad abajo). No añadir un cuarto caso sin
+  usuario autenticado (ver nota de seguridad abajo);
+  `shared/reuniones/adaptadores/entrada/EliminarReunionController` depende de
+  `EliminarReunionUseCase` (`grabacion`) y de `ConsultarEstadoTranscripcionUseCase`
+  (`transcripcion`) para borrar una reunión: la regla "no se borra mientras la
+  transcripción está `EN_PROCESO`" cruza los dos módulos, y `grabacion` no puede
+  consultar el estado de `transcripcion`. No añadir un quinto caso sin
   documentarlo aquí igual de explícito.
 - **Cambiar de proveedor externo = reemplazar un adaptador**, nunca tocar dominio ni servicio.
 - **Errores:** centralizados en `shared/exception/GlobalExceptionHandler`.
@@ -62,7 +67,7 @@ Cada módulo repite la misma estructura interna:
 
 | Módulo | Estado |
 |---|---|
-| `grabacion` | Completo de extremo a extremo salvo `SupabaseStorageAdapter`, que sigue lanzando `UnsupportedOperationException` — no bloquea porque el frontend sube el audio directo a Supabase Storage sin pasar por el backend (ver tabla de stack en el `CLAUDE.md` raíz) |
+| `grabacion` | Completo de extremo a extremo, incluido el borrado (`EliminarReunionUseCase`: borra la fila — la cascada de `V13__borrado_en_cascada_reunion.sql` arrastra clips, participantes, transcripción y resúmenes — y después el audio). `SupabaseStorageAdapter` solo tiene real `eliminarAudios(reunionId)` (lista y borra los objetos bajo `{reunionId}/` con la service-role key; un fallo se registra con `log.warn` y no se propaga); `generarUrlFirmada`/`existeArchivo` siguen lanzando `UnsupportedOperationException` — no bloquea porque el frontend sube el audio directo a Supabase Storage sin pasar por el backend (ver tabla de stack en el `CLAUDE.md` raíz) |
 | `transcripcion` | Completo: `GestorTranscripcionService` escucha `ReunionFinalizadaEvent`, transcribe con `MistralTranscriptorAdapter` y combina los clips con `MistralCombinadorAdapter`; publica `TranscripcionCompletadaEvent` al terminar. `GeneradorPdfTranscripcionAdapter` (iText, propio del módulo — no reutiliza el de `resumen` porque los módulos no se llaman entre sí, y el texto aquí es plano, sin Markdown) renderiza el texto combinado a PDF para la descarga (`ObtenerTranscripcionUseCase.obtenerComoPdf`): título con la fecha de la reunión, una línea por párrafo y las etiquetas "Hablante N:" en negrita |
 | `resumen` | Completo: `MistralResumenAdapter` genera el texto con las 3 plantillas (RESUMEN_EJECUTIVO, ACTA_FORMAL, LISTA_ACUERDOS; una instrucción de sistema por plantilla, misma llamada HTTP, siempre Markdown con párrafos, "#"/"##" y bullets "-") y `GeneradorDocumentoAdapter` ya renderiza los 3 formatos — MARKDOWN tal cual, PDF (iText) y WORD (POI) línea a línea desde ese mismo Markdown (párrafos, encabezados "#"/"##" y bullets "-"; no es un parser de Markdown completo). El resumen en sí se genera y persiste **solo en MARKDOWN** (`POST /api/resumen` sigue rechazando otro formato ahí); PDF/WORD son una conversión al vuelo de ese contenido al descargarlo (`ObtenerResumenUseCase.obtenerUltimoComoArchivo`, usado por `ArchivosController`), no una llamada nueva a Mistral ni una fila nueva en `resumen` |
 | `compartir` | Completo: `GestorCompartirService` genera el token y valida expiración (24h), `EnlaceCompartidoRepositorioAdapter` persiste en JPA, `CompartirController` expone generar/descargar. `SecurityConfig` permite público solo el `GET /api/compartir/*` |
@@ -77,7 +82,8 @@ como `listar()`) **debe** llamar a `VerificarAccesoReunion.verificar(reunionId, 
 autenticada podía leer o modificar una reunión de otra organización solo con su UUID
 (IDOR). Ya lo hacen `GrabacionController.detalle`, `GrabacionController.registrarClip`,
 `GrabacionController.finalizar`, `ResumenController.generar`,
-`TranscripcionController.detalle` y `ArchivosController.descargar`. `registrarClip` y
+`TranscripcionController.detalle`, `ArchivosController.descargar` y
+`EliminarReunionController.eliminar`. `registrarClip` y
 `finalizar` no lo hacían hasta el fix del 2026-10-20 (ver `GrabacionControllerTest`):
 cualquier cuenta autenticada podía inyectar un clip o finalizar la reunión de otra
 organización solo con su UUID, sin pasar por `VerificarAccesoReunion`. El endpoint en lote
@@ -179,6 +185,19 @@ expone `haySupabase` para comprobarlo sin intentar la subida. No probado en
 dispositivo/emulador real con micrófono: solo verificado que el flujo de
 permisos y errores no rompe la app (en este entorno de desarrollo no hay
 hardware de audio).
+
+`EliminarReunionController` (en `shared/reuniones`, no en `grabacion` — ver la
+excepción documentada arriba) bajo `/api/reuniones`:
+
+- `DELETE /api/reuniones/{reunionId}` → 204 sin cuerpo. Requiere sesión. Una
+  reunión de otra organización da el mismo 400 `SOLICITUD_INVALIDA` de "no
+  encontrada" que el resto (`VerificarAccesoReunion`); con la transcripción
+  `EN_PROCESO` (estado agregado, el mismo de `GET /api/transcripcion/estados`),
+  409 `ESTADO_INVALIDO` "No se puede eliminar la reunión mientras se está
+  transcribiendo". Borra en BD la reunión con todo lo que cuelga de ella
+  (cascada de V13) y después su audio en Storage; si Storage falla, el borrado
+  sigue contando como hecho (archivo huérfano antes que un acta imborrable).
+  `enlace_compartido` no se toca: no referencia la reunión y caduca a las 24h.
 
 `TranscripcionController` (sin prefijo propio, rutas bajo `/api/transcripcion`):
 
