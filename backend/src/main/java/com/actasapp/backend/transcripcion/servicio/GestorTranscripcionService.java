@@ -163,14 +163,16 @@ public class GestorTranscripcionService implements TranscribirReunionUseCase, Co
     }
 
     /**
-     * Mismo tipo de error que "no hay resumen generado todavía" en
-     * GestorResumenService, para que el frontend reciba el mismo código
-     * (SOLICITUD_INVALIDA) en ambos casos de "aún no hay nada que descargar".
+     * La petición es válida; lo que falla es el estado de la reunión (la
+     * transcripción aún no existe), por eso es IllegalStateException (409
+     * ESTADO_INVALIDO) y no IllegalArgumentException (400). GestorResumenService
+     * sigue lanzando IllegalArgumentException para "no hay resumen", así que
+     * ambos casos no comparten código HTTP.
      */
     @Override
     public byte[] obtenerComoPdf(UUID reunionId, LocalDate fechaReunion) {
         TranscripcionCombinada combinada = transcripcionCombinadaRepositorio.buscarPorReunion(reunionId)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new IllegalStateException(
                         "Todavía no hay transcripción completa para esta reunión"));
         return generadorPdf.generar(fechaReunion, combinada.getTexto());
     }

@@ -43,10 +43,10 @@ class GestorTranscripcionServiceTest {
     }
 
     @Test
-    void obtenerComoPdfSinTranscripcionCombinadaLanzaSolicitudInvalida() {
+    void obtenerComoPdfSinTranscripcionCombinadaLanzaEstadoInvalido() {
         when(combinadas.buscarPorReunion(reunionId)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () -> servicio.obtenerComoPdf(reunionId, fecha));
+        assertThrows(IllegalStateException.class, () -> servicio.obtenerComoPdf(reunionId, fecha));
         verify(generadorPdf, never()).generar(any(), any());
     }
 }

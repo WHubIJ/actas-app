@@ -250,8 +250,9 @@ excepción documentada arriba) bajo `/api/reuniones`:
   renderiza al vuelo el texto combinado con `GeneradorPdfTranscripcionAdapter`
   (`ObtenerTranscripcionUseCase.obtenerComoPdf`), con la fecha de la reunión como
   título. Si la reunión aún no tiene transcripción combinada (en proceso o con
-  algún clip `FALLIDA`), también 400 `SOLICITUD_INVALIDA`, igual que pedir un
-  resumen que todavía no existe. El archivo se descarga como
+  algún clip `FALLIDA`), responde 409 `ESTADO_INVALIDO`: la petición es válida, lo
+  que falla es el estado de la reunión (a diferencia de "no hay resumen", que sigue
+  en 400 `SOLICITUD_INVALIDA`). El archivo se descarga como
   `resumen-{reunionId}.{ext}` o `transcripcion-{reunionId}.pdf`.
 - `POST /api/reuniones/{reunionId}/archivos/enlace?contenido=resumen|transcripcion&formato=PDF|WORD|MARKDOWN`
   → `{token, expiraEn}` (`expiraEn` como instante ISO-8601). Requiere sesión.
