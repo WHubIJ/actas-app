@@ -40,7 +40,7 @@ Cada módulo repite la misma estructura interna:
   `transcripcion` publicará `TranscripcionCompletadaEvent` para notificar vía FCM.
   **Excepción documentada, generalizada:** `shared/` puede depender del puerto de
   entrada de un módulo de épica cuando necesita orquestar algo transversal — nunca al
-  revés, y nunca a través de los adaptadores internos de ese módulo. Cuatro casos hoy:
+  revés, y nunca a través de los adaptadores internos de ese módulo. Cinco casos hoy:
   `shared/archivos/ArchivosController` depende de `ObtenerResumenUseCase` (`resumen`)
   y de `ObtenerTranscripcionUseCase` (`transcripcion`) para servir una descarga
   (la fecha de la reunión, que necesita el título del PDF de la transcripción, la
@@ -53,8 +53,14 @@ Cada módulo repite la misma estructura interna:
   `EliminarReunionUseCase` (`grabacion`) y de `ConsultarEstadoTranscripcionUseCase`
   (`transcripcion`) para borrar una reunión: la regla "no se borra mientras la
   transcripción está `EN_PROCESO`" cruza los dos módulos, y `grabacion` no puede
-  consultar el estado de `transcripcion`. No añadir un quinto caso sin
-  documentarlo aquí igual de explícito.
+  consultar el estado de `transcripcion`; y `shared/archivos/ArchivosController`
+  depende además de `CompartirArchivoUseCase` (`compartir`) para
+  `POST .../archivos/enlace`: el enlace público tiene que servir exactamente el
+  archivo que resuelve la descarga (resumen o transcripción), y `compartir` no
+  puede ir a buscarlo a `resumen`/`transcripcion` — así que `shared/archivos`
+  resuelve los bytes, nombre y content type como en el `GET` y se los entrega ya
+  hechos a `compartir`, que solo guarda y genera token/expiración. No añadir un
+  sexto caso sin documentarlo aquí igual de explícito.
 - **Cambiar de proveedor externo = reemplazar un adaptador**, nunca tocar dominio ni servicio.
 - **Errores:** centralizados en `shared/exception/GlobalExceptionHandler`.
   `IllegalArgumentException` → 400 `SOLICITUD_INVALIDA`;
@@ -70,7 +76,7 @@ Cada módulo repite la misma estructura interna:
 | `grabacion` | Completo de extremo a extremo, incluido el borrado (`EliminarReunionUseCase`: borra la fila — la cascada de `V13__borrado_en_cascada_reunion.sql` arrastra clips, participantes, transcripción y resúmenes — y después el audio). `SupabaseStorageAdapter` solo tiene real `eliminarAudios(reunionId)` (lista y borra los objetos bajo `{reunionId}/` con la service-role key; un fallo se registra con `log.warn` y no se propaga); `generarUrlFirmada`/`existeArchivo` siguen lanzando `UnsupportedOperationException` — no bloquea porque el frontend sube el audio directo a Supabase Storage sin pasar por el backend (ver tabla de stack en el `CLAUDE.md` raíz) |
 | `transcripcion` | Completo: `GestorTranscripcionService` escucha `ReunionFinalizadaEvent`, transcribe con `MistralTranscriptorAdapter` y combina los clips con `MistralCombinadorAdapter`; publica `TranscripcionCompletadaEvent` al terminar. `GeneradorPdfTranscripcionAdapter` (iText, propio del módulo — no reutiliza el de `resumen` porque los módulos no se llaman entre sí, y el texto aquí es plano, sin Markdown) renderiza el texto combinado a PDF para la descarga (`ObtenerTranscripcionUseCase.obtenerComoPdf`): título con la fecha de la reunión, una línea por párrafo y las etiquetas "Hablante N:" en negrita |
 | `resumen` | Completo: `MistralResumenAdapter` genera el texto con las 3 plantillas (RESUMEN_EJECUTIVO, ACTA_FORMAL, LISTA_ACUERDOS; una instrucción de sistema por plantilla, misma llamada HTTP, siempre Markdown con párrafos, "#"/"##" y bullets "-") y `GeneradorDocumentoAdapter` ya renderiza los 3 formatos — MARKDOWN tal cual, PDF (iText) y WORD (POI) línea a línea desde ese mismo Markdown (párrafos, encabezados "#"/"##" y bullets "-"; no es un parser de Markdown completo). El resumen en sí se genera y persiste **solo en MARKDOWN** (`POST /api/resumen` sigue rechazando otro formato ahí); PDF/WORD son una conversión al vuelo de ese contenido al descargarlo (`ObtenerResumenUseCase.obtenerUltimoComoArchivo`, usado por `ArchivosController`), no una llamada nueva a Mistral ni una fila nueva en `resumen` |
-| `compartir` | Completo: `GestorCompartirService` genera el token y valida expiración (24h), `EnlaceCompartidoRepositorioAdapter` persiste en JPA, `CompartirController` expone generar/descargar. `SecurityConfig` permite público solo el `GET /api/compartir/*` |
+| `compartir` | Completo: `GestorCompartirService` genera el token y valida expiración (24h), `EnlaceCompartidoRepositorioAdapter` persiste en JPA, `CompartirController` expone generar/descargar. `SecurityConfig` permite público solo el `GET /api/compartir/*`. `generarEnlaceTemporal` devuelve el `EnlaceCompartido` entero (no solo el token) para que `ArchivosController.generarEnlace` pueda responder con `expiraEn` |
 
 Los `.gitkeep` marcan los paquetes ya previstos pero vacíos.
 
@@ -82,8 +88,8 @@ como `listar()`) **debe** llamar a `VerificarAccesoReunion.verificar(reunionId, 
 autenticada podía leer o modificar una reunión de otra organización solo con su UUID
 (IDOR). Ya lo hacen `GrabacionController.detalle`, `GrabacionController.registrarClip`,
 `GrabacionController.finalizar`, `ResumenController.generar`,
-`TranscripcionController.detalle`, `ArchivosController.descargar` y
-`EliminarReunionController.eliminar`. `registrarClip` y
+`TranscripcionController.detalle`, `ArchivosController.descargar`,
+`ArchivosController.generarEnlace` y `EliminarReunionController.eliminar`. `registrarClip` y
 `finalizar` no lo hacían hasta el fix del 2026-10-20 (ver `GrabacionControllerTest`):
 cualquier cuenta autenticada podía inyectar un clip o finalizar la reunión de otra
 organización solo con su UUID, sin pasar por `VerificarAccesoReunion`. El endpoint en lote
@@ -224,9 +230,10 @@ excepción documentada arriba) bajo `/api/reuniones`:
   `contentType`
 - `GET /api/compartir/{token}` → descarga el archivo — público a propósito
   (quien recibe el enlace por WhatsApp no tiene cuenta en la app), permitido
-  explícitamente en `SecurityConfig`. Sin este módulo nadie lo llama todavía
-  (no hay botón de "enlace" en el frontend) — el share sheet nativo usa
-  `ArchivosController` (abajo), no este.
+  explícitamente en `SecurityConfig`. Es lo que abre quien recibe un enlace
+  generado con `POST /api/reuniones/{reunionId}/archivos/enlace` (abajo). El
+  share sheet nativo con el archivo adjunto usa el `GET` de `ArchivosController`,
+  no este.
 
 `ArchivosController` (en `shared/archivos`, no en ningún módulo de épica) bajo
 `/api/reuniones/{reunionId}/archivos`:
@@ -246,3 +253,16 @@ excepción documentada arriba) bajo `/api/reuniones`:
   algún clip `FALLIDA`), también 400 `SOLICITUD_INVALIDA`, igual que pedir un
   resumen que todavía no existe. El archivo se descarga como
   `resumen-{reunionId}.{ext}` o `transcripcion-{reunionId}.pdf`.
+- `POST /api/reuniones/{reunionId}/archivos/enlace?contenido=resumen|transcripcion&formato=PDF|WORD|MARKDOWN`
+  → `{token, expiraEn}` (`expiraEn` como instante ISO-8601). Requiere sesión.
+  Genera un enlace público de 24h (`CompartirArchivoUseCase`) que sirve
+  exactamente el mismo archivo que el `GET` de arriba con esos parámetros
+  (mismos bytes, mismo nombre `resumen-{reunionId}.{ext}` /
+  `transcripcion-{reunionId}.pdf`, mismo content type): ambos pasan por la
+  misma resolución privada del controller, así que comparten también
+  validaciones y errores — `VerificarAccesoReunion`, transcripción solo en PDF,
+  400 `SOLICITUD_INVALIDA` si aún no hay resumen o transcripción. El backend no
+  devuelve la URL: el frontend la construye como
+  `${API_URL}/api/compartir/${token}` (el `GET` público de `CompartirController`).
+  El enlace guarda su propia copia de los bytes: regenerar el resumen después no
+  cambia lo que sirve un enlace ya emitido.

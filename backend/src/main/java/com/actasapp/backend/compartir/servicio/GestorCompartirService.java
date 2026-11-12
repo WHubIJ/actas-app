@@ -28,12 +28,11 @@ public class GestorCompartirService implements CompartirArchivoUseCase {
     }
 
     @Override
-    public UUID generarEnlaceTemporal(byte[] contenido, String nombreArchivo, String contentType) {
-        UUID token = UUID.randomUUID();
+    public EnlaceCompartido generarEnlaceTemporal(byte[] contenido, String nombreArchivo, String contentType) {
         Instant expiraEn = Instant.now().plus(horasExpiracion, ChronoUnit.HOURS);
-        EnlaceCompartido enlace = new EnlaceCompartido(token, contenido, nombreArchivo, contentType, expiraEn);
+        EnlaceCompartido enlace = new EnlaceCompartido(UUID.randomUUID(), contenido, nombreArchivo, contentType, expiraEn);
         repositorio.guardar(enlace);
-        return token;
+        return enlace;
     }
 
     @Override

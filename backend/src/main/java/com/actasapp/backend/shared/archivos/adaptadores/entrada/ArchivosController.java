@@ -1,5 +1,7 @@
 package com.actasapp.backend.shared.archivos.adaptadores.entrada;
 
+import com.actasapp.backend.compartir.domain.EnlaceCompartido;
+import com.actasapp.backend.compartir.puertos.entrada.CompartirArchivoUseCase;
 import com.actasapp.backend.resumen.domain.FormatoArchivo;
 import com.actasapp.backend.resumen.puertos.entrada.ObtenerResumenUseCase;
 import com.actasapp.backend.shared.archivos.domain.ContenidoArchivo;
@@ -12,10 +14,12 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
@@ -38,6 +42,12 @@ import java.util.UUID;
  * `ObtenerResumenUseCase.obtenerUltimoComoArchivo`); `TRANSCRIPCION` solo en
  * PDF, por regla de negocio. Pedir otra combinación da un 400 claro, no un
  * 500 ni un archivo a medias.
+ *
+ * `POST .../enlace` sirve ese mismo archivo como enlace público de 24h: los
+ * bytes se resuelven aquí, igual que en la descarga, y se entregan ya hechos a
+ * `CompartirArchivoUseCase` — `compartir` no puede buscarlos por su cuenta
+ * porque no puede depender de `resumen` ni de `transcripcion` (segunda parte
+ * de la excepción documentada en `backend/CLAUDE.md`).
  */
 @RestController
 @RequestMapping("/api/reuniones/{reunionId}/archivos")
@@ -45,6 +55,11 @@ public class ArchivosController {
 
     /** Content-Type y extensión de archivo por formato, para la descarga. */
     private record PerfilFormato(MediaType tipo, String extension) {}
+
+    private record ArchivoResuelto(byte[] contenido, String nombre, MediaType tipo) {}
+
+    /** El backend no devuelve la URL pública: el frontend la construye con su `API_URL` y el token. */
+    public record EnlaceResponse(UUID token, Instant expiraEn) {}
 
     private static final Map<FormatoArchivo, PerfilFormato> PERFILES = Map.of(
             FormatoArchivo.MARKDOWN, new PerfilFormato(MediaType.parseMediaType("text/markdown"), "md"),
@@ -56,13 +71,16 @@ public class ArchivosController {
     private final ObtenerResumenUseCase obtenerResumen;
     private final ObtenerTranscripcionUseCase obtenerTranscripcion;
     private final VerificarAccesoReunion verificarAcceso;
+    private final CompartirArchivoUseCase compartir;
 
     public ArchivosController(ObtenerResumenUseCase obtenerResumen,
                               ObtenerTranscripcionUseCase obtenerTranscripcion,
-                              VerificarAccesoReunion verificarAcceso) {
+                              VerificarAccesoReunion verificarAcceso,
+                              CompartirArchivoUseCase compartir) {
         this.obtenerResumen = obtenerResumen;
         this.obtenerTranscripcion = obtenerTranscripcion;
         this.verificarAcceso = verificarAcceso;
+        this.compartir = compartir;
     }
 
     @GetMapping
@@ -70,6 +88,25 @@ public class ArchivosController {
                                              @RequestParam String contenido,
                                              @RequestParam FormatoArchivo formato,
                                              @AuthenticationPrincipal Jwt jwt) {
+        ArchivoResuelto archivo = resolver(reunionId, contenido, formato, jwt);
+        return ResponseEntity.ok()
+                .contentType(archivo.tipo())
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + archivo.nombre() + "\"")
+                .body(archivo.contenido());
+    }
+
+    @PostMapping("/enlace")
+    public EnlaceResponse generarEnlace(@PathVariable UUID reunionId,
+                                        @RequestParam String contenido,
+                                        @RequestParam FormatoArchivo formato,
+                                        @AuthenticationPrincipal Jwt jwt) {
+        ArchivoResuelto archivo = resolver(reunionId, contenido, formato, jwt);
+        EnlaceCompartido enlace = compartir.generarEnlaceTemporal(
+                archivo.contenido(), archivo.nombre(), archivo.tipo().toString());
+        return new EnlaceResponse(enlace.getToken(), enlace.getExpiraEn());
+    }
+
+    private ArchivoResuelto resolver(UUID reunionId, String contenido, FormatoArchivo formato, Jwt jwt) {
         LocalDate fechaReunion = verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject())).getFecha();
         ContenidoArchivo tipoContenido = parsearContenido(contenido);
 
@@ -88,10 +125,7 @@ public class ArchivosController {
         };
         PerfilFormato perfil = PERFILES.get(formato);
         String nombreArchivo = tipoContenido.name().toLowerCase() + "-" + reunionId + "." + perfil.extension();
-        return ResponseEntity.ok()
-                .contentType(perfil.tipo())
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + nombreArchivo + "\"")
-                .body(archivo);
+        return new ArchivoResuelto(archivo, nombreArchivo, perfil.tipo());
     }
 
     // El frontend manda "resumen"/"transcripcion" en minúscula (ContenidoCompartible);

@@ -33,9 +33,9 @@ public class CompartirController {
 
     @PostMapping
     public Map<String, UUID> generar(@RequestBody GenerarEnlaceRequest req) {
-        UUID token = compartir.generarEnlaceTemporal(
+        EnlaceCompartido enlace = compartir.generarEnlaceTemporal(
                 req.contenido().getBytes(StandardCharsets.UTF_8), req.nombreArchivo(), req.contentType());
-        return Map.of("token", token);
+        return Map.of("token", enlace.getToken());
     }
 
     @GetMapping("/{token}")

@@ -16,7 +16,8 @@ import java.util.UUID;
  */
 public interface CompartirArchivoUseCase {
 
-    UUID generarEnlaceTemporal(byte[] contenido, String nombreArchivo, String contentType);
+    /** Devuelve el enlace entero (no solo el token) para que quien lo pide pueda informar de cuándo caduca. */
+    EnlaceCompartido generarEnlaceTemporal(byte[] contenido, String nombreArchivo, String contentType);
 
     /** Lanza si el token no existe o si el enlace ya caducó. */
     EnlaceCompartido obtenerPorToken(UUID token);

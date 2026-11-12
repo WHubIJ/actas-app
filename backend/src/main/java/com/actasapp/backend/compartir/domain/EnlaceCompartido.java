@@ -6,7 +6,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * Enlace temporal a un contenido ya generado (hoy: un resumen). Objeto de
+ * Enlace temporal a un contenido ya generado (un resumen o una transcripción). Objeto de
  * dominio puro, inmutable. No sabe ni le importa de qué módulo viene el
  * contenido — compartir no puede depender de resumen ni de transcripcion
  * (los módulos no se llaman entre sí), así que recibe los bytes ya resueltos.
