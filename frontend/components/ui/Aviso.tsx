@@ -11,6 +11,8 @@ interface Props {
   tono: TonoAviso;
   mensaje: string;
   onCerrar?: () => void;
+  /** Enlace corto junto al mensaje, p. ej. "Ver acta" en el aviso de transcripción terminada. */
+  accion?: { titulo: string; onPress: () => void };
 }
 
 const TONO: Record<TonoAviso, { bg: ColorName; fg: ColorName }> = {
@@ -23,7 +25,7 @@ const TONO: Record<TonoAviso, { bg: ColorName; fg: ColorName }> = {
  * sistema rompe la estética de la app y obliga a un toque extra para algo que
  * el usuario solo necesita leer.
  */
-export function Aviso({ tono, mensaje, onCerrar }: Props) {
+export function Aviso({ tono, mensaje, onCerrar, accion }: Props) {
   const t = useTheme();
   const { bg, fg } = TONO[tono];
   const entrada = useRef(new Animated.Value(0)).current;
@@ -67,6 +69,14 @@ export function Aviso({ tono, mensaje, onCerrar }: Props) {
       <Text variant="caption" color={fg} style={{ flex: 1, lineHeight: 20 }}>
         {mensaje}
       </Text>
+
+      {accion && (
+        <Pressable onPress={accion.onPress} hitSlop={10} accessibilityRole="button" style={{ marginTop: 2 }}>
+          <Text variant="label" color={fg}>
+            {accion.titulo}
+          </Text>
+        </Pressable>
+      )}
 
       {onCerrar && (
         <Pressable onPress={cerrar} hitSlop={10} accessibilityLabel="Cerrar aviso">

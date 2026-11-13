@@ -7,6 +7,8 @@ import {
   NavigationContainer,
   DefaultTheme,
   DarkTheme,
+  StackActions,
+  createNavigationContainerRef,
   type NavigatorScreenParams,
   type Theme as NavTheme,
 } from '@react-navigation/native';
@@ -29,6 +31,7 @@ import { Sidebar } from './src/components/Sidebar';
 import { supabase, haySupabase } from './src/services/supabaseClient';
 import { procesarUrlRecuperacion } from './src/services/authService';
 import { ThemeProvider, useAppFonts, useTheme } from './theme/ThemeProvider';
+import { SeguimientoTranscripciones } from './src/notificaciones/SeguimientoTranscripciones';
 
 // Se oculta a mano cuando fuentes + sesión están listas (ver `App`). Llamarlo
 // en el cuerpo del módulo, no en un efecto: tiene que ganar la carrera contra
@@ -44,8 +47,9 @@ export type TabParamList = {
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
   NuevaGrabacion: undefined;
-  /** reunionId ya existe: lo crea NuevaGrabacionScreen antes de navegar aquí. */
-  Grabacion: { reunionId: string };
+  /** reunionId ya existe: lo crea NuevaGrabacionScreen antes de navegar aquí.
+      `titulo` solo sirve para el texto del aviso al terminar la transcripción. */
+  Grabacion: { reunionId: string; titulo?: string };
   DetalleActa: { actaId: string };
 };
 
@@ -58,6 +62,20 @@ export type AuthStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+/** Para navegar desde fuera de las pantallas: el aviso de transcripción terminada y el toque en su notificación. */
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+function abrirActa(actaId: string) {
+  if (!navigationRef.isReady()) return;
+  // `navigate` sobre el mismo DetalleActa solo cambiaría los params y la
+  // pantalla no recargaría el acta que acaba de terminar.
+  if (navigationRef.getCurrentRoute()?.name === 'DetalleActa') {
+    navigationRef.dispatch(StackActions.replace('DetalleActa', { actaId }));
+  } else {
+    navigationRef.navigate('DetalleActa', { actaId });
+  }
+}
 const Tab = createBottomTabNavigator<TabParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 
@@ -143,26 +161,29 @@ function Raiz({ sesion, recuperacionPendiente, onContrasenaActualizada }: PropsR
   return (
     <SafeAreaProvider>
       <StatusBar style={t.mode === 'dark' ? 'light' : 'dark'} />
-      <NavigationContainer theme={temaNavegacion}>
+      <NavigationContainer ref={navigationRef} theme={temaNavegacion}>
         {haySupabase && !sesion ? (
           <Autenticacion />
         ) : (
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="Tabs" component={Pestanas} />
-            <Stack.Screen
-              name="NuevaGrabacion"
-              component={NuevaGrabacionScreen}
-              options={{ animation: 'slide_from_bottom' }}
-            />
-            <Stack.Screen
-              name="Grabacion"
-              component={GrabacionScreen}
-              options={{ animation: 'slide_from_bottom' }}
-            />
-            {/* El detalle entra de lado: es navegación jerárquica desde la lista,
-                no una tarea modal como la grabación. */}
-            <Stack.Screen name="DetalleActa" component={DetalleActaScreen} />
-          </Stack.Navigator>
+          // Solo con sesión: al cerrarla se desmonta y el seguimiento empieza de cero.
+          <SeguimientoTranscripciones onAbrirActa={abrirActa}>
+            <Stack.Navigator screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="Tabs" component={Pestanas} />
+              <Stack.Screen
+                name="NuevaGrabacion"
+                component={NuevaGrabacionScreen}
+                options={{ animation: 'slide_from_bottom' }}
+              />
+              <Stack.Screen
+                name="Grabacion"
+                component={GrabacionScreen}
+                options={{ animation: 'slide_from_bottom' }}
+              />
+              {/* El detalle entra de lado: es navegación jerárquica desde la lista,
+                  no una tarea modal como la grabación. */}
+              <Stack.Screen name="DetalleActa" component={DetalleActaScreen} />
+            </Stack.Navigator>
+          </SeguimientoTranscripciones>
         )}
       </NavigationContainer>
     </SafeAreaProvider>

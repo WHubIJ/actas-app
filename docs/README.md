@@ -26,6 +26,7 @@
 - [ADR-004: Migraciones con Flyway](ADRs/ADR-004-migraciones-flyway.md): migraciones de esquema versionadas en lugar de depender solo de `ddl-auto`.
 - [ADR-005: Autenticación vía Supabase Auth](ADRs/ADR-005-autenticacion-supabase-auth.md): autenticación con Supabase Auth, que sustituye la decisión de autenticación de ADR-001.
 - [ADR-006: Mistral para transcripción y resumen](ADRs/ADR-006-mistral-transcripcion-resumen.md): proveedor Mistral para transcripción y resumen, que sustituye a Whisper/OpenAI de ADR-001.
+- [ADR-007: Aviso de transcripción terminada sin push remoto](ADRs/ADR-007-notificaciones-sin-push.md): el aviso se resuelve en el frontend con sondeo y notificaciones locales o del navegador; el push remoto (FCM / Expo Push) queda pospuesto.
 
 ## Capturas
 

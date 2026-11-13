@@ -42,6 +42,16 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
   - `authService.ts` — login, registro, OAuth con Google y recuperación de contraseña (`ErrorAuth`).
   - `grabacionAudio.ts` — permiso de micrófono y control del grabador de `expo-audio` (`ErrorGrabacion`).
   - `compartirService.ts` — descarga el archivo del acta y abre el share sheet (`ErrorCompartir`).
+- `src/notificaciones/` — aviso de transcripción terminada sin push remoto:
+  - `SeguimientoTranscripciones.tsx` — provider montado en `App.tsx` (solo con sesión)
+    que sondea `GET /api/transcripcion/estados` mientras haya reuniones en curso (en
+    nativo solo con la app activa), avisa una vez por reunión y expone
+    `useSeguimientoTranscripciones()` (`seguir`, `estadoDe`, `versionTerminadas`...).
+    `GrabacionScreen` lee de aquí el progreso en vez de sondear por su cuenta.
+  - `notificacionSistema.ts` — notificación del navegador (`Notification`) o local
+    (`expo-notifications`, cargado bajo demanda); si no se puede, el provider cae al
+    `Aviso` en app.
+  - `transiciones.ts` — detección pura de `EN_PROCESO`/`PENDIENTE` → `COMPLETADA`/`FALLIDA`.
 - `src/mocks/actas.ts` — `ACTAS_EJEMPLO`, datos de ejemplo cuando no hay backend (`hayBackend` falso).
 - `src/utils/` — lógica pura con tests junto al archivo (`formato`, `markdownActa`).
 - `src/types/index.ts` — espejo manual de los enums y entidades del backend

@@ -37,7 +37,7 @@ aprender bien cada pieza del stack sobre la velocidad de entrega (ver
 | Transcripción y resumen | API externa (Mistral: Voxtral Mini Transcribe V2 + resumen, mismo proveedor) | Llamada desde el backend (ver ADR-006) |
 | Generación de archivos | Backend (iText 7 para PDF, Apache POI para Word) | Transcripción solo en PDF. Resumen en PDF, Word o MD |
 | Compartir acta | Share sheet nativo del móvil (`expo-sharing`) | Cubre WhatsApp, Gmail, Telegram, etc. sin integrar cada app por separado. Opción adicional de enlace hosted con expiración de 24h |
-| Notificaciones | Firebase Cloud Messaging / `expo-notifications` | Aviso al completar la transcripción |
+| Notificaciones | Seguimiento y sondeo en el frontend; notificación del navegador (web) o local con `expo-notifications` (nativo) | Aviso al completar la transcripción, sin push remoto por ahora (ver ADR-007) |
 
 ---
 
@@ -86,7 +86,7 @@ con valores por defecto en `backend/src/main/resources/application.yml`:
 - `SUPABASE_JWKS_URI` — endpoint JWKS con el que se validan los JWT (por defecto `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`, ver ADR-005)
 - `MISTRAL_API_KEY` — transcripción (`voxtral-mini-latest`) y combinación/resumen (`mistral-small-latest`), ver ADR-006
 - `ORGANIZACION_POR_DEFECTO_ID` — organización de respaldo para datos anteriores a que toda alta creara la suya; la siembra `V2__reunion_organizacion.sql`
-- `FIREBASE_CREDENTIALS_PATH` — FCM
+- `FIREBASE_CREDENTIALS_PATH` — FCM; declarada pero sin uso, no hay push remoto por ahora (ADR-007)
 - `PORT` — puerto del servidor (por defecto 8080)
 - `CORS_ALLOWED_ORIGINS` — orígenes del navegador permitidos por CORS, separados por comas (por defecto: el frontend en Vercel, sus previews `*.vercel.app` y `localhost:8081`); ver `SecurityConfig`
 - Parámetros de negocio bajo `actas-app.*`: expiración del enlace compartido (24h),
@@ -145,6 +145,7 @@ Las decisiones técnicas se documentan en `docs/ADRs/`.
 - **ADR-004**: Migraciones de esquema versionadas con Flyway
 - **ADR-005**: Autenticación vía Supabase Auth (sustituye la de ADR-001); el backend valida el JWT, no lo emite
 - **ADR-006**: Mistral (Voxtral + resumen) para transcripción y resumen (sustituye Whisper/OpenAI de ADR-001)
+- **ADR-007**: Aviso de transcripción terminada solo en el frontend, sin push remoto (sustituye FCM de la tabla de stack)
 
 **Directiva del Asistente de IA:** al discutir arquitectura o tomar decisiones técnicas,
 siempre haz referencia a los ADRs relevantes. Si se toma una nueva decisión arquitectónica

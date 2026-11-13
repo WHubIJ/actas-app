@@ -37,7 +37,7 @@ Cada módulo repite la misma estructura interna:
 - **Los módulos no se llaman entre sí.** La comunicación es por eventos de Spring
   (`ApplicationEventPublisher`) definidos en `shared/eventos/`:
   `grabacion` publica `ReunionFinalizadaEvent` → `transcripcion` lo escuchará (Épica 2);
-  `transcripcion` publicará `TranscripcionCompletadaEvent` para notificar vía FCM.
+  `transcripcion` publicará `TranscripcionCompletadaEvent` para avisar al usuario; hoy nadie lo escucha (el aviso se resuelve en el frontend, ADR-007) y es el punto de enganche de un futuro push remoto.
   **Excepción documentada, generalizada:** `shared/` puede depender del puerto de
   entrada de un módulo de épica cuando necesita orquestar algo transversal — nunca al
   revés, y nunca a través de los adaptadores internos de ese módulo. Cinco casos hoy:

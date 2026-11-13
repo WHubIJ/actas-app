@@ -168,9 +168,10 @@ async function obtenerReunionesFinalizadas(): Promise<ReunionResumenBackend[]> {
 
 /**
  * Corresponde a `GET /api/transcripcion/estados`. En lote: una sola petición
- * para toda la lista, no una por tarjeta.
+ * para toda la lista, no una por tarjeta. También la usa el seguimiento de
+ * transcripciones en curso (`src/notificaciones/`) en cada sondeo.
  */
-async function obtenerEstadosTranscripcion(
+export async function obtenerEstadosTranscripcion(
   reunionIds: string[],
 ): Promise<Record<string, EstadoTranscripcion>> {
   if (reunionIds.length === 0) return {};

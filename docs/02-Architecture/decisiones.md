@@ -9,7 +9,8 @@ Backend Java + Spring Boot, base de datos Supabase (Postgres), storage de audios
 en Supabase Storage, autenticación con Supabase Auth (ADR-005: el backend valida el
 JWT, no lo emite), frontend React Native (Expo),
 transcripción/resumen vía Mistral (Voxtral Mini Transcribe V2 — ver ADR-006),
-notificaciones push vía Firebase Cloud Messaging.
+aviso de transcripción terminada solo en el frontend (sondeo + notificación del
+navegador o local), sin push remoto por ahora — ver ADR-007.
 
 ## Arquitectura del backend (ADR-002)
 
