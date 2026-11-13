@@ -58,7 +58,9 @@ export function Input({ label, help, helpTone = 'neutral', error, icon, right, h
             setFocused(false);
             onBlur?.(e);
           }}
-          style={[t.typography.body, { flex: 1, color: c.text, fontSize: 15, paddingVertical: 0 }, style]}
+          // El anillo de foco lo dibuja el contenedor (borde + halo); sin esto
+          // el navegador añade su propio contorno azul encima en web.
+          style={[t.typography.body, { flex: 1, color: c.text, fontSize: 15, paddingVertical: 0, outlineStyle: 'none' } as never, style]}
         />
         {right}
       </View>
