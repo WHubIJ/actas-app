@@ -1,51 +1,39 @@
 import { View } from 'react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Text } from '../../components/ui';
-import type { IntervencionTranscripcion } from '../types';
+import { iniciales } from '../utils/formato';
+import { AvatarIniciales } from './AvatarIniciales';
 
 interface Props {
-  intervencion: IntervencionTranscripcion;
+  nombre: string;
+  texto: string;
+  /** Marca de tiempo ya formateada. Solo si existe de verdad: el texto del backend no la trae. */
+  marca?: string;
 }
 
-const TAMANO_AVATAR = 30;
-
 /**
- * Una intervención de la transcripción. Sin tarjeta ni borde: en un texto
- * largo, encuadrar cada turno lo convierte en una lista de cajas y se pierde
- * la lectura corrida. La jerarquía la dan el nombre y la marca de tiempo.
+ * Un turno de la transcripción (`ma-tx-turn`). Sin tarjeta ni borde: en un
+ * texto largo, encuadrar cada turno lo convierte en una lista de cajas y se
+ * pierde la lectura corrida. La jerarquía la dan el avatar y el nombre.
  */
-export function FilaIntervencion({ intervencion }: Props) {
+export function FilaIntervencion({ nombre, texto, marca }: Props) {
   const t = useTheme();
   return (
-    <View style={{ flexDirection: 'row', gap: t.spacing[3] }}>
-      <View
-        style={{
-          width: TAMANO_AVATAR,
-          height: TAMANO_AVATAR,
-          borderRadius: TAMANO_AVATAR / 2,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: t.colors.surface2,
-          boxShadow: `inset 0 0 0 1px ${t.colors.border}`,
-          flexShrink: 0,
-          marginTop: 2,
-        }}
-      >
-        <Text style={{ fontFamily: 'Geist_600SemiBold', fontSize: 12 }} color="text2">
-          {intervencion.interviniente.charAt(0).toUpperCase()}
+    <View style={{ flexDirection: 'row', gap: t.spacing[4], paddingVertical: t.spacing[4] }}>
+      {marca ? (
+        <Text variant="metadata" color="text3" style={{ width: t.spacing[12], lineHeight: t.typography.bodyStrong.lineHeight }}>
+          {marca}
         </Text>
-      </View>
+      ) : null}
 
       <View style={{ flex: 1, gap: t.spacing[1] }}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: t.spacing[2] }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[2] }}>
+          <AvatarIniciales iniciales={iniciales(nombre)} tamano={t.size.controlSm - 4} />
           <Text variant="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
-            {intervencion.interviniente}
-          </Text>
-          <Text variant="metadata" color="text3">
-            {intervencion.marca}
+            {nombre}
           </Text>
         </View>
-        <Text variant="bodyLg">{intervencion.texto}</Text>
+        <Text variant="bodyLg">{texto}</Text>
       </View>
     </View>
   );

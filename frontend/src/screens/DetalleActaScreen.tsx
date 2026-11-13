@@ -1,41 +1,41 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { View, Pressable, ScrollView, Animated, Easing, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import {
-  AudioLines,
-  ChevronLeft,
-  FileText,
-  Hash,
-  Link2,
-  ListChecks,
-  RotateCw,
-  ScrollText,
-  Share2,
-  Sparkles,
-  Trash2,
-  TriangleAlert,
-} from 'lucide-react-native';
+import { AudioLines, ChevronLeft, Share2, Trash2, TriangleAlert } from 'lucide-react-native';
 import type { RootStackParamList } from '../../App';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Text, Button, Aviso, BadgeEstado, AvatarStack, EstadoVacio, PantallaCarga } from '../../components/ui';
+import { useBreakpoint } from '../../theme/useBreakpoint';
+import { Text, Button, Aviso, AIMark, BadgeEstado, EstadoVacio, PantallaCarga } from '../../components/ui';
+import { MarcoPagina, type Miga } from '../components/MarcoPagina';
 import { SelectorSegmentos, type Segmento } from '../components/SelectorSegmentos';
+import { PestanasSubrayadas } from '../components/PestanasSubrayadas';
 import { TarjetaSeccionResumen } from '../components/TarjetaSeccionResumen';
 import { FilaIntervencion } from '../components/FilaIntervencion';
 import { HojaOpciones, type OpcionHoja } from '../components/HojaOpciones';
+import { HojaCompartir } from '../components/HojaCompartir';
+import { SelectorPlantilla } from '../components/SelectorPlantilla';
+import { AccionesIA, CabeceraGenerado, LineasGenerando } from '../components/AccionesIA';
+import { DocumentoActa } from '../components/DocumentoActa';
+import { PanelParticipantes } from '../components/PanelParticipantes';
+import { ProcesandoIA } from '../components/ProcesandoIA';
 import { buscarActa } from '../mocks/actas';
+import { useSeguimientoTranscripciones } from '../notificaciones/SeguimientoTranscripciones';
 import { obtenerActaDetalle, generarResumen, eliminarReunion, hayBackend, ErrorApi } from '../services/api';
 import { compartirActa, compartirEnlace, ErrorCompartir } from '../services/compartirService';
+import { useCuenta } from '../services/useCuenta';
 import { formatearMinutos } from '../utils/formato';
 import { parsearResumenMarkdown } from '../utils/markdownActa';
-import type {
-  ActaDetalle,
-  EstadoTranscripcion,
-  FormatoArchivo,
-  IntervencionTranscripcion,
-  PlantillaResumen,
-  SeccionResumen,
-} from '../types';
+import {
+  ETIQUETA_PLANTILLA,
+  accionesRegenerar,
+  metadatosDetalle,
+  opcionesCompartir,
+  partirEnTurnos,
+  type DescripcionCompartir,
+  type OpcionCompartir,
+} from '../utils/detalleActa';
+import type { ActaDetalle, EstadoTranscripcion, PlantillaResumen, SeccionResumen } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DetalleActa'>;
 
@@ -46,51 +46,25 @@ const PESTANAS: ReadonlyArray<Segmento<Pestana>> = [
   { id: 'transcripcion', etiqueta: 'Transcripción' },
 ];
 
-const PLANTILLAS: ReadonlyArray<OpcionHoja<PlantillaResumen>> = [
-  {
-    id: 'RESUMEN_EJECUTIVO',
-    titulo: 'Resumen ejecutivo',
-    descripcion: 'Media página con lo esencial de la reunión.',
-    icono: Sparkles,
-  },
-  {
-    id: 'ACTA_FORMAL',
-    titulo: 'Acta formal',
-    descripcion: 'Orden del día, desarrollo, acuerdos y cierre.',
-    icono: ScrollText,
-  },
-  {
-    id: 'LISTA_ACUERDOS',
-    titulo: 'Lista de acuerdos',
-    descripcion: 'Solo decisiones y tareas, con responsable y plazo.',
-    icono: ListChecks,
-  },
-];
-
-/**
- * Formatos de exportación del resumen. El backend los convierte al vuelo
- * desde el Markdown ya generado (`GeneradorDocumentoAdapter`, iText/POI), sin
- * volver a llamar a la IA. La transcripción por regla de negocio solo sale en
- * PDF, así que su pestaña comparte directo sin pasar por esta hoja (ver
- * `onCompartir`).
- */
-const FORMATOS_RESUMEN: ReadonlyArray<OpcionHoja<FormatoArchivo>> = [
-  { id: 'MARKDOWN', titulo: 'Markdown', descripcion: 'Texto plano para notas o wiki.', icono: Hash },
-  { id: 'PDF', titulo: 'PDF', descripcion: 'Listo para imprimir o archivar.', icono: FileText },
-  { id: 'WORD', titulo: 'Word', descripcion: 'Documento editable (.docx).', icono: FileText },
-];
-
 /** `Alert.alert` no existe en web, donde se usa la app sobre todo: la confirmación es una hoja propia. */
 const OPCIONES_ELIMINAR: ReadonlyArray<OpcionHoja<'eliminar' | 'cancelar'>> = [
   { id: 'eliminar', titulo: 'Eliminar acta', icono: Trash2, destructiva: true },
   { id: 'cancelar', titulo: 'Cancelar' },
 ];
 
+/** Columnas de lectura del kit: `ma-doc` (720) para el resumen y `ma-tx` (760) para la transcripción. */
+const ANCHO_LECTURA: Record<Pestana, number> = { resumen: 720, transcripcion: 760 };
+
 /** Ritmo de la generación simulada del resumen (solo sin backend). */
 const MS_GENERACION = 2200;
 
+const enCurso = (estado: EstadoTranscripcion) => estado === 'PENDIENTE' || estado === 'EN_PROCESO';
+
 export function DetalleActaScreen({ route, navigation }: Props) {
   const t = useTheme();
+  const movil = useBreakpoint() === 'movil';
+  const { seguir, dejarDeSeguir, estadoDe, observar, versionTerminadas } = useSeguimientoTranscripciones();
+  const { cuenta } = useCuenta();
   const insets = useSafeAreaInsets();
   const { actaId } = route.params;
 
@@ -101,6 +75,8 @@ export function DetalleActaScreen({ route, navigation }: Props) {
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [intento, setIntento] = useState(0);
 
+  // `versionTerminadas` sube cuando el sondeo global ve terminar alguna
+  // transcripción: si era esta, la recarga trae el texto ya listo.
   useEffect(() => {
     if (!hayBackend) return;
     let cancelado = false;
@@ -117,17 +93,26 @@ export function DetalleActaScreen({ route, navigation }: Props) {
     return () => {
       cancelado = true;
     };
-  }, [actaId, intento]);
+  }, [actaId, intento, versionTerminadas]);
+
+  // Mientras se transcribe, esta pantalla ya enseña el progreso: se apunta al
+  // sondeo global y se encarga ella del final (ver `observar`).
+  useEffect(() => {
+    if (!acta || !enCurso(acta.estadoTranscripcion)) return;
+    seguir([{ id: acta.id, titulo: acta.titulo, estado: acta.estadoTranscripcion }]);
+    return observar(acta.id);
+  }, [acta, seguir, observar]);
 
   const [pestana, setPestana] = useState<Pestana>('resumen');
   const [resumen, setResumen] = useState<SeccionResumen[] | null>(actaInicial?.resumen ?? null);
-  const [generando, setGenerando] = useState(false);
+  const [plantilla, setPlantilla] = useState<PlantillaResumen | null>(actaInicial?.plantillaResumen ?? null);
+  const [plantillaElegida, setPlantillaElegida] = useState<PlantillaResumen>('ACTA_FORMAL');
+  // La plantilla que se está generando, para nombrarla mientras tanto.
+  const [generando, setGenerando] = useState<PlantillaResumen | null>(null);
   const [errorResumen, setErrorResumen] = useState<string | null>(null);
-  const [hojaPlantillas, setHojaPlantillas] = useState(false);
-  const [hojaFormatos, setHojaFormatos] = useState(false);
-  // La misma hoja de formatos sirve a "Compartir" (archivo) y a "Enlace de 24 h".
-  const [modoHoja, setModoHoja] = useState<'archivo' | 'enlace'>('archivo');
-  const [formato, setFormato] = useState<FormatoArchivo>('MARKDOWN');
+  const [hojaCompartir, setHojaCompartir] = useState(false);
+  const [opcionCompartir, setOpcionCompartir] = useState<OpcionCompartir>('ACTA_PDF');
+  const [comoEnlace, setComoEnlace] = useState(false);
   const [compartiendo, setCompartiendo] = useState(false);
   const [enlazando, setEnlazando] = useState(false);
   const [errorCompartir, setErrorCompartir] = useState<string | null>(null);
@@ -162,83 +147,80 @@ export function DetalleActaScreen({ route, navigation }: Props) {
     });
   }, [pestana, resumen, generando, aparicion]);
 
+  // Misma comprobación que hace compartirService antes de descargar: sin
+  // texto no hay PDF de transcripción que pedir al backend.
+  const hayTranscripcion = !!acta && (acta.intervenciones.length > 0 || !!acta.textoTranscripcion);
+  const opciones = useMemo(
+    () => opcionesCompartir({ hayResumen: resumen !== null, hayTranscripcion, duracionMinutos: acta?.duracionMinutos ?? 0 }),
+    [resumen, hayTranscripcion, acta?.duracionMinutos],
+  );
+
   /**
-   * Genera el archivo y abre el share sheet. El acta se recompone con el
-   * `resumen` del estado, no con el del mock: si se acaba de generar en esta
+   * Genera el archivo (o el enlace de 24 h) y lo entrega. El acta se
+   * recompone con el `resumen` del estado: si se acaba de generar en esta
    * pantalla, `acta.resumen` sigue siendo `null`.
    */
-  const compartir = useCallback(
-    async (formatoElegido: FormatoArchivo) => {
+  const entregar = useCallback(
+    async (opcion: DescripcionCompartir, enlace: boolean) => {
       if (!acta) return;
-      setHojaFormatos(false);
-      // La hoja de formatos es solo del resumen: el PDF forzado de la
-      // transcripción no debe cambiar su selección.
-      if (pestana === 'resumen') setFormato(formatoElegido);
+      setHojaCompartir(false);
       setErrorCompartir(null);
+      setAvisoEnlace(null);
+      const peticion = { acta: { ...acta, resumen }, formato: opcion.formato, contenido: opcion.contenido };
+
+      if (enlace) {
+        setEnlazando(true);
+        try {
+          // En web sin `navigator.share` solo se copia al portapapeles, y es el aviso quien lo confirma.
+          const { copiado } = await compartirEnlace(peticion);
+          if (copiado) setAvisoEnlace('Enlace copiado. Caduca en 24 h.');
+        } catch (error) {
+          setErrorCompartir(error instanceof ErrorCompartir ? error.message : 'No pudimos crear el enlace. Inténtalo de nuevo.');
+        } finally {
+          setEnlazando(false);
+        }
+        return;
+      }
+
       setCompartiendo(true);
       try {
-        await compartirActa({
-          acta: { ...acta, resumen },
-          formato: formatoElegido,
-          contenido: pestana,
-        });
+        await compartirActa(peticion);
       } catch (error) {
-        setErrorCompartir(
-          error instanceof ErrorCompartir
-            ? error.message
-            : 'No pudimos compartir el acta. Inténtalo de nuevo.',
-        );
+        setErrorCompartir(error instanceof ErrorCompartir ? error.message : 'No pudimos compartir el acta. Inténtalo de nuevo.');
       } finally {
         setCompartiendo(false);
       }
     },
-    [acta, resumen, pestana],
+    [acta, resumen],
   );
 
-  /**
-   * Crea el enlace de 24 h y lo entrega. En web sin `navigator.share` solo se
-   * copia al portapapeles, y es el aviso quien confirma que se hizo.
-   */
-  const compartirPorEnlace = useCallback(
-    async (formatoElegido: FormatoArchivo) => {
-      if (!acta) return;
-      setHojaFormatos(false);
-      if (pestana === 'resumen') setFormato(formatoElegido);
-      setErrorCompartir(null);
-      setAvisoEnlace(null);
-      setEnlazando(true);
-      try {
-        const { copiado } = await compartirEnlace({
-          acta: { ...acta, resumen },
-          formato: formatoElegido,
-          contenido: pestana,
-        });
-        if (copiado) setAvisoEnlace('Enlace copiado. Caduca en 24 h.');
-      } catch (error) {
-        setErrorCompartir(
-          error instanceof ErrorCompartir
-            ? error.message
-            : 'No pudimos crear el enlace. Inténtalo de nuevo.',
-        );
-      } finally {
-        setEnlazando(false);
-      }
-    },
-    [acta, resumen, pestana],
-  );
+  const abrirCompartir = useCallback(() => {
+    // Desde la pestaña de transcripción se propone la transcripción; si no,
+    // se respeta la última elección mientras siga disponible.
+    const ids = opciones.map((o) => o.id);
+    if (pestana === 'transcripcion' && ids.includes('TRANSCRIPCION_PDF')) setOpcionCompartir('TRANSCRIPCION_PDF');
+    else if (!ids.includes(opcionCompartir)) setOpcionCompartir(ids[0]);
+    setHojaCompartir(true);
+  }, [opciones, opcionCompartir, pestana]);
+
+  const confirmarCompartir = () => {
+    const opcion = opciones.find((o) => o.id === opcionCompartir) ?? opciones[0];
+    if (opcion) entregar(opcion, hayBackend && comoEnlace);
+  };
 
   const generar = useCallback(
-    async (plantilla: PlantillaResumen) => {
+    async (elegida: PlantillaResumen) => {
       if (!acta) return;
-      setHojaPlantillas(false);
       setErrorResumen(null);
-      setGenerando(true);
+      setPestana('resumen');
+      setGenerando(elegida);
 
       if (!hayBackend) {
         // Sin backend, mismo patrón que el resto de la app: simulación local.
         setTimeout(() => {
           setResumen(RESUMEN_GENERADO);
-          setGenerando(false);
+          setPlantilla(elegida);
+          setGenerando(null);
         }, MS_GENERACION);
         return;
       }
@@ -248,21 +230,26 @@ export function DetalleActaScreen({ route, navigation }: Props) {
         // las secciones del resumen. El formato que elige el usuario al
         // compartir es un paso aparte — el backend convierte este mismo
         // contenido a PDF/Word al descargarlo, sin generarlo de nuevo.
-        const { contenido } = await generarResumen(actaId, acta.textoTranscripcion ?? '', plantilla, 'MARKDOWN');
+        const { contenido } = await generarResumen(actaId, acta.textoTranscripcion ?? '', elegida, 'MARKDOWN');
         setResumen(parsearResumenMarkdown(contenido));
+        setPlantilla(elegida);
       } catch (error) {
         setErrorResumen(error instanceof ErrorApi ? error.message : 'No se pudo generar el resumen.');
       } finally {
-        setGenerando(false);
+        setGenerando(null);
       }
     },
     [acta, actaId],
   );
 
+  // En móvil la lista se llama "Mis actas" (pestaña Inicio) y Reuniones no está
+  // en la barra inferior; en escritorio se llega desde la tabla de Reuniones.
+  const destinoVolver = movil ? 'Inicio' : 'Reuniones';
+  const etiquetaVolver = movil ? 'Mis actas' : 'Reuniones';
   const volver = useCallback(() => {
     if (navigation.canGoBack()) navigation.goBack();
-    else navigation.navigate('Tabs', { screen: 'Inicio' });
-  }, [navigation]);
+    else navigation.navigate('Tabs', { screen: destinoVolver });
+  }, [navigation, destinoVolver]);
 
   const eliminar = useCallback(
     async (opcion: 'eliminar' | 'cancelar') => {
@@ -272,6 +259,7 @@ export function DetalleActaScreen({ route, navigation }: Props) {
       setEliminando(true);
       try {
         await eliminarReunion(actaId);
+        dejarDeSeguir(actaId);
         volver();
       } catch (error) {
         // Con estos dos códigos el mensaje ya dice qué hacer; el resto es
@@ -284,10 +272,12 @@ export function DetalleActaScreen({ route, navigation }: Props) {
         setEliminando(false);
       }
     },
-    [actaId, eliminando, volver],
+    [actaId, eliminando, volver, dejarDeSeguir],
   );
 
-  const encabezado = (
+  const migas: ReadonlyArray<Miga> = [{ etiqueta: 'Reuniones', onPress: volver }, { etiqueta: acta?.titulo ?? 'Reunión' }];
+
+  const cabeceraMovil = (
     <View
       style={{
         flexDirection: 'row',
@@ -297,14 +287,10 @@ export function DetalleActaScreen({ route, navigation }: Props) {
         paddingHorizontal: t.spacing[4],
       }}
     >
-      <Pressable
-        onPress={volver}
-        accessibilityRole="button"
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 44 }}
-      >
-        <ChevronLeft size={22} color={t.colors.brandStrong} strokeWidth={2} />
+      <Pressable onPress={volver} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: t.size.touchMin }}>
+        <ChevronLeft size={22} color={t.colors.brandStrong} strokeWidth={1.6} />
         <Text variant="body" color="brandStrong">
-          Mis actas
+          {etiquetaVolver}
         </Text>
       </Pressable>
 
@@ -316,29 +302,37 @@ export function DetalleActaScreen({ route, navigation }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Eliminar acta"
           accessibilityState={{ disabled: eliminando, busy: eliminando }}
-          style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: t.size.touchMin, height: t.size.touchMin, alignItems: 'center', justifyContent: 'center' }}
         >
           {eliminando ? (
             <ActivityIndicator size="small" color={t.colors.danger} />
           ) : (
-            <Trash2 size={20} color={t.colors.danger} strokeWidth={1.8} />
+            <Trash2 size={t.size.iconMd} color={t.colors.danger} strokeWidth={1.6} />
           )}
         </Pressable>
       )}
     </View>
   );
 
-  if (!acta && errorCarga) {
-    return (
+  /** Estados sin acta (error o enlace caducado): mismo `EstadoVacio`, con el marco de cada plataforma. */
+  const sinActa = (contenido: ReactNode) =>
+    movil ? (
       <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
-        {encabezado}
-        <EstadoVacio
-          icono={TriangleAlert}
-          titulo="No se pudo cargar el acta"
-          descripcion={errorCarga}
-          accion={{ titulo: 'Reintentar', onPress: () => setIntento((n) => n + 1) }}
-        />
+        {cabeceraMovil}
+        {contenido}
       </View>
+    ) : (
+      <MarcoPagina migas={migas}>{contenido}</MarcoPagina>
+    );
+
+  if (!acta && errorCarga) {
+    return sinActa(
+      <EstadoVacio
+        icono={TriangleAlert}
+        titulo="No se pudo cargar el acta"
+        descripcion={errorCarga}
+        accion={{ titulo: 'Reintentar', onPress: () => setIntento((n) => n + 1) }}
+      />,
     );
   }
 
@@ -349,130 +343,108 @@ export function DetalleActaScreen({ route, navigation }: Props) {
   // Ni hay backend ni el mock conoce este id: solo puede pasar con un enlace
   // profundo caducado.
   if (!acta) {
-    return (
-      <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
-        {encabezado}
-        <EstadoVacio
-          icono={TriangleAlert}
-          titulo="No encontramos esta acta"
-          descripcion="Puede que se haya eliminado o que el enlace ya no sea válido."
-          accion={{ titulo: 'Volver a mis actas', onPress: volver }}
-        />
-      </View>
+    return sinActa(
+      <EstadoVacio
+        icono={TriangleAlert}
+        titulo="No encontramos esta acta"
+        descripcion="Puede que se haya eliminado o que el enlace ya no sea válido."
+        accion={{ titulo: 'Volver a reuniones', onPress: volver }}
+      />,
     );
   }
 
-  // Misma comprobación que hace compartirService antes de descargar: sin
-  // texto no hay PDF de transcripción que pedir al backend.
-  const hayTranscripcion = acta.intervenciones.length > 0 || !!acta.textoTranscripcion;
-  const puedeCompartir = pestana === 'resumen' ? resumen !== null : hayTranscripcion;
-  // La transcripción solo sale en PDF: elegir formato no tiene sentido ahí.
-  const abrirFormatos = (modo: 'archivo' | 'enlace') => {
-    setModoHoja(modo);
-    setHojaFormatos(true);
-  };
-  const onCompartir = () => (pestana === 'resumen' ? abrirFormatos('archivo') : compartir('PDF'));
-  const onEnlace = () => (pestana === 'resumen' ? abrirFormatos('enlace') : compartirPorEnlace('PDF'));
+  const completada = acta.estadoTranscripcion === 'COMPLETADA';
+  const ocupadoCompartiendo = compartiendo || enlazando;
 
-  return (
-    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
-      {encabezado}
+  const avisos = (
+    <>
+      {errorEliminar && <Aviso tono="error" mensaje={errorEliminar} onCerrar={() => setErrorEliminar(null)} />}
+      {errorCompartir && <Aviso tono="error" mensaje={errorCompartir} onCerrar={() => setErrorCompartir(null)} />}
+      {avisoEnlace && <Aviso tono="info" mensaje={avisoEnlace} onCerrar={() => setAvisoEnlace(null)} />}
+    </>
+  );
 
-      {errorEliminar && (
-        <View style={{ paddingHorizontal: t.spacing[5], paddingTop: t.spacing[2] }}>
-          <Aviso tono="error" mensaje={errorEliminar} onCerrar={() => setErrorEliminar(null)} />
-        </View>
+  // Pendiente, en curso o fallida: no hay texto todavía, así que el contenido
+  // es el estado de procesado (o su error), que ya trae título y metadatos.
+  const estadoProcesado = !completada && (
+    <ProcesandoIA
+      titulo={acta.titulo}
+      metadatos={`${acta.fecha} · ${formatearMinutos(acta.duracionMinutos)}`}
+      transcripcion={estadoDe(actaId) ?? acta.estadoTranscripcion}
+      amplio={!movil}
+      mensajeError={
+        acta.estadoTranscripcion === 'FALLIDA'
+          ? 'La transcripción falló tras tres intentos y sin texto no se puede generar el resumen. Si es posible, vuelve a grabar la reunión.'
+          : undefined
+      }
+    />
+  );
+
+  const cabecera = (
+    <View style={{ gap: t.spacing[3] }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: t.spacing[3] }}>
+        <BadgeEstado estado={acta.estadoTranscripcion} />
+        <Text variant="metadata" color="text2">
+          {metadatosDetalle(acta.fecha, acta.duracionMinutos, acta.participantes.length)}
+        </Text>
+      </View>
+      <Text variant="heading" accessibilityRole="header">
+        {acta.titulo}
+      </Text>
+    </View>
+  );
+
+  const pestanas = movil ? (
+    <SelectorSegmentos segmentos={PESTANAS} activo={pestana} onSeleccionar={setPestana} />
+  ) : (
+    <PestanasSubrayadas pestanas={PESTANAS} activa={pestana} onSeleccionar={setPestana} />
+  );
+
+  const panel = (
+    <Animated.View style={{ minHeight: 200, opacity: aparicion, width: '100%', maxWidth: movil ? undefined : ANCHO_LECTURA[vista.pestana] }}>
+      {vista.pestana === 'resumen' ? (
+        <PanelResumen
+          acta={acta}
+          resumen={vista.resumen}
+          plantilla={plantilla}
+          plantillaElegida={plantillaElegida}
+          onElegirPlantilla={setPlantillaElegida}
+          generando={vista.generando}
+          error={errorResumen}
+          onCerrarError={() => setErrorResumen(null)}
+          onGenerar={generar}
+          amplio={!movil}
+          organizacion={cuenta?.organizacionNombre ?? null}
+        />
+      ) : (
+        <PanelTranscripcion acta={acta} />
       )}
+    </Animated.View>
+  );
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: t.spacing[5], paddingBottom: t.spacing[16], gap: t.spacing[5] }}>
-        <View style={{ gap: t.spacing[2], paddingTop: t.spacing[2] }}>
-          <BadgeEstado estado={acta.estadoTranscripcion} />
-          <Text variant="title">{acta.titulo}</Text>
-          <Text variant="caption" color="text2">
-            {acta.fecha} · {formatearMinutos(acta.duracionMinutos)}
-          </Text>
-          <View style={{ marginTop: t.spacing[1] }}>
-            <AvatarStack participantes={acta.participantes} />
-          </View>
-        </View>
+  const contenido = completada ? (
+    <>
+      {cabecera}
+      {pestanas}
+      {panel}
+    </>
+  ) : (
+    estadoProcesado
+  );
 
-        <SelectorSegmentos segmentos={PESTANAS} activo={pestana} onSeleccionar={setPestana} />
-
-        <Animated.View style={{ minHeight: 200, opacity: aparicion }}>
-          {vista.pestana === 'resumen' && (
-            <PanelResumen
-              estadoTranscripcion={acta.estadoTranscripcion}
-              generando={vista.generando}
-              resumen={vista.resumen}
-              error={errorResumen}
-              onCerrarError={() => setErrorResumen(null)}
-              onGenerar={() => setHojaPlantillas(true)}
-              onVerTranscripcion={() => setPestana('transcripcion')}
-            />
-          )}
-
-          {vista.pestana === 'transcripcion' && (
-            <PanelTranscripcion
-              estado={acta.estadoTranscripcion}
-              intervenciones={acta.intervenciones}
-              textoTranscripcion={acta.textoTranscripcion}
-            />
-          )}
-        </Animated.View>
-      </ScrollView>
-
-      {puedeCompartir && (
-        <View style={{ gap: t.spacing[3], paddingHorizontal: t.spacing[5], paddingTop: t.spacing[3], paddingBottom: Math.max(insets.bottom, t.spacing[5]), backgroundColor: t.colors.surface, borderTopWidth: 1, borderTopColor: t.colors.border }}>
-          {errorCompartir && <Aviso tono="error" mensaje={errorCompartir} onCerrar={() => setErrorCompartir(null)} />}
-          {avisoEnlace && <Aviso tono="info" mensaje={avisoEnlace} onCerrar={() => setAvisoEnlace(null)} />}
-          <Button
-            label={compartiendo ? 'Preparando archivo' : 'Compartir'}
-            size="xl"
-            fullWidth
-            loading={compartiendo}
-            disabled={enlazando}
-            icon={(c) => <Share2 size={18} color={c} strokeWidth={1.8} />}
-            onPress={onCompartir}
-          />
-          {/* Sin backend no hay enlace posible (lo sirve el servidor), así que ni se ofrece. */}
-          {hayBackend && (
-            <Button
-              label={enlazando ? 'Creando enlace' : 'Enlace de 24 h'}
-              variant="secondary"
-              size="xl"
-              fullWidth
-              loading={enlazando}
-              disabled={compartiendo}
-              icon={(c) => <Link2 size={18} color={c} strokeWidth={1.8} />}
-              onPress={onEnlace}
-            />
-          )}
-        </View>
-      )}
-
-      <HojaOpciones
-        visible={hojaPlantillas}
-        titulo="Elige una plantilla"
-        descripcion="Define cómo la IA estructura el acta a partir de la transcripción."
-        opciones={PLANTILLAS}
-        onSeleccionar={generar}
-        onCerrar={() => setHojaPlantillas(false)}
+  const hojas = (
+    <>
+      <HojaCompartir
+        visible={hojaCompartir}
+        opciones={opciones}
+        seleccionada={opcionCompartir}
+        onSeleccionar={setOpcionCompartir}
+        // Sin backend no hay enlace posible (lo sirve el servidor), así que ni se ofrece.
+        comoEnlace={hayBackend ? comoEnlace : null}
+        onCambiarEnlace={setComoEnlace}
+        onConfirmar={confirmarCompartir}
+        onCerrar={() => setHojaCompartir(false)}
       />
-
-      <HojaOpciones
-        visible={hojaFormatos}
-        titulo={modoHoja === 'enlace' ? 'Enlace de 24 h como' : 'Compartir como'}
-        descripcion={
-          modoHoja === 'enlace'
-            ? 'Quien abra el enlace descarga el archivo sin iniciar sesión. Caduca en 24 h.'
-            : 'Se genera el archivo y se abre el menú de compartir del sistema.'
-        }
-        opciones={FORMATOS_RESUMEN}
-        seleccionada={formato}
-        onSeleccionar={modoHoja === 'enlace' ? compartirPorEnlace : compartir}
-        onCerrar={() => setHojaFormatos(false)}
-      />
-
       <HojaOpciones
         visible={hojaEliminar}
         titulo="¿Eliminar esta acta?"
@@ -481,157 +453,238 @@ export function DetalleActaScreen({ route, navigation }: Props) {
         onSeleccionar={eliminar}
         onCerrar={() => setHojaEliminar(false)}
       />
+    </>
+  );
+
+  if (!movil) {
+    const iconoCompartir = (c: string) => <Share2 size={t.size.iconSm} color={c} strokeWidth={1.6} />;
+    const acciones = (
+      <>
+        <Button
+          label="Eliminar"
+          variant="ghost"
+          size="sm"
+          loading={eliminando}
+          icon={(c) => <Trash2 size={t.size.iconSm} color={c} strokeWidth={1.6} />}
+          onPress={() => setHojaEliminar(true)}
+        />
+        {/* Un solo primario: "Generar resumen" mientras no lo hay; después, "Compartir". */}
+        <Button
+          label="Compartir"
+          variant={resumen ? 'primary' : 'secondary'}
+          size="sm"
+          loading={ocupadoCompartiendo}
+          disabled={opciones.length === 0}
+          icon={iconoCompartir}
+          onPress={abrirCompartir}
+        />
+        {!resumen && completada && (
+          <Button
+            label="Generar resumen"
+            size="sm"
+            loading={generando !== null}
+            icon={(c) => <AIMark size={t.size.iconSm} color={c} />}
+            onPress={() => generar(plantillaElegida)}
+          />
+        )}
+      </>
+    );
+
+    return (
+      <>
+        <MarcoPagina migas={migas} acciones={acciones} panelDerecho={<PanelParticipantes participantes={acta.participantes} />}>
+          <View style={{ gap: t.spacing[6] }}>
+            {avisos}
+            {contenido}
+          </View>
+        </MarcoPagina>
+        {hojas}
+      </>
+    );
+  }
+
+  // Móvil: un solo botón fijo abajo, según lo que se pueda hacer ahora.
+  const botonMovil = resumen ? (
+    <Button
+      label={ocupadoCompartiendo ? 'Preparando' : 'Compartir acta'}
+      size="xl"
+      fullWidth
+      loading={ocupadoCompartiendo}
+      disabled={generando !== null}
+      icon={(c) => <Share2 size={18} color={c} strokeWidth={1.6} />}
+      onPress={abrirCompartir}
+    />
+  ) : completada && pestana === 'resumen' ? (
+    <Button
+      label={generando ? 'Generando resumen' : 'Generar resumen'}
+      size="xl"
+      fullWidth
+      loading={generando !== null}
+      icon={(c) => <AIMark size={18} color={c} />}
+      onPress={() => generar(plantillaElegida)}
+    />
+  ) : hayTranscripcion ? (
+    <Button
+      label={ocupadoCompartiendo ? 'Preparando' : 'Compartir transcripción'}
+      size="xl"
+      fullWidth
+      loading={ocupadoCompartiendo}
+      icon={(c) => <Share2 size={18} color={c} strokeWidth={1.6} />}
+      onPress={abrirCompartir}
+    />
+  ) : null;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+      {cabeceraMovil}
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: t.spacing[5], paddingTop: t.spacing[2], paddingBottom: t.spacing[16], gap: t.spacing[5] }}
+      >
+        {errorEliminar && <Aviso tono="error" mensaje={errorEliminar} onCerrar={() => setErrorEliminar(null)} />}
+        {contenido}
+      </ScrollView>
+
+      {botonMovil && (
+        <View
+          style={{
+            gap: t.spacing[3],
+            paddingHorizontal: t.spacing[5],
+            paddingTop: t.spacing[3],
+            paddingBottom: Math.max(insets.bottom, t.spacing[5]),
+            backgroundColor: t.colors.surface,
+            borderTopWidth: 1,
+            borderTopColor: t.colors.border,
+          }}
+        >
+          {errorCompartir && <Aviso tono="error" mensaje={errorCompartir} onCerrar={() => setErrorCompartir(null)} />}
+          {avisoEnlace && <Aviso tono="info" mensaje={avisoEnlace} onCerrar={() => setAvisoEnlace(null)} />}
+          {botonMovil}
+        </View>
+      )}
+
+      {hojas}
     </View>
   );
 }
 
-/** Pestaña "Resumen": sin transcripción / no generado / generándose / generado. */
+/** Pestaña "Resumen" con la transcripción lista: sin resumen / generándose / generado. */
 function PanelResumen({
-  estadoTranscripcion,
-  generando,
+  acta,
   resumen,
+  plantilla,
+  plantillaElegida,
+  onElegirPlantilla,
+  generando,
   error,
   onCerrarError,
   onGenerar,
-  onVerTranscripcion,
+  amplio,
+  organizacion,
 }: {
-  estadoTranscripcion: EstadoTranscripcion;
-  generando: boolean;
+  acta: ActaDetalle;
   resumen: SeccionResumen[] | null;
+  plantilla: PlantillaResumen | null;
+  plantillaElegida: PlantillaResumen;
+  onElegirPlantilla: (plantilla: PlantillaResumen) => void;
+  generando: PlantillaResumen | null;
   error: string | null;
   onCerrarError: () => void;
-  onGenerar: () => void;
-  onVerTranscripcion: () => void;
+  onGenerar: (plantilla: PlantillaResumen) => void;
+  amplio: boolean;
+  organizacion: string | null;
 }) {
   const t = useTheme();
-
-  // Sin transcripción no hay resumen posible, pero el motivo importa: si falló
-  // no llegará nunca sola y hay que mandar al usuario a reintentarla.
-  if (estadoTranscripcion === 'FALLIDA') {
-    return (
-      <EstadoVacio
-        icono={TriangleAlert}
-        titulo="No se puede resumir esta reunión"
-        descripcion="La transcripción falló, y sin texto la IA no tiene de dónde partir. Reintenta la transcripción y vuelve aquí."
-        accion={{ titulo: 'Ver la transcripción', onPress: onVerTranscripcion }}
-      />
-    );
-  }
-
-  if (estadoTranscripcion !== 'COMPLETADA') {
-    return (
-      <EstadoVacio
-        icono={AudioLines}
-        titulo="Todavía no hay transcripción"
-        descripcion="El resumen se genera a partir del texto transcrito. En cuanto la transcripción termine, podrás pedirlo."
-      />
-    );
-  }
-
-  if (generando) {
-    return (
-      <View style={{ gap: t.spacing[4], paddingVertical: t.spacing[10] }}>
-        <Button label="Generando resumen" size="xl" fullWidth loading onPress={() => {}} />
-        <Text variant="caption" color="text2" style={{ textAlign: 'center' }}>
-          La IA está leyendo la transcripción. Puedes salir de la pantalla, seguirá en segundo plano.
-        </Text>
-      </View>
-    );
-  }
+  const aviso = error && <Aviso tono="error" mensaje={error} onCerrar={onCerrarError} />;
+  const lineas = generando && <LineasGenerando texto={`Redactando ${ETIQUETA_PLANTILLA[generando].toLowerCase()}…`} />;
 
   if (!resumen) {
+    if (lineas) return lineas;
     return (
-      <View style={{ gap: t.spacing[4] }}>
-        {error && <Aviso tono="error" mensaje={error} onCerrar={onCerrarError} />}
-        <EstadoVacio
-          icono={Sparkles}
-          titulo="Aún no has generado el resumen"
-          descripcion="El resumen nunca se crea solo: eliges la plantilla y la IA redacta el acta a partir de la transcripción."
-          accion={{ titulo: 'Generar resumen', onPress: onGenerar }}
-        />
+      <View style={{ gap: t.spacing[5] }}>
+        {aviso}
+        <View style={{ gap: t.spacing[2] }}>
+          <Text variant="titleSm">Aún sin resumen</Text>
+          <Text variant="body" color="text2">
+            El resumen nunca se crea solo: eliges la plantilla y la IA lo redacta a partir de la transcripción. Es un borrador; puedes
+            volver a pedirlo con otra plantilla.
+          </Text>
+        </View>
+        <SelectorPlantilla elegida={plantillaElegida} onElegir={onElegirPlantilla} />
+        {/* En móvil el botón fijo de abajo ya hace esto. */}
+        {amplio && (
+          <Button label="Generar resumen" variant="ai" icon={(c) => <AIMark size={t.size.iconSm} color={c} />} onPress={() => onGenerar(plantillaElegida)} />
+        )}
       </View>
     );
   }
 
   return (
-    <View style={{ gap: t.spacing[3] }}>
-      {resumen.map((seccion) => (
-        <TarjetaSeccionResumen key={seccion.id} seccion={seccion} />
-      ))}
+    <View style={{ gap: t.spacing[4] }}>
+      {aviso}
+      <AccionesIA acciones={accionesRegenerar(plantilla)} onElegir={onGenerar} disabled={generando !== null} />
+
+      {lineas ||
+        (plantilla === 'ACTA_FORMAL' ? (
+          <DocumentoActa acta={acta} secciones={resumen} organizacion={organizacion} amplio={amplio} />
+        ) : (
+          <View
+            style={{
+              gap: t.spacing[6],
+              padding: t.spacing[5],
+              borderRadius: t.radius.lg,
+              backgroundColor: t.colors.surface,
+              borderWidth: 1,
+              borderColor: t.colors.border,
+            }}
+          >
+            <CabeceraGenerado texto={plantilla ? `Resumen generado · ${ETIQUETA_PLANTILLA[plantilla]}` : 'Resumen generado'} />
+            {resumen.map((seccion) => (
+              <TarjetaSeccionResumen key={seccion.id} seccion={seccion} enmarcada={false} />
+            ))}
+          </View>
+        ))}
     </View>
   );
 }
 
-/** Pestaña "Transcripción": en cola / en curso / fallida / completada. */
-function PanelTranscripcion({
-  estado,
-  intervenciones,
-  textoTranscripcion,
-}: {
-  estado: EstadoTranscripcion;
-  intervenciones: IntervencionTranscripcion[];
-  /** Texto combinado del backend real, sin desglose por interviniente (ver `ActaDetalle.textoTranscripcion`). */
-  textoTranscripcion: string | null;
-}) {
+/** Pestaña "Transcripción" con la transcripción lista. */
+function PanelTranscripcion({ acta }: { acta: ActaDetalle }) {
   const t = useTheme();
+  const turnos = useMemo(() => (acta.textoTranscripcion ? partirEnTurnos(acta.textoTranscripcion) : null), [acta.textoTranscripcion]);
 
-  if (estado === 'FALLIDA') {
-    return (
-      <EstadoVacio
-        icono={TriangleAlert}
-        titulo="La transcripción falló"
-        descripcion="Se agotaron los tres intentos. Todavía no hay forma de relanzarla desde la app; vuelve a grabarla si es posible."
-      />
-    );
-  }
+  const separado = (i: number) => (i > 0 ? { borderTopWidth: 1, borderTopColor: t.colors.border } : null);
 
-  if (estado !== 'COMPLETADA') {
+  // Los mocks sí traen intervenciones con marca de tiempo; el backend real, no.
+  if (acta.intervenciones.length > 0) {
     return (
-      <EstadoVacio
-        icono={RotateCw}
-        titulo="Transcripción en curso"
-        descripcion="Los clips se procesan en orden. Te avisaremos en cuanto el texto esté listo."
-      />
-    );
-  }
-
-  if (intervenciones.length > 0) {
-    return (
-      <View
-        style={{
-          gap: t.spacing[5],
-          padding: t.spacing[5],
-          borderRadius: t.radius.lg,
-          backgroundColor: t.colors.surface,
-          borderWidth: 1,
-          borderColor: t.colors.border,
-        }}
-      >
-        {intervenciones.map((intervencion) => (
-          <FilaIntervencion key={intervencion.id} intervencion={intervencion} />
+      <View>
+        {acta.intervenciones.map((intervencion, i) => (
+          <View key={intervencion.id} style={separado(i)}>
+            <FilaIntervencion nombre={intervencion.interviniente} texto={intervencion.texto} marca={intervencion.marca} />
+          </View>
         ))}
       </View>
     );
   }
 
-  // El backend combina los clips con IA pero no desglosa por interviniente
-  // (ver `TranscripcionController`/`ConsultarEstadoTranscripcionUseCase`): es
-  // un único bloque de texto, no una lista de intervenciones con hablante y
-  // marca de tiempo. Se muestra tal cual en vez de fingir ese desglose.
-  if (textoTranscripcion) {
+  if (turnos) {
     return (
-      <View
-        style={{
-          padding: t.spacing[5],
-          borderRadius: t.radius.lg,
-          backgroundColor: t.colors.surface,
-          borderWidth: 1,
-          borderColor: t.colors.border,
-        }}
-      >
-        <Text variant="bodyLg">{textoTranscripcion}</Text>
+      <View>
+        {turnos.map((turno, i) => (
+          <View key={i} style={separado(i)}>
+            <FilaIntervencion nombre={turno.hablante} texto={turno.texto} />
+          </View>
+        ))}
       </View>
     );
+  }
+
+  // Sin etiquetas de hablante fiables (un solo hablante, o reescritas al
+  // combinar clips con IA): se muestra tal cual en vez de fingir turnos.
+  if (acta.textoTranscripcion) {
+    return <Text variant="bodyLg">{acta.textoTranscripcion}</Text>;
   }
 
   // Estado inconsistente (COMPLETADA pero sin texto ni intervenciones): no
@@ -639,8 +692,8 @@ function PanelTranscripcion({
   return (
     <EstadoVacio
       icono={AudioLines}
-      titulo="Transcripción lista"
-      descripcion="El texto ya está disponible, pero esta pantalla todavía no sabe mostrarlo aquí."
+      titulo="Transcripción vacía"
+      descripcion="La transcripción terminó, pero no contiene texto. Puede que el audio no tuviera voz reconocible."
     />
   );
 }

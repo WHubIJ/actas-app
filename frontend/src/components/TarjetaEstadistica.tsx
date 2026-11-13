@@ -12,12 +12,12 @@ export function TarjetaEstadistica({ valor, etiqueta }: Props) {
   const t = useTheme();
   return (
     <View
-      accessibilityRole="text"
+      accessible
       accessibilityLabel={`${valor} ${etiqueta}`}
       style={{
         flex: 1,
-        paddingVertical: t.spacing[3],
-        paddingHorizontal: t.spacing[2],
+        paddingVertical: t.spacing[3] + 2,
+        paddingHorizontal: t.spacing[3],
         borderRadius: t.radius.lg,
         backgroundColor: t.colors.surface,
         borderWidth: 1,
@@ -27,7 +27,7 @@ export function TarjetaEstadistica({ valor, etiqueta }: Props) {
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
-        style={{ fontFamily: 'Geist_600SemiBold', fontSize: 24, lineHeight: 28, letterSpacing: -0.72 }}
+        style={{ fontFamily: 'Geist_600SemiBold', fontSize: 24, lineHeight: 28, letterSpacing: -0.72, fontVariant: ['tabular-nums'] }}
       >
         {valor}
       </Text>

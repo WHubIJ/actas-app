@@ -1,70 +1,72 @@
-import { useEffect, useRef } from 'react';
-import { View, Animated, Easing } from 'react-native';
+import { View } from 'react-native';
+import { BellRing } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Text, AnilloCarga } from '../../components/ui';
-import { PasoProceso, type EstadoPaso } from './PasoProceso';
-
-export interface Paso {
-  id: string;
-  texto: string;
-}
+import { Text, Badge, Card, Aviso } from '../../components/ui';
+import { PasoProceso } from './PasoProceso';
+import type { EstadoTranscripcion } from '../types';
+import { pasosDeProcesado } from '../utils/procesadoActa';
 
 interface Props {
-  pasos: Paso[];
-  /** Índice del paso en curso. Todo lo anterior se marca como completado. */
-  pasoActual: number;
+  titulo: string;
+  /** Fecha y duración, ya formateadas. */
+  metadatos: string;
+  /** Estado agregado de la transcripción en el backend; `undefined` hasta el primer sondeo. */
+  transcripcion: EstadoTranscripcion | undefined;
+  /** Escritorio: el título de página sube a `heading`. */
+  amplio?: boolean;
+  /** La transcripción falló: se cambian los pasos por el aviso de error. */
+  mensajeError?: string;
 }
 
 /**
- * Estado "Procesando con IA": anillo giratorio sobre la marca y checklist de
- * progreso. La lista se atenúa progresivamente hacia abajo para sugerir que
- * quedan pasos sin llegar todavía.
+ * Estado "Procesando" (`ma-ai-steps`): lo que ya se sabe de la reunión y los
+ * pasos que el backend recorre de verdad. No hay estimación numérica porque el
+ * backend no la da; solo se promete lo que sí es cierto.
  */
-export function ProcesandoIA({ pasos, pasoActual }: Props) {
+export function ProcesandoIA({ titulo, metadatos, transcripcion, amplio, mensajeError }: Props) {
   const t = useTheme();
-  // Un valor de entrada por paso, para que el checklist aparezca escalonado
-  // en vez de de golpe. Se crea una sola vez: `pasos` no cambia tras montar.
-  const entradaPasos = useRef(pasos.map(() => new Animated.Value(0))).current;
-
-  useEffect(() => {
-    Animated.stagger(
-      50,
-      entradaPasos.map((valor) =>
-        Animated.timing(valor, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ),
-    ).start();
-  }, [entradaPasos]);
-
-  const estadoDe = (i: number): EstadoPaso => (i < pasoActual ? 'completado' : i === pasoActual ? 'activo' : 'pendiente');
+  // Esta pantalla solo existe tras finalizar, o sea con el audio ya subido y registrado.
+  const pasos = pasosDeProcesado({ audioSubido: true, transcripcion });
 
   return (
-    <View style={{ alignItems: 'center', width: '100%' }}>
-      <AnilloCarga size={88} />
-
-      <View style={{ alignItems: 'center', marginTop: t.spacing[6], marginBottom: t.spacing[8], gap: t.spacing[1] }}>
-        <Text variant="title">Procesando con IA</Text>
-        <Text variant="caption" color="text2" style={{ textAlign: 'center' }}>
-          Solo tardará un momento
+    <View style={{ width: '100%', gap: t.spacing[5] }}>
+      <View style={{ gap: t.spacing[2] }}>
+        <Badge label={mensajeError ? 'No se pudo transcribir' : 'Procesando'} tone={mensajeError ? 'danger' : 'brand'} />
+        <Text variant={amplio ? 'heading' : 'title'} style={{ marginTop: t.spacing[1] }}>
+          {titulo}
+        </Text>
+        <Text variant="metadata" color="text2">
+          {metadatos}
         </Text>
       </View>
 
-      <View style={{ width: '100%', gap: t.spacing[2] }}>
-        {pasos.map((paso, i) => (
-          <Animated.View
-            key={paso.id}
-            style={{
-              opacity: entradaPasos[i],
-              transform: [{ translateY: entradaPasos[i].interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
-            }}
-          >
-            <PasoProceso
-              texto={paso.texto}
-              estado={estadoDe(i)}
-              atenuacion={i <= pasoActual ? 1 : Math.max(0.35, 1 - (i - pasoActual) * 0.28)}
-            />
-          </Animated.View>
-        ))}
-      </View>
+      {mensajeError ? (
+        <Aviso tono="error" mensaje={mensajeError} />
+      ) : (
+        <>
+          <Card style={{ gap: t.spacing[4] }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: t.spacing[3] }}>
+              <Text variant="titleSm">Preparando el acta</Text>
+              <Text variant="caption" color="text2" style={{ flexShrink: 1, textAlign: 'right' }}>
+                Suele tardar unos minutos
+              </Text>
+            </View>
+
+            <View style={{ gap: t.spacing[3] }}>
+              {pasos.map((paso) => (
+                <PasoProceso key={paso.id} texto={paso.texto} estado={paso.estado} detalle={paso.detalle} />
+              ))}
+            </View>
+          </Card>
+
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: t.spacing[2] }}>
+            <BellRing size={16} color={t.colors.text2} strokeWidth={1.6} style={{ marginTop: 1 }} />
+            <Text variant="caption" color="text2" style={{ flex: 1 }}>
+              Puedes salir de esta pantalla. Te avisaremos cuando el acta esté lista.
+            </Text>
+          </View>
+        </>
+      )}
     </View>
   );
 }

@@ -1,9 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, View } from 'react-native';
-import { Check, Mic, Upload } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { AccessibilityInfo, View } from 'react-native';
+import { Mic, Upload } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Text } from './Text';
-import { AppIcon } from './AppIcon';
 import { AIMark, LiveIndicator, Waveform } from './misc';
 
 const PASOS = [
@@ -12,208 +11,128 @@ const PASOS = [
   { Icono: Upload, titulo: 'Apruébala y compártela', descripcion: 'PDF, Word o Markdown' },
 ] as const;
 
-/** Forma inicial de la onda de la tarjeta ilustrativa — no hay audio real detrás. */
-const NIVELES_ILUSTRATIVOS = [0.3, 0.6, 0.9, 0.5, 0.8, 1, 0.4, 0.7, 0.5, 0.9, 0.6, 0.3, 0.8, 1, 0.5, 0.7, 0.4, 0.9, 0.6, 0.8, 0.3, 0.6];
+const INICIALES_ILUSTRATIVAS = ['ML', 'JR', 'AP'];
+
+/** Forma inicial de la onda: una campana suave, sin audio real detrás. */
+const NIVELES_INICIALES = Array.from({ length: 64 }, (_, i) => 0.15 + 0.6 * Math.sin((Math.PI * (i + 0.5)) / 64));
 
 /**
- * Mismo truco que la onda decorativa de `GrabacionScreen` (campana con
- * amplitud aleatoria por barra, sin leer audio real): se duplica aquí en vez
- * de importarla porque esa función es privada de esa pantalla y esta tarjeta
- * es puramente ilustrativa, nunca el estado real de una grabación en curso
- * (ver comentario de `Waveform` en `misc.tsx` — `levels` ahí se documenta
- * como nivel real, por eso la animación vive en el llamador, no en el
- * componente).
+ * Mismo truco que la onda decorativa de `GrabacionScreen`: campana con
+ * amplitud aleatoria por barra. Se duplica aquí porque esa función es privada
+ * de esa pantalla y esta tarjeta es ilustrativa, nunca el estado real de una
+ * grabación (esta pantalla es previa al login).
  */
 function nivelesIlustrativosAleatorios(): number[] {
-  return NIVELES_ILUSTRATIVOS.map((_, i) => {
-    const envolvente = Math.sin((Math.PI * (i + 0.5)) / NIVELES_ILUSTRATIVOS.length);
+  return NIVELES_INICIALES.map((_, i) => {
+    const envolvente = Math.sin((Math.PI * (i + 0.5)) / NIVELES_INICIALES.length);
     return Math.max(0.08, Math.min(1, envolvente * (0.4 + Math.random() * 0.6)));
   });
 }
 
-/**
- * Líneas-cápsula con shimmer para el estado "generando" de la tarjeta de
- * acta — mismo efecto que `FilaEsqueleto` (pulso de color entre
- * `fillPress`/`fillHover`, `useNativeDriver: false` porque un color nunca
- * admite driver nativo), pero reimplementado aquí en vez de reutilizado:
- * `FilaEsqueleto` tiene la forma de una fila de "Mis actas" (avatar + 2+2
- * líneas), no la de esta tarjeta, y esta pantalla es ilustrativa, no una
- * lista real.
- */
-function LineasGenerando() {
+function AvataresIlustrativos() {
   const t = useTheme();
-  const pulso = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const animacion = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulso, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
-        Animated.timing(pulso, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
-      ]),
-    );
-    animacion.start();
-    return () => animacion.stop();
-  }, [pulso]);
-
-  const relleno = pulso.interpolate({ inputRange: [0, 1], outputRange: [t.colors.fillPress, t.colors.fillHover] });
-  const linea = (ancho: `${number}%`) => (
-    <Animated.View style={{ height: 8, borderRadius: t.radius.full, backgroundColor: relleno, width: ancho }} />
-  );
-
   return (
-    <View style={{ gap: t.spacing[3] }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[2] }}>
-        <AIMark size={14} />
-        <Text variant="label" color="brandStrong">
-          Redactando el acta
-        </Text>
-      </View>
-      <View style={{ gap: t.spacing[2] }}>
-        {linea('90%')}
-        {linea('70%')}
-        {linea('80%')}
-      </View>
+    <View style={{ flexDirection: 'row' }}>
+      {INICIALES_ILUSTRATIVAS.map((iniciales, i) => (
+        <View
+          key={iniciales}
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: t.radius.full,
+            marginLeft: i === 0 ? 0 : -6,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: t.colors.surface2,
+            boxShadow: i === 0 ? `inset 0 0 0 1px ${t.colors.border}` : `0 0 0 2px ${t.colors.bg}`,
+            zIndex: INICIALES_ILUSTRATIVAS.length - i,
+          }}
+        >
+          <Text style={{ fontFamily: 'Geist_600SemiBold', fontSize: 9.5, lineHeight: 12 }} color="text2">
+            {iniciales}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }
 
 /**
- * Panel `surface-2` del lado derecho en login/registro de escritorio.
- * Compartido entre las dos pantallas: mismo pitch de producto en ambas.
- * Las tarjetas de "grabando" y "acta lista" son ilustrativas (mismos
- * componentes que usa GrabacionScreen de verdad, con datos inventados) —
- * nunca se leen como estado real porque esta pantalla es previa al login.
+ * Panel `surface-2` del lado derecho en el acceso de escritorio, compartido por
+ * login, registro y recuperación. Muestra el producto: una grabación en curso y
+ * el acta que genera. Es ilustrativo y no lee estado real (la pantalla es
+ * previa a la sesión); sin testimonios ni cifras inventadas.
  */
 export function PanelProductoAuth() {
   const t = useTheme();
 
-  // Onda: se regenera entera cada tick (mismo intervalo que GrabacionScreen,
-  // ver `nivelesIlustrativosAleatorios`) en vez de animarse con `Animated`
-  // — así cada barra se mueve de forma independiente, sin el efecto de
-  // "todas a la vez" de interpolar un único valor.
-  const [niveles, setNiveles] = useState(NIVELES_ILUSTRATIVOS);
+  // Un solo movimiento continuo por pantalla (la onda); con "reducir movimiento"
+  // la onda se queda quieta en su forma inicial.
+  const [niveles, setNiveles] = useState(NIVELES_INICIALES);
   useEffect(() => {
-    const id = setInterval(() => setNiveles(nivelesIlustrativosAleatorios()), 220);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setInterval> | undefined;
+    let cancelado = false;
+    AccessibilityInfo.isReduceMotionEnabled().then((reducir) => {
+      if (cancelado || reducir) return;
+      id = setInterval(() => setNiveles(nivelesIlustrativosAleatorios()), 220);
+    });
+    return () => {
+      cancelado = true;
+      if (id) clearInterval(id);
+    };
   }, []);
 
-  // Un único Animated.Value lineal 0→1 a lo largo de todo el ciclo (igual
-  // que el pulso de LiveIndicator), con las esperas y el cruce codificados
-  // como tramos de `interpolate` — no con `Animated.sequence`/`Animated.delay`:
-  // esa combinación, en react-native-web, deja de respetar las esperas y el
-  // loop degenera en reinicios cada pocos fotogramas en vez de los ~4.4s
-  // reales (comprobado con un listener temporal sobre el valor animado).
-  // Un solo `timing` + `loop` es exactamente el patrón ya verificado en
-  // AnilloCarga/BadgeEstado/LiveIndicator, así que hereda el mismo fix.
-  const CICLO_MS = 4400;
-  const FIN_GENERANDO = 1300 / CICLO_MS; // hasta aquí: overlay de shimmer tapando
-  const FIN_CRUCE_A_LISTA = 1800 / CICLO_MS; // 500ms de cruce
-  const FIN_LISTA = 3900 / CICLO_MS; // hasta aquí: acta revelada
-  // el resto del ciclo (hasta 1) es el cruce de vuelta a "generando".
-
-  const ciclo = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const animacion = Animated.loop(
-      Animated.timing(ciclo, { toValue: 1, duration: CICLO_MS, easing: Easing.linear, useNativeDriver: Platform.OS !== 'web' }),
-    );
-    animacion.start();
-    return () => animacion.stop();
-  }, [ciclo]);
-  const opacidadGenerando = ciclo.interpolate({
-    inputRange: [0, FIN_GENERANDO, FIN_CRUCE_A_LISTA, FIN_LISTA, 1],
-    outputRange: [1, 1, 0, 0, 1],
-  });
+  const tarjeta = {
+    borderRadius: t.radius.lg,
+    backgroundColor: t.colors.surface,
+    borderWidth: 1,
+    borderColor: t.colors.border,
+    padding: t.spacing[5],
+    boxShadow: t.shadows.md,
+  } as const;
 
   return (
     <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
       style={{
         flex: 1,
         margin: t.spacing[4],
+        marginLeft: 0,
         borderRadius: t.radius.xl,
         backgroundColor: t.colors.surface2,
         justifyContent: 'center',
+        overflow: 'hidden',
         padding: t.spacing[12],
-        gap: t.spacing[8],
+        gap: t.spacing[6],
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[2] }}>
-        <AppIcon size={20} />
-        <Text variant="titleSm">MeetingAI</Text>
+      <View style={tarjeta}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <LiveIndicator label="Grabando" time="00:42:17" />
+          <AvataresIlustrativos />
+        </View>
+        <View style={{ marginTop: t.spacing[4], height: 48, overflow: 'hidden' }}>
+          <Waveform levels={niveles} height={48} />
+        </View>
       </View>
 
-      <View style={{ gap: t.spacing[3] }}>
-        <View
-          style={{
-            gap: t.spacing[4],
-            padding: t.spacing[4],
-            borderRadius: t.radius.lg,
-            backgroundColor: t.colors.surface,
-            borderWidth: 1,
-            borderColor: t.colors.border,
-          }}
-        >
-          <LiveIndicator label="Grabando" time="00:42:17" tone="solid" />
-          <Waveform levels={niveles} height={32} />
-        </View>
-
-        <View
-          style={{
-            gap: t.spacing[2],
-            padding: t.spacing[4],
-            borderRadius: t.radius.lg,
-            backgroundColor: t.colors.surface,
-            borderWidth: 1,
-            borderColor: t.colors.border,
-            // `position: relative` implícito: el overlay de abajo se ancla a
-            // esta caja. El alto de la tarjeta lo sigue fijando el contenido
-            // real (en flujo normal) — el overlay solo se superpone encima.
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[2] }}>
-            <View
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: t.radius.full,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: t.colors.successSoft,
-              }}
-            >
-              <Check size={13} color={t.colors.success} strokeWidth={2.5} />
-            </View>
-            <Text variant="bodyStrong" style={{ flex: 1 }} numberOfLines={1}>
-              Acta lista para revisar
-            </Text>
-          </View>
-          <Text variant="caption" color="text2">
+      <View style={[tarjeta, { marginLeft: t.spacing[10], gap: t.spacing[3] }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[2] }}>
+          <AIMark size={14} />
+          <Text variant="label" color="brandStrong" style={{ fontSize: 12, lineHeight: 16 }}>
+            Acta lista para revisar
+          </Text>
+          <Text variant="metadata" color="text3" style={{ marginLeft: 'auto' }}>
             3 decisiones · 3 tareas
           </Text>
-          <Text variant="caption" color="text2">
-            La junta aprobó el presupuesto de mantenimiento del Q4 y decidió renovar el sistema de sonido antes de
-            diciembre.
-          </Text>
-
-          {/* Tapa la tarjeta mientras "genera": al desvanecerse revela el
-              contenido real de abajo sin necesidad de animar ese lado también. */}
-          <Animated.View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              padding: t.spacing[4],
-              justifyContent: 'center',
-              borderRadius: t.radius.lg,
-              backgroundColor: t.colors.surface,
-              opacity: opacidadGenerando,
-            }}
-          >
-            <LineasGenerando />
-          </Animated.View>
         </View>
+        <Text style={{ fontSize: 14, lineHeight: 21 }}>
+          La junta aprobó el presupuesto de mantenimiento del Q4 y decidió renovar el sistema de sonido antes de diciembre.
+        </Text>
       </View>
 
-      <View style={{ gap: t.spacing[5] }}>
+      <View style={{ gap: t.spacing[4], marginTop: t.spacing[3] }}>
         {PASOS.map(({ Icono, titulo, descripcion }) => (
           <View key={titulo} style={{ flexDirection: 'row', alignItems: 'center', gap: t.spacing[4] }}>
             <View
@@ -226,10 +145,12 @@ export function PanelProductoAuth() {
                 backgroundColor: t.colors.surface,
               }}
             >
-              <Icono size={20} color={t.colors.text} />
+              <Icono size={20} color={t.colors.text2} strokeWidth={1.6} />
             </View>
-            <View style={{ gap: 2 }}>
-              <Text variant="bodyStrong">{titulo}</Text>
+            <View style={{ flexShrink: 1 }}>
+              <Text variant="bodyStrong" style={{ lineHeight: 20 }}>
+                {titulo}
+              </Text>
               <Text variant="caption" color="text2">
                 {descripcion}
               </Text>

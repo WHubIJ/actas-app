@@ -4,14 +4,28 @@
     {
       "name": "backend",
       "runtimeExecutable": "mvn",
-      "runtimeArgs": ["spring-boot:run"],
+      "runtimeArgs": [
+        "spring-boot:run"
+      ],
       "port": 8080
     },
     {
       "name": "frontend",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["expo", "start"],
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd frontend && npx expo start --web --port 8081"
+      ],
       "port": 8081
+    },
+    {
+      "name": "frontend-mock",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd frontend && EXPO_PUBLIC_SUPABASE_URL= EXPO_PUBLIC_SUPABASE_ANON_KEY= EXPO_PUBLIC_API_URL= npx expo start --web --port 8082"
+      ],
+      "port": 8082
     }
   ]
 }

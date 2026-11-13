@@ -39,7 +39,14 @@ export interface ClipAudio {
 export interface ActaResumen {
   id: string;
   titulo: string;
+  /** Ya formateada para mostrar ("12 septiembre 2026"). */
   fecha: string;
+  /**
+   * La misma fecha en ISO (`yyyy-MM-dd`), tal cual llega del backend. Hace
+   * falta para filtrar "Esta semana" y agrupar por mes sin parsear `fecha`.
+   * Opcional para no obligar a rellenarla en fixtures que no filtran por fecha.
+   */
+  fechaIso?: string;
   duracionMinutos: number;
   participantes: string[];
   estadoTranscripcion: EstadoTranscripcion;

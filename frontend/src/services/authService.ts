@@ -9,6 +9,8 @@ export type CodigoErrorAuth =
   | 'SUPABASE_NO_CONFIGURADO'
   | 'CREDENCIALES_INVALIDAS'
   | 'EMAIL_YA_REGISTRADO'
+  | 'CONTRASENA_DEBIL'
+  | 'CONTRASENA_REPETIDA'
   | 'ERROR_AUTENTICACION';
 
 /** Cada proveedor se activa por separado en el Dashboard de Supabase (Authentication > Providers). */
@@ -37,7 +39,7 @@ export async function iniciarSesion(email: string, password: string): Promise<vo
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     if (error.message.toLowerCase().includes('invalid login credentials')) {
-      throw new ErrorAuth('CREDENCIALES_INVALIDAS', 'Email o contraseña incorrectos.');
+      throw new ErrorAuth('CREDENCIALES_INVALIDAS', 'Correo o contraseña incorrectos. Revisa los datos o recupera la contraseña.');
     }
     throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo iniciar sesión. Inténtalo de nuevo.');
   }
@@ -80,6 +82,9 @@ export async function registrarse(email: string, password: string, datos: DatosR
   if (error) {
     if (error.message.toLowerCase().includes('already registered')) {
       throw new ErrorAuth('EMAIL_YA_REGISTRADO', 'Ya existe una cuenta con ese email.');
+    }
+    if (error.code === 'weak_password') {
+      throw new ErrorAuth('CONTRASENA_DEBIL', 'La contraseña es demasiado débil. Usa más caracteres o mezcla letras, números y símbolos.');
     }
     throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo crear la cuenta. Inténtalo de nuevo.');
   }
@@ -154,7 +159,23 @@ export async function actualizarContrasena(password: string): Promise<void> {
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) {
+    if (error.code === 'same_password') {
+      throw new ErrorAuth('CONTRASENA_REPETIDA', 'La contraseña nueva no puede ser igual a la anterior.');
+    }
+    if (error.code === 'weak_password') {
+      throw new ErrorAuth('CONTRASENA_DEBIL', 'La contraseña es demasiado débil. Usa más caracteres o mezcla letras, números y símbolos.');
+    }
     throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo actualizar la contraseña. Inténtalo de nuevo.');
+  }
+}
+
+/** Invalida la sesión en todos los dispositivos salvo este; se ofrece tras cambiar la contraseña. */
+export async function cerrarSesionEnOtrosDispositivos(): Promise<void> {
+  if (!supabase) return;
+
+  const { error } = await supabase.auth.signOut({ scope: 'others' });
+  if (error) {
+    throw new ErrorAuth('ERROR_AUTENTICACION', 'No se pudo cerrar la sesión en tus otros dispositivos.');
   }
 }
 

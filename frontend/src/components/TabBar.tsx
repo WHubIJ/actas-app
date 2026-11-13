@@ -12,6 +12,9 @@ const ICONOS: Record<string, LucideIcon> = {
   Cuenta: User,
 };
 
+/** La barra inferior solo lleva estas pestañas; el resto de secciones (Reuniones, Actas...) viven en el `Sidebar` de tablet y escritorio. */
+const RUTAS_EN_BARRA: ReadonlyArray<string> = ['Inicio', 'Cuenta'];
+
 const TAMANO_FAB = 60;
 /** Cuánto sobresale el FAB por encima del propio borde superior de la barra (ver `top` más abajo). `useBottomTabBarHeight()` no lo cuenta: las pantallas con scroll deben sumarlo a su `paddingBottom` o el FAB tapa el último elemento. */
 export const ALTURA_FAB_SOBRESALIENTE = 26;
@@ -32,43 +35,46 @@ export function TabBar({ state, descriptors, navigation, onGrabar }: Props) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
 
-  const pestanas = state.routes.map((route, index) => {
-    const { options } = descriptors[route.key];
-    const etiqueta = options.title ?? route.name;
-    const activo = state.index === index;
-    const Icono = ICONOS[route.name] ?? House;
+  const pestanas = state.routes
+    .map((route, index) => ({ route, index }))
+    .filter(({ route }) => RUTAS_EN_BARRA.includes(route.name))
+    .map(({ route, index }) => {
+      const { options } = descriptors[route.key];
+      const etiqueta = options.title ?? route.name;
+      const activo = state.index === index;
+      const Icono = ICONOS[route.name] ?? House;
 
-    const alPulsar = () => {
-      const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-      if (!activo && !evento.defaultPrevented) {
-        navigation.navigate(route.name);
-      }
-    };
+      const alPulsar = () => {
+        const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+        if (!activo && !evento.defaultPrevented) {
+          navigation.navigate(route.name);
+        }
+      };
 
-    return (
-      <PressableEscala
-        key={route.key}
-        onPress={alPulsar}
-        escala={0.9}
-        style={{ alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: t.spacing[1], paddingHorizontal: t.spacing[2] }}
-        accessibilityRole="tab"
-        accessibilityState={{ selected: activo }}
-        accessibilityLabel={etiqueta}
-      >
-        <Icono size={24} color={activo ? t.colors.brand : t.colors.text2} strokeWidth={1.8} />
-        <Text
-          style={{
-            fontFamily: 'Geist_500Medium',
-            fontSize: 10.5,
-            lineHeight: 12,
-            color: activo ? t.colors.text : t.colors.text2,
-          }}
+      return (
+        <PressableEscala
+          key={route.key}
+          onPress={alPulsar}
+          escala={0.9}
+          style={{ alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: t.spacing[1], paddingHorizontal: t.spacing[2] }}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activo }}
+          accessibilityLabel={etiqueta}
         >
-          {etiqueta}
-        </Text>
-      </PressableEscala>
-    );
-  });
+          <Icono size={24} color={activo ? t.colors.brand : t.colors.text2} strokeWidth={1.8} />
+          <Text
+            style={{
+              fontFamily: 'Geist_500Medium',
+              fontSize: 10.5,
+              lineHeight: 12,
+              color: activo ? t.colors.text : t.colors.text2,
+            }}
+          >
+            {etiqueta}
+          </Text>
+        </PressableEscala>
+      );
+    });
 
   // Dos mitades de ancho igual (50/50), cada una centrando sus propias
   // pestañas. El hueco para el FAB se reserva con padding hacia el centro en

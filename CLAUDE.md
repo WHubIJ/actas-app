@@ -188,11 +188,26 @@ el Sprint 1 — ver ADR-003. La UI con el diseño de Figma Make **ya se migró**
 ## Diseño
 
 Diseño existente en Figma Make: `figma.com/make/4bTdEWF8ubEUdfkwg1ACp8`.
-Las 7 pantallas ya se migraron al sistema de diseño violeta/Geist (tokens en
-`frontend/theme/`, componentes compartidos en `frontend/components/ui/`,
-referencias visuales en `design/` en la raíz del repo). El tema viejo (crema/marrón en
-Manrope, `frontend/src/theme/`) se retiró por completo junto con los
-componentes que dependían de él.
+La fuente de verdad del sistema de diseño es el **kit v2** copiado en `design/` (raíz
+del repo): `design/README.md` (brand book), `design/tokens.json` (idéntico a
+`frontend/theme/tokens.ts`), `design/web-reference.css` (medidas de las clases `ma-*`,
+solo referencia) y `design/previews/*.html` (42 previews, con botón Light / Dark).
+Las pantallas del frontend están recreadas a partir de esas previews (13-11-2026):
+
+| Pantalla | Preview |
+|---|---|
+| Login, registro, recuperar | `LoginScreen`, `RegisterScreen`, `AuthMobile`, `AuthFields`, `RecoverWeb`, `RecoverMobile` |
+| Shell web (sidebar, topbar) | `Sidebar`, `EmptyWeb`, `LoadingWeb` |
+| Inicio / Reuniones / Actas | `MobileScreens` (1ª), `ActasMobile`, `EstadosMobile`, `LoadingWeb`, `EmptyWeb`, `Card`, `Badge` |
+| Antes de grabar, Grabando, Procesando | `AntesDeGrabarMobile`, `MobileScreens` (2ª), `RecordingScreen`, `ProcessingWeb`, `EstadosMobile` |
+| Detalle y compartir | `ReviewScreen`, `MinutesScreen`, `Transcript`, `AIActions`, `MobileScreens` (3ª), `MobilePatterns` |
+| Mi cuenta | `CuentaMobile` |
+
+Lo que el kit dibuja y el dominio actual no tiene (decisiones votadas, tareas con
+asignado, aprobación por miembros, cargos, equipos, "Enviar a aprobación", "Subir
+audio") **no se simula en la UI**: `Tareas` y `Equipos` muestran un vacío honesto y el
+resto se omite. Ampliar el dominio para cubrirlo es una decisión de producto con su ADR.
+El tema viejo (crema/marrón en Manrope) se retiró por completo.
 
 ---
 

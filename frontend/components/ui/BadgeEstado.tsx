@@ -31,8 +31,13 @@ function IconoGirando({ color }: { color: string }) {
   );
 }
 
+/**
+ * Único sitio donde el estado de transcripción se traduce a palabra y tono:
+ * listas, tabla y detalle lo pintan siempre a través de `BadgeEstado`.
+ * "Procesado" a secas, como el chip de filtro, para que filtro y badge digan lo mismo.
+ */
 const PRESENTACION: Record<EstadoTranscripcion, { label: string; tone: BadgeTone; icon: (c: string) => React.ReactNode }> = {
-  COMPLETADA: { label: 'Procesado por IA', tone: 'success', icon: (c) => <Check size={ICON_SIZE} color={c} strokeWidth={2} /> },
+  COMPLETADA: { label: 'Procesado', tone: 'success', icon: (c) => <Check size={ICON_SIZE} color={c} strokeWidth={2} /> },
   EN_PROCESO: { label: 'Procesando', tone: 'brand', icon: (c) => <IconoGirando color={c} /> },
   FALLIDA: { label: 'Error', tone: 'danger', icon: (c) => <TriangleAlert size={ICON_SIZE} color={c} strokeWidth={2} /> },
   PENDIENTE: { label: 'En cola', tone: 'neutral', icon: (c) => <Clock size={ICON_SIZE} color={c} strokeWidth={2} /> },

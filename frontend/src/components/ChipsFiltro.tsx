@@ -1,4 +1,4 @@
-import { ScrollView } from 'react-native';
+import { ScrollView, type StyleProp, type ViewStyle } from 'react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Text } from '../../components/ui';
 import { PressableEscala } from './PressableEscala';
@@ -12,16 +12,23 @@ interface Props<T extends string> {
   filtros: ReadonlyArray<Filtro<T>>;
   activo: T;
   onSeleccionar: (id: T) => void;
+  /** Para el contenedor: en una fila de escritorio, `flexGrow: 0` para que no se coma el hueco. */
+  style?: StyleProp<ViewStyle>;
 }
 
 /**
  * Chips de filtro en scroll horizontal. El activo invierte a `text`/`bg` en
  * vez de usar brand: aquí el acento es solo de selección, no de IA/acción.
  */
-export function ChipsFiltro<T extends string>({ filtros, activo, onSeleccionar }: Props<T>) {
+export function ChipsFiltro<T extends string>({ filtros, activo, onSeleccionar, style }: Props<T>) {
   const t = useTheme();
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: t.spacing[2], paddingVertical: t.spacing[1] }}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={style}
+      contentContainerStyle={{ gap: t.spacing[2], paddingVertical: t.spacing[1] }}
+    >
       {filtros.map((filtro) => {
         const seleccionado = filtro.id === activo;
         return (
@@ -34,7 +41,7 @@ export function ChipsFiltro<T extends string>({ filtros, activo, onSeleccionar }
             accessibilityState={{ selected: seleccionado }}
             style={{
               height: 32,
-              paddingHorizontal: t.spacing[4],
+              paddingHorizontal: t.spacing[3],
               borderRadius: t.radius.full,
               alignItems: 'center',
               justifyContent: 'center',

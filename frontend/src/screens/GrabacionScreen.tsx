@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Pressable, Animated, Easing, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -7,11 +7,14 @@ import { File } from 'expo-file-system';
 import { ChevronLeft } from 'lucide-react-native';
 import type { RootStackParamList } from '../../App';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useBreakpoint } from '../../theme/useBreakpoint';
 import { Text, Button, Aviso, LiveIndicator, Waveform } from '../../components/ui';
 import { MicPulse } from '../components/MicPulse';
 import { RecorderControls } from '../components/RecorderControllers';
-import { ProcesandoIA, type Paso } from '../components/ProcesandoIA';
-import { finalizarReunion, registrarClip, obtenerEstadoTranscripcion, ErrorApi } from '../services/api';
+import { ProcesandoIA } from '../components/ProcesandoIA';
+import { ResumenClips } from '../components/ResumenClips';
+import { finalizarReunion, registrarClip, ErrorApi } from '../services/api';
+import { useSeguimientoTranscripciones } from '../notificaciones/SeguimientoTranscripciones';
 import {
   pedirPermisoMicrofono,
   iniciarGrabacion,
@@ -22,6 +25,9 @@ import {
 } from '../services/grabacionAudio';
 import { subirClipAudio, BUCKET_AUDIOS, ErrorSubidaAudio } from '../services/supabaseClient';
 import { formatearDuracion } from '../utils/formato';
+import { desplazarNiveles, nivelDesdeDecibelios } from '../utils/nivelesAudio';
+import { fechaIsoLocal, metadatosReunion } from '../utils/procesadoActa';
+import { textoAviso } from '../notificaciones/transiciones';
 
 /** Extensión real del archivo grabado (el URI de expo-audio no siempre acaba en la extensión "de toda la vida"). */
 function extensionDe(uri: string): string {
@@ -46,57 +52,50 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Grabacion'>;
  */
 type Estado = 'inactivo' | 'grabando' | 'pausado' | 'procesando';
 
-/**
- * Sin "Creando resumen": por regla de negocio el resumen nunca se genera
- * automáticamente (ver CLAUDE.md), así que no hay nada real que ese paso
- * pudiera representar en este flujo.
- */
-const PASOS: Paso[] = [
-  { id: 'audio', texto: 'Analizando audio' },
-  { id: 'participantes', texto: 'Detectando participantes' },
-  { id: 'transcripcion', texto: 'Generando transcripción' },
-];
+const BARRAS_ONDA = 48;
+const NIVELES_REPOSO = Array.from({ length: BARRAS_ONDA }, () => 0);
+const MS_ENTRE_MUESTRAS = 100;
 
-/** Sondeo del estado real de transcripción contra el backend. */
-const MS_ENTRE_SONDEOS = 2500;
+/** Medidor de nivel real del micrófono para la onda; sin él la onda se quedaría plana. */
+const OPCIONES_GRABACION = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
 
-const BARRAS_ONDA = 28;
-const NIVELES_REPOSO = Array.from({ length: BARRAS_ONDA }, () => 0.12);
-
-/** Onda decorativa: no lee el micrófono todavía (ver `grabacionAudio.ts`), solo pseudoaleatoriedad mientras `grabando`. */
-function nivelesAleatorios(): number[] {
-  return Array.from({ length: BARRAS_ONDA }, (_, i) => {
-    const envolvente = Math.sin((Math.PI * (i + 0.5)) / BARRAS_ONDA);
-    return Math.max(0.08, Math.min(1, envolvente * (0.4 + Math.random() * 0.6)));
-  });
-}
+/** Ancho de la columna de contenido en escritorio, del kit (`RecordingScreen`). */
+const ANCHO_COLUMNA_ESCRITORIO = 760;
+const ALTO_ONDA = 64;
 
 export function GrabacionScreen({ navigation, route }: Props) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { reunionId } = route.params;
+  const { reunionId, titulo } = route.params;
+  const { seguir, pedirPermisoAvisos, estadoDe, observar } = useSeguimientoTranscripciones();
+  const estadoBackend = estadoDe(reunionId);
   const [estado, setEstado] = useState<Estado>('inactivo');
   const [segundos, setSegundos] = useState(0);
-  const [pasoActual, setPasoActual] = useState(0);
+  // Lo que ya se sabe de la reunión al finalizar, para la cabecera de "Procesando".
+  const [resumenGrabado, setResumenGrabado] = useState({ fechaIso: fechaIsoLocal(new Date()), duracionSegundos: 0 });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [niveles, setNiveles] = useState(NIVELES_REPOSO);
+  const escritorio = useBreakpoint() === 'escritorio';
 
   // useAudioRecorder crea el recorder una vez al montar el componente y lo
   // libera al desmontar; expo-audio no ofrece forma de crearlo fuera de un
   // hook, así que ya no vive en un ref creado bajo demanda como con expo-av.
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorder = useAudioRecorder(OPCIONES_GRABACION);
   // Resultado de detener la grabación, si ya se paró antes de que fallara la
   // subida o el registro del clip. Así un reintento de "Finalizar" no vuelve
   // a llamar a recorder.stop() sobre una grabación que ya se detuvo.
   const [clipListo, setClipListo] = useState<ClipGrabado | null>(null);
 
   const aparicion = useRef(new Animated.Value(0)).current;
+  const easing = useMemo(() => Easing.bezier(...t.easing.standard), [t.easing.standard]);
   // Qué rama de contenido se pinta dentro del bloque animado. Va un paso por
   // detrás de `estado`: si se usara `estado` directamente, React ya habría
   // cambiado de rama en el mismo render en que cambia el estado, y el fundido
   // que viene después solo haría parpadear el contenido ya cambiado.
   const [estadoVisible, setEstadoVisible] = useState<Estado>('inactivo');
+  // Pausar y reanudar no cambian de contenido: solo el indicador y los controles, sin fundido de pantalla.
+  const fase: Estado = estado === 'pausado' ? 'grabando' : estado;
   const montada = useRef(false);
 
   // Fundido entre estados: sin esto el salto de "grabando" a "procesando" es
@@ -104,22 +103,22 @@ export function GrabacionScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!montada.current) {
       montada.current = true;
-      Animated.timing(aparicion, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      Animated.timing(aparicion, { toValue: 1, duration: t.duration.base, easing, useNativeDriver: true }).start();
       return;
     }
     Animated.timing(aparicion, {
       toValue: 0,
-      duration: 160,
-      easing: Easing.out(Easing.cubic),
+      duration: t.duration.fast,
+      easing,
       useNativeDriver: true,
     }).start(({ finished }) => {
       // Si se interrumpió (el estado cambió otra vez a mitad del fundido), la
       // siguiente ejecución de este efecto ya se encarga del valor más reciente.
       if (!finished) return;
-      setEstadoVisible(estado);
-      Animated.timing(aparicion, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      setEstadoVisible(fase);
+      Animated.timing(aparicion, { toValue: 1, duration: t.duration.base, easing, useNativeDriver: true }).start();
     });
-  }, [estado, aparicion]);
+  }, [fase, aparicion, t.duration.base, t.duration.fast, easing]);
 
   // Cronómetro: solo corre mientras se graba de verdad.
   useEffect(() => {
@@ -128,62 +127,34 @@ export function GrabacionScreen({ navigation, route }: Props) {
     return () => clearInterval(id);
   }, [estado]);
 
-  // Onda decorativa: tiembla mientras se graba. Fuera de ese estado se pinta
-  // `NIVELES_REPOSO` directamente (ver más abajo), así el efecto solo
-  // arranca/detiene el intervalo y nunca llama a setState en su propio cuerpo.
+  // Onda con el nivel real del micrófono. Solo se muestrea mientras se graba:
+  // en pausa la onda se queda congelada y en gris.
   useEffect(() => {
     if (estado !== 'grabando') return;
-    const id = setInterval(() => setNiveles(nivelesAleatorios()), 220);
+    const id = setInterval(() => {
+      const { metering } = recorder.getStatus();
+      setNiveles((previos) => desplazarNiveles(previos, nivelDesdeDecibelios(metering)));
+    }, MS_ENTRE_MUESTRAS);
     return () => clearInterval(id);
-  }, [estado]);
+  }, [estado, recorder]);
 
-  // Progreso real del procesado con IA: sondea GET /api/transcripcion/{id}
-  // en vez de fingir avance con un timer. El backend solo distingue
-  // PENDIENTE/EN_PROCESO/COMPLETADA/FALLIDA, sin granularidad por paso, así
-  // que "Detectando participantes" es una transición cosmética única (no hay
-  // señal real para ese paso todavía) mientras que el paso final sí está
-  // atado al estado real.
+  // Progreso real del procesado con IA: el estado lo sondea el seguimiento
+  // global (`SeguimientoTranscripciones`), que además avisa si el usuario se
+  // va de esta pantalla. El backend solo distingue
+  // PENDIENTE/EN_PROCESO/COMPLETADA/FALLIDA, así que los pasos son solo los
+  // que de verdad existen (ver `pasosDeProcesado`, que usa `ProcesandoIA`).
+  const transcripcionFallida = estado === 'procesando' && estadoBackend === 'FALLIDA';
+
   useEffect(() => {
     if (estado !== 'procesando') return;
-    let cancelado = false;
+    return observar(reunionId);
+  }, [estado, reunionId, observar]);
 
-    const transicionCosmetica = setTimeout(() => {
-      if (!cancelado) setPasoActual(1);
-    }, 900);
-
-    const sondear = async () => {
-      try {
-        const estadoBackend = await obtenerEstadoTranscripcion(reunionId);
-        if (cancelado) return;
-
-        if (estadoBackend === 'EN_PROCESO') {
-          setPasoActual(2);
-        } else if (estadoBackend === 'COMPLETADA') {
-          clearInterval(intervalo);
-          setPasoActual(PASOS.length - 1);
-          setTimeout(() => {
-            if (!cancelado) navigation.replace('DetalleActa', { actaId: reunionId });
-          }, 700);
-        } else if (estadoBackend === 'FALLIDA') {
-          clearInterval(intervalo);
-          navigation.replace('Tabs');
-        }
-        // PENDIENTE: se queda en el paso cosmético actual y sigue sondeando.
-      } catch {
-        // Fallo de red puntual: el backend sigue procesando igual, se
-        // reintenta en el siguiente sondeo en vez de abortar.
-      }
-    };
-
-    const intervalo = setInterval(sondear, MS_ENTRE_SONDEOS);
-    sondear();
-
-    return () => {
-      cancelado = true;
-      clearTimeout(transicionCosmetica);
-      clearInterval(intervalo);
-    };
-  }, [estado, reunionId, navigation]);
+  useEffect(() => {
+    if (estado !== 'procesando' || estadoBackend !== 'COMPLETADA') return;
+    const id = setTimeout(() => navigation.replace('DetalleActa', { actaId: reunionId }), 700);
+    return () => clearTimeout(id);
+  }, [estado, estadoBackend, reunionId, navigation]);
 
   /**
    * Pide permiso de micrófono y arranca la grabación real. La reunión ya
@@ -200,6 +171,7 @@ export function GrabacionScreen({ navigation, route }: Props) {
 
       setClipListo(null);
       setSegundos(0);
+      setNiveles(NIVELES_REPOSO);
       setEstado('grabando');
     } catch (err) {
       setError(mensajeError(err, 'No se pudo iniciar la grabación. Inténtalo de nuevo.'));
@@ -229,6 +201,9 @@ export function GrabacionScreen({ navigation, route }: Props) {
    * `clipListo` para que reintentar no vuelva a tocar el recorder nativo.
    */
   const finalizar = useCallback(async () => {
+    // Antes de cualquier `await`: en web el permiso de notificación solo se
+    // concede dentro del gesto del usuario (este toque en "Finalizar").
+    pedirPermisoAvisos();
     setError(null);
     setCargando(true);
     try {
@@ -247,20 +222,22 @@ export function GrabacionScreen({ navigation, route }: Props) {
       const subida = await subirClipAudio(BUCKET_AUDIOS, ruta, archivo, `audio/${extension}`);
       await registrarClip(reunionId, 1, subida.path, clip.duracionSegundos);
       await finalizarReunion(reunionId);
+      seguir([{ id: reunionId, titulo, estado: 'PENDIENTE' }]);
 
+      setResumenGrabado({ fechaIso: fechaIsoLocal(new Date()), duracionSegundos: clip.duracionSegundos });
       setClipListo(null);
-      setPasoActual(0);
       setEstado('procesando');
     } catch (err) {
       setError(mensajeError(err, 'No se pudo finalizar la reunión. Inténtalo de nuevo.'));
     } finally {
       setCargando(false);
     }
-  }, [reunionId, clipListo, recorder]);
+  }, [reunionId, titulo, clipListo, recorder, seguir, pedirPermisoAvisos]);
 
   const descartar = useCallback(() => {
     descartarGrabacion(recorder);
     setSegundos(0);
+    setNiveles(NIVELES_REPOSO);
     setClipListo(null);
     setError(null);
     setEstado('inactivo');
@@ -268,95 +245,134 @@ export function GrabacionScreen({ navigation, route }: Props) {
 
   const estiloAnimado = {
     opacity: aparicion,
-    transform: [{ translateY: aparicion.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+    transform: [{ translateY: aparicion.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
   };
+
+  const columna = { flexGrow: 1, width: '100%' as const, maxWidth: ANCHO_COLUMNA_ESCRITORIO, alignSelf: 'center' as const };
+  const pausado = estado === 'pausado';
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
-      <Pressable
-        onPress={() => navigation.goBack()}
-        accessibilityRole="button"
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 2,
-          alignSelf: 'flex-start',
-          paddingTop: Math.max(insets.top, t.spacing[3]) + t.spacing[2],
-          paddingHorizontal: t.spacing[4],
-        }}
-      >
-        <ChevronLeft size={22} color={t.colors.brandStrong} strokeWidth={2} />
-        <Text variant="body" color="brandStrong">
-          Antes de grabar
-        </Text>
-      </Pressable>
+      {estado !== 'procesando' && (
+        <Pressable
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 2,
+            alignSelf: 'flex-start',
+            paddingTop: Math.max(insets.top, t.spacing[3]) + t.spacing[2],
+            paddingHorizontal: t.spacing[4],
+          }}
+        >
+          <ChevronLeft size={22} color={t.colors.brandStrong} strokeWidth={2} />
+          <Text variant="body" color="brandStrong">
+            Antes de grabar
+          </Text>
+        </Pressable>
+      )}
 
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
           paddingHorizontal: t.spacing[6],
+          paddingTop: estado === 'procesando' ? Math.max(insets.top, t.spacing[3]) + t.spacing[6] : 0,
           paddingBottom: insets.bottom + t.spacing[8],
-          justifyContent: 'space-between',
         }}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: t.spacing[8], paddingVertical: t.spacing[10] }, estiloAnimado]}>
-          {estadoVisible === 'inactivo' && (
-            <>
-              <MicPulse />
-              <View style={{ alignItems: 'center', gap: t.spacing[2] }}>
-                <Text variant="title" style={{ textAlign: 'center' }}>
-                  Listo para grabar
-                </Text>
-                <Text variant="caption" color="text2" style={{ textAlign: 'center', maxWidth: 260 }}>
-                  Graba tu reunión y la IA hará{'\n'}el resto automáticamente
-                </Text>
+        <View style={[columna, { justifyContent: 'space-between' }]}>
+          <Animated.View style={[{ flex: 1, paddingVertical: t.spacing[6] }, estiloAnimado]}>
+            {estadoVisible === 'inactivo' && (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: t.spacing[8], paddingVertical: t.spacing[10] }}>
+                <MicPulse />
+                <View style={{ alignItems: 'center', gap: t.spacing[2] }}>
+                  <Text variant="title" style={{ textAlign: 'center' }}>
+                    Listo para grabar
+                  </Text>
+                  <Text variant="caption" color="text2" style={{ textAlign: 'center', maxWidth: 260 }}>
+                    Graba tu reunión y la IA hará{'\n'}el resto automáticamente
+                  </Text>
+                </View>
               </View>
-            </>
-          )}
+            )}
 
-          {(estadoVisible === 'grabando' || estadoVisible === 'pausado') && (
-            <>
-              <LiveIndicator
-                label={estado === 'grabando' ? 'Grabando' : 'En pausa'}
-                time={formatearDuracion(segundos)}
-                tone={estado === 'grabando' ? 'solid' : 'off'}
+            {estadoVisible === 'grabando' && (
+              <View style={{ flex: 1, justifyContent: 'space-between', gap: t.spacing[8] }}>
+                <View style={{ alignItems: 'center', gap: t.spacing[6] }}>
+                  <Text variant="titleSm" numberOfLines={2} style={{ textAlign: 'center' }}>
+                    {titulo?.trim() || 'Reunión sin título'}
+                  </Text>
+                  <LiveIndicator label={pausado ? 'En pausa' : 'Grabando'} tone={pausado ? 'off' : 'soft'} />
+                  <Text
+                    variant="metadataStrong"
+                    accessibilityRole="timer"
+                    accessibilityLabel={`Tiempo de grabación ${formatearDuracion(segundos)}`}
+                    style={{
+                      fontSize: t.typography.display.fontSize,
+                      lineHeight: t.typography.display.lineHeight,
+                      letterSpacing: t.typography.display.letterSpacing,
+                      color: pausado ? t.colors.text2 : t.colors.text,
+                    }}
+                  >
+                    {formatearDuracion(segundos)}
+                  </Text>
+                  <Waveform levels={niveles} height={ALTO_ONDA} idle={pausado} />
+                  {escritorio && (
+                    <View style={{ alignSelf: 'stretch', marginTop: t.spacing[4] }}>
+                      <ResumenClips detenido={clipListo !== null} />
+                    </View>
+                  )}
+                </View>
+
+                <RecorderControls
+                  grabando={!pausado}
+                  ocupado={cargando}
+                  onAlternar={alternarPausa}
+                  onFinalizar={finalizar}
+                />
+              </View>
+            )}
+
+            {estadoVisible === 'procesando' && (
+              <ProcesandoIA
+                titulo={titulo?.trim() || 'Reunión sin título'}
+                metadatos={metadatosReunion(resumenGrabado.fechaIso, resumenGrabado.duracionSegundos)}
+                transcripcion={estadoBackend}
+                amplio={escritorio}
+                mensajeError={transcripcionFallida ? textoAviso({ reunionId, estado: 'FALLIDA' }, titulo).cuerpo : undefined}
               />
-              <Waveform levels={estado === 'grabando' ? niveles : NIVELES_REPOSO} height={46} idle={estado !== 'grabando'} />
-              <RecorderControls
-                grabando={estado === 'grabando'}
-                onAlternar={alternarPausa}
-                onDetener={descartar}
+            )}
+          </Animated.View>
+
+          <View style={{ gap: t.spacing[3] }}>
+            {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
+
+            {estado === 'inactivo' && (
+              <Button
+                label={cargando ? 'Iniciando…' : 'Iniciar grabación'}
+                size="xl"
+                fullWidth
+                loading={cargando}
+                onPress={iniciar}
               />
-            </>
-          )}
+            )}
 
-          {estadoVisible === 'procesando' && <ProcesandoIA pasos={PASOS} pasoActual={pasoActual} />}
-        </Animated.View>
+            {(estado === 'grabando' || estado === 'pausado') && (
+              <Button label="Descartar grabación" variant="ghost" size="lg" fullWidth disabled={cargando} onPress={descartar} />
+            )}
 
-        <View style={{ gap: t.spacing[3] }}>
-          {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
-
-          {estado === 'inactivo' && (
-            <Button
-              label={cargando ? 'Iniciando…' : 'Iniciar grabación'}
-              size="xl"
-              fullWidth
-              loading={cargando}
-              onPress={iniciar}
-            />
-          )}
-
-          {(estado === 'grabando' || estado === 'pausado') && (
-            <Button
-              label={cargando ? 'Finalizando…' : 'Finalizar grabación'}
-              variant="secondary"
-              size="xl"
-              fullWidth
-              loading={cargando}
-              onPress={finalizar}
-            />
-          )}
+            {estado === 'procesando' && (
+              <Button
+                label={transcripcionFallida ? 'Volver a mis actas' : 'Ir a mis actas'}
+                variant={transcripcionFallida ? 'primary' : 'secondary'}
+                size="xl"
+                fullWidth
+                onPress={() => navigation.replace('Tabs')}
+              />
+            )}
+          </View>
         </View>
       </ScrollView>
     </View>

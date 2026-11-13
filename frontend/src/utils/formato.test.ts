@@ -1,4 +1,4 @@
-import { formatearDuracion, formatearMinutos } from './formato';
+import { formatearDuracion, formatearMinutos, iniciales, capitalizar } from './formato';
 
 describe('formatearDuracion', () => {
   it('formatea segundos por debajo de una hora como mm:ss', () => {
@@ -26,5 +26,29 @@ describe('formatearMinutos', () => {
 
   it('combina horas y minutos cuando hay resto', () => {
     expect(formatearMinutos(95)).toBe('1h 35 min');
+  });
+});
+
+describe('iniciales', () => {
+  it('toma la inicial de las dos primeras palabras en mayúscula', () => {
+    expect(iniciales('wisdom imade')).toBe('WI');
+    expect(iniciales('María del Carmen López')).toBe('MD');
+  });
+
+  it('con una sola palabra devuelve una inicial', () => {
+    expect(iniciales('Wisdom')).toBe('W');
+  });
+
+  it('ignora espacios sobrantes y devuelve cadena vacía sin letras', () => {
+    expect(iniciales('  ana   ruiz ')).toBe('AR');
+    expect(iniciales('   ')).toBe('');
+  });
+});
+
+describe('capitalizar', () => {
+  it('deja solo la primera letra en mayúscula', () => {
+    expect(capitalizar('FREE')).toBe('Free');
+    expect(capitalizar('equipo')).toBe('Equipo');
+    expect(capitalizar('')).toBe('');
   });
 });

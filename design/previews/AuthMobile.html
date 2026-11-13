@@ -251,7 +251,7 @@ body { margin: 0; font-family: var(--font-sans); font-size: 15px; line-height: 2
 .ma-empty-glyph .ma-ico { width: 24px; height: 24px; }
 .ma-empty h4 { margin: 0; font: 600 17px/24px var(--font-sans); letter-spacing: -0.01em; }
 .ma-empty p { margin: 0 0 var(--space-4); max-width: 340px; color: var(--text-2); font-size: 14px; line-height: 21px; }
-.ma-skel { display: block; height: 10px; border-radius: var(--radius-full); background: linear-gradient(90deg, var(--surface-2) 25%, var(--fill-press) 50%, var(--surface-2) 75%); background-size: 300% 100%; animation: ma-shimmer 1.8s var(--ease-linear) infinite; }
+.ma-skel { display: block; height: 10px; border-radius: var(--radius-full); background: linear-gradient(90deg, var(--fill-press) 25%, var(--fill-hover) 50%, var(--fill-press) 75%); background-size: 300% 100%; animation: ma-shimmer 1.8s var(--ease-linear) infinite; }
 .ma-progress { height: 4px; border-radius: var(--radius-full); background: var(--surface-2); overflow: hidden; }
 .ma-progress > i { display: block; height: 100%; border-radius: inherit; background: var(--accent); width: var(--p, 40%); transition: width var(--dur-base) var(--ease-standard); }
 .ma-progress.is-indeterminate > i { width: 30%; animation: ma-indet 1.4s var(--ease-standard) infinite; }
@@ -378,6 +378,30 @@ body { margin: 0; font-family: var(--font-sans); font-size: 15px; line-height: 2
 .ma-choice > div .ma-ico { width: 18px; height: 18px; color: var(--text-2); }
 .ma-choice > .is-on { box-shadow: inset 0 0 0 2px var(--accent); }
 .ma-choice > .is-on .ma-ico { color: var(--accent); }
+
+/* ── Inicio móvil: CTA, FAB, estadísticas, ajustes ────────────────────── */
+.ma-cta { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: var(--radius-lg); background: var(--brand-soft); color: var(--text); }
+.ma-cta-ico { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: var(--on-brand); flex: none; }
+.ma-cta b { display: block; font: 600 16px/21px var(--font-sans); letter-spacing: -0.01em; color: var(--brand-strong); }
+.ma-cta small { display: block; font-size: 13px; line-height: 18px; color: var(--text-2); margin-top: 1px; }
+.ma-cta > svg:last-child { margin-left: auto; color: var(--brand-strong); }
+.ma-chips { display: flex; gap: 6px; overflow: hidden; }
+.ma-chips > * { flex: none; height: 32px; padding: 0 10px; border-radius: var(--radius-full); display: inline-flex; align-items: center; font: 500 12.5px/1 var(--font-sans); color: var(--text-2); background: var(--surface); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.ma-chips > .is-active { background: var(--text); color: var(--bg); box-shadow: none; }
+.ma-tabbar-fab { position: relative; flex: none; display: grid; grid-template-columns: 1fr 96px 1fr; padding: 8px 8px 30px; border-top: 1px solid var(--border); background: var(--surface); }
+.ma-fab { position: absolute; left: 50%; top: -26px; margin-left: -30px; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: var(--on-brand); box-shadow: 0 0 0 6px var(--bg), var(--shadow-md); }
+.ma-fab .ma-ico { width: 26px; height: 26px; stroke-width: 1.8; }
+.ma-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ma-stats > div { padding: 14px 12px; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--border); }
+.ma-stats b { display: block; font: 600 24px/28px var(--font-sans); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.ma-stats span { display: block; font-size: 12.5px; line-height: 16px; color: var(--text-2); margin-top: 2px; }
+.ma-settings { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.ma-settings > div { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.ma-settings > div + div { border-top: 1px solid var(--border); }
+.ma-settings b { display: block; font: 500 15px/20px var(--font-sans); }
+.ma-settings small { display: block; font-size: 13px; line-height: 18px; color: var(--text-2); }
+.ma-settings > div > span:not([class]) { flex: 1; min-width: 0; }
+.ma-settings .ma-chev { color: var(--text-2); width: 18px; height: 18px; }
 </style><meta charset="utf-8"><title>AuthMobile</title></head>
 <body><button onclick="var h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark'" style="position:fixed;right:12px;bottom:12px;z-index:99;font:500 12px system-ui;padding:6px 10px;border-radius:8px;border:1px solid #8884;background:#fff8;cursor:pointer">Light / Dark</button>
 <div style="display:flex;gap:48px;padding:40px 48px 36px;justify-content:center;background:var(--bg)"><div class="ma-p-meeting" style="display:flex;flex-direction:column;gap:18px;align-items:center"><div class="ma-phone"><div class="ma-status"><span>9:41</span><span class="ma-status-icons"><span class="ma-signal"><i style="height:4px"></i><i style="height:6px"></i><i style="height:8px"></i><i style="height:11px"></i></span><span class="ma-battery"><i></i></span></span></div><div class="ma-m-body" style="display:flex;flex-direction:column;padding-top:48px">

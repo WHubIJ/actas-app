@@ -193,6 +193,7 @@ export async function obtenerActas(): Promise<ActaResumen[]> {
     id: r.id,
     titulo: r.titulo,
     fecha: formatearFecha(r.fecha),
+    fechaIso: r.fecha,
     duracionMinutos: r.duracionMinutos,
     participantes: r.participantes,
     estadoTranscripcion: estados[r.id] ?? 'PENDIENTE',
@@ -220,15 +221,6 @@ async function obtenerTranscripcionDetalle(reunionId: string): Promise<Transcrip
 }
 
 /**
- * Solo el estado, para sondear en bucle desde `GrabacionScreen` mientras el
- * backend procesa la Épica 2, sin traer el texto combinado en cada tick.
- */
-export async function obtenerEstadoTranscripcion(reunionId: string): Promise<EstadoTranscripcion> {
-  const { estado } = await obtenerTranscripcionDetalle(reunionId);
-  return estado;
-}
-
-/**
  * Proyección para el detalle de una acta. `resumen` queda `null` a
  * propósito: por regla de negocio no se genera automáticamente, solo cuando
  * el usuario lo pide (ver `generarResumen`) — esta función solo trae lo que
@@ -243,6 +235,7 @@ export async function obtenerActaDetalle(reunionId: string): Promise<ActaDetalle
     id: reunion.id,
     titulo: reunion.titulo,
     fecha: formatearFecha(reunion.fecha),
+    fechaIso: reunion.fecha,
     duracionMinutos: reunion.duracionMinutos,
     participantes: reunion.participantes,
     estadoTranscripcion: transcripcion.estado,

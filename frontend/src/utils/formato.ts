@@ -26,3 +26,19 @@ export function formatearMinutos(minutos: number): string {
   const m = minutos % 60;
   return m === 0 ? `${h}h` : `${h}h ${m} min`;
 }
+
+/** Iniciales (máximo dos) de un nombre, para avatares. Cadena vacía si no hay letras. */
+export function iniciales(nombre: string): string {
+  return nombre
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((palabra) => palabra.charAt(0).toUpperCase())
+    .join('');
+}
+
+/** "FREE" -> "Free". Para mostrar valores que el backend manda como constante en mayúsculas. */
+export function capitalizar(texto: string): string {
+  return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
+}

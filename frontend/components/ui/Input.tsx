@@ -9,6 +9,8 @@ export type InputProps = TextInputProps & {
   help?: string;
   /** Texto de error: qué falta y cómo arreglarlo. */
   error?: string;
+  /** `success` pinta la ayuda en verde (p. ej. "Coinciden"); por defecto es texto secundario. */
+  helpTone?: 'neutral' | 'success';
   /** Icono a la izquierda; recibe el color correcto. */
   icon?: (color: string) => React.ReactNode;
   /** Elemento a la derecha (p. ej. mostrar/ocultar contraseña). */
@@ -17,7 +19,7 @@ export type InputProps = TextInputProps & {
   height?: 36 | 44;
 };
 
-export function Input({ label, help, error, icon, right, height = 44, onFocus, onBlur, style, ...rest }: InputProps) {
+export function Input({ label, help, helpTone = 'neutral', error, icon, right, height = 44, onFocus, onBlur, style, ...rest }: InputProps) {
   const t = useTheme();
   const c = t.colors;
   const [focused, setFocused] = useState(false);
@@ -61,7 +63,7 @@ export function Input({ label, help, error, icon, right, height = 44, onFocus, o
         {right}
       </View>
       {(error || help) && (
-        <Text variant="caption" color={error ? 'danger' : 'text2'}>
+        <Text variant="caption" color={error ? 'danger' : helpTone === 'success' ? 'success' : 'text2'}>
           {error ?? help}
         </Text>
       )}

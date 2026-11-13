@@ -3,9 +3,9 @@ import type { ActaDetalle } from '../types';
 /**
  * Datos de ejemplo para maquetar "Mis actas" y el detalle del acta.
  *
- * TEMPORAL: se borra entero en cuanto existan `GET /api/reuniones` y
- * `GET /api/reuniones/{id}`. No importar desde componentes reutilizables,
- * solo desde las pantallas.
+ * Solo para cuando no hay backend (`hayBackend` falso). No importar desde
+ * componentes reutilizables: solo desde las pantallas y desde
+ * `useListaReuniones`, que es la carga compartida de las listas.
  *
  * Los cuatro registros cubren a propósito los cuatro casos que la pantalla de
  * detalle tiene que saber pintar: transcrita con resumen, transcrita sin
@@ -16,6 +16,7 @@ export const ACTAS_EJEMPLO: ActaDetalle[] = [
     id: '1',
     titulo: 'Reunión equipo marketing',
     fecha: '12 septiembre 2026',
+    fechaIso: '2026-09-12',
     duracionMinutos: 48,
     participantes: ['Ana', 'Carlos', 'Lucía', 'Marta', 'Nuria'],
     estadoTranscripcion: 'COMPLETADA',
@@ -91,6 +92,7 @@ export const ACTAS_EJEMPLO: ActaDetalle[] = [
     id: '2',
     titulo: 'Kick-off producto Q4',
     fecha: '8 septiembre 2026',
+    fechaIso: '2026-09-08',
     duracionMinutos: 72,
     participantes: ['Javier', 'Elena', 'Miguel'],
     estadoTranscripcion: 'COMPLETADA',
@@ -125,6 +127,7 @@ export const ACTAS_EJEMPLO: ActaDetalle[] = [
     id: '3',
     titulo: 'Revisión financiera mensual',
     fecha: '5 septiembre 2026',
+    fechaIso: '2026-09-05',
     duracionMinutos: 35,
     participantes: ['Beatriz', 'Raúl'],
     estadoTranscripcion: 'EN_PROCESO',
@@ -137,6 +140,7 @@ export const ACTAS_EJEMPLO: ActaDetalle[] = [
     id: '4',
     titulo: 'Junta directiva extraordinaria',
     fecha: '1 septiembre 2026',
+    fechaIso: '2026-09-01',
     duracionMinutos: 96,
     participantes: ['Pablo', 'Sara', 'Tomás', 'Iván', 'Rocío', 'Diego'],
     estadoTranscripcion: 'FALLIDA',

@@ -82,7 +82,15 @@ Estados de una reunión: Programada, Grabando, Procesando, Revisar, En aprobaci�
 - Campos de acceso a 44px con icono; contraseña con mostrar/ocultar y medidor de cuatro cápsulas (`ma-strength`) acompañado siempre de una frase.
 - Registro en dos pasos (cuenta, organización) con `ma-steps`, y verificación por código de 6 dígitos (`ma-code`).
 - Alternativas: Google, Apple y SSO de organización, con los logos oficiales de cada proveedor al implementar (nunca redibujados).
-- El error de credenciales es genérico: no revela si el correo existe. Ver `LoginScreen`, `RegisterScreen`, `AuthMobile` y `AuthFields`.
+- El error de credenciales es genérico: no revela si el correo existe. - Recuperar contraseña en cuatro pasos (correo, código, contraseña nueva, confirmación) sin revelar si el correo existe; ofrece cerrar la sesión en el resto de dispositivos.
+- Ver `LoginScreen`, `RegisterScreen`, `AuthMobile`, `AuthFields`, `RecoverWeb` y `RecoverMobile`.
+
+## Estados vacío y de carga
+
+- **Vacío** (primera vez): la estructura de la app se mantiene y el vacío vive en el contenido, con una acción principal y una frase que promete el resultado. Distinto de **Sin resultados**, que repite la búsqueda activa y ofrece ampliarla.
+- **Cargando**: el marco (navegación, títulos, buscador, filtros) aparece al instante; solo los datos usan `ma-skel` con la forma del contenido real. Nunca un spinner a pantalla completa.
+- **Procesando** (la IA prepara el acta, de 1 a 5 minutos): lo que ya se sabe arriba, progreso por pasos, estimación honesta y aviso de que se puede salir; se notificará al terminar.
+- Ver `EmptyWeb`, `LoadingWeb`, `ProcessingWeb` y `EstadosMobile`.
 
 ## Motion
 

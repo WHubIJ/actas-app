@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
@@ -13,11 +12,15 @@ import {
   type Theme as NavTheme,
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { Session } from '@supabase/supabase-js';
 
 import { MisActasScreen } from './src/screens/MisActasScreen';
+import { ReunionesScreen } from './src/screens/ReunionesScreen';
+import { ActasScreen } from './src/screens/ActasScreen';
+import { TareasScreen } from './src/screens/TareasScreen';
+import { EquiposScreen } from './src/screens/EquiposScreen';
 import { MiCuentaScreen } from './src/screens/MiCuentaScreen';
 import { NuevaGrabacionScreen } from './src/screens/NuevaGrabacionScreen';
 import { GrabacionScreen } from './src/screens/GrabacionScreen';
@@ -28,9 +31,13 @@ import { RecuperarContrasenaScreen } from './src/screens/RecuperarContrasenaScre
 import { NuevaContrasenaScreen } from './src/screens/NuevaContrasenaScreen';
 import { TabBar } from './src/components/TabBar';
 import { Sidebar } from './src/components/Sidebar';
+import { anchoSidebar } from './src/components/anchoSidebar';
+import { solicitarBusqueda } from './src/components/busquedaGlobal';
+import { ProveedorReuniones, useContadoresReuniones } from './src/services/useListaReuniones';
 import { supabase, haySupabase } from './src/services/supabaseClient';
 import { procesarUrlRecuperacion } from './src/services/authService';
 import { ThemeProvider, useAppFonts, useTheme } from './theme/ThemeProvider';
+import { useBreakpoint } from './theme/useBreakpoint';
 import { SeguimientoTranscripciones } from './src/notificaciones/SeguimientoTranscripciones';
 
 // Se oculta a mano cuando fuentes + sesión están listas (ver `App`). Llamarlo
@@ -38,9 +45,14 @@ import { SeguimientoTranscripciones } from './src/notificaciones/SeguimientoTran
 // el auto-hide nativo, que puede disparar antes de que monte el primer componente.
 SplashScreen.preventAutoHideAsync();
 
-/** Pestañas de la barra inferior. El FAB central NO es una pestaña. */
+/** Pestañas de la app. La barra inferior (móvil) solo muestra `Inicio` y `Cuenta`;
+    el `Sidebar` (tablet y escritorio) las muestra todas. El FAB central NO es una pestaña. */
 export type TabParamList = {
   Inicio: undefined;
+  Reuniones: undefined;
+  Actas: undefined;
+  Tareas: undefined;
+  Equipos: undefined;
   Cuenta: undefined;
 };
 
@@ -79,30 +91,48 @@ function abrirActa(actaId: string) {
 const Tab = createBottomTabNavigator<TabParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 
+/**
+ * `Sidebar` con lo que sabe la app: el buscador enfoca el de la pestaña
+ * activa (o lleva a Reuniones si esa pestaña no tiene) y los contadores salen
+ * de la lista compartida, solo cuando ya ha cargado.
+ */
+function SidebarConectado(props: BottomTabBarProps) {
+  const contadores = useContadoresReuniones();
+  const { navigation } = props;
+  // Estable: el sidebar registra con ella el atajo de teclado en un efecto.
+  const buscar = useCallback(() => solicitarBusqueda(() => navigation.navigate('Reuniones')), [navigation]);
+  return <Sidebar {...props} onBuscar={buscar} contadores={contadores} />;
+}
+
 function Pestanas() {
   const t = useTheme();
-  const { width } = useWindowDimensions();
-  // Mismo umbral que `esEscritorio` en las pantallas de auth (LoginScreen):
-  // por debajo, barra inferior con FAB; por encima, columna fija a la izquierda.
-  const esEscritorio = width >= t.size.bpTablet;
+  const modo = useBreakpoint();
 
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        // Deja sitio a la columna del Sidebar, que se posiciona absoluto
-        // encima de esta misma vista (ver `Sidebar`, no cambia el layout del
-        // propio Tab.Navigator).
-        sceneStyle: esEscritorio ? { marginLeft: t.size.sidebarW } : undefined,
-      }}
-      tabBar={(props) => {
-        const onGrabar = () => props.navigation.navigate('NuevaGrabacion');
-        return esEscritorio ? <Sidebar {...props} onGrabar={onGrabar} /> : <TabBar {...props} onGrabar={onGrabar} />;
-      }}
-    >
-      <Tab.Screen name="Inicio" component={MisActasScreen} options={{ title: 'Inicio' }} />
-      <Tab.Screen name="Cuenta" component={MiCuentaScreen} options={{ title: 'Cuenta' }} />
-    </Tab.Navigator>
+    // Dentro de las pestañas y no más arriba: al cerrar sesión se desmonta con
+    // ellas y la lista de reuniones de la cuenta anterior no sobrevive.
+    <ProveedorReuniones>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          // Deja sitio a la columna del Sidebar, que se posiciona absoluto
+          // encima de esta misma vista (ver `Sidebar`, no cambia el layout del
+          // propio Tab.Navigator). Colapsado en tablet, completo en escritorio.
+          sceneStyle: modo === 'movil' ? undefined : { marginLeft: anchoSidebar(modo, t.size) },
+        }}
+        tabBar={(props) => {
+          const onGrabar = () => props.navigation.navigate('NuevaGrabacion');
+          return modo === 'movil' ? <TabBar {...props} onGrabar={onGrabar} /> : <SidebarConectado {...props} />;
+        }}
+      >
+        <Tab.Screen name="Inicio" component={MisActasScreen} options={{ title: 'Inicio' }} />
+        <Tab.Screen name="Reuniones" component={ReunionesScreen} options={{ title: 'Reuniones' }} />
+        <Tab.Screen name="Actas" component={ActasScreen} options={{ title: 'Actas' }} />
+        <Tab.Screen name="Tareas" component={TareasScreen} options={{ title: 'Tareas' }} />
+        <Tab.Screen name="Equipos" component={EquiposScreen} options={{ title: 'Equipos' }} />
+        <Tab.Screen name="Cuenta" component={MiCuentaScreen} options={{ title: 'Cuenta' }} />
+      </Tab.Navigator>
+    </ProveedorReuniones>
   );
 }
 

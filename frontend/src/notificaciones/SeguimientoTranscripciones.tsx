@@ -102,8 +102,9 @@ export function SeguimientoTranscripciones({ children, onAbrirActa }: Props) {
     if (appEnSegundoPlano() && (await mostrarNotificacion({ titulo, cuerpo, reunionId: transicion.reunionId }))) {
       return;
     }
-    // Si falla, GrabacionScreen vuelve a la lista sin decir nada: ahí el aviso sí hace falta.
-    if (transicion.estado === 'COMPLETADA' && enPantalla.current.has(transicion.reunionId) && !appEnSegundoPlano()) {
+    // La pantalla que observa la reunión (GrabacionScreen, DetalleActa) ya
+    // pinta el resultado, también el fallo: un aviso global encima lo duplicaría.
+    if (enPantalla.current.has(transicion.reunionId) && !appEnSegundoPlano()) {
       return;
     }
     setAviso({

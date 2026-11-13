@@ -1,12 +1,20 @@
-import { useCallback, useMemo, useState } from 'react';
-import { View, Pressable, KeyboardAvoidingView, Platform, ScrollView, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Lock, Eye, EyeOff } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
+import { View } from 'react-native';
+import { Check } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Text, Button, Input, AppIcon, PanelProductoAuth, Aviso } from '../../components/ui';
-import { actualizarContrasena, ErrorAuth } from '../services/authService';
-
-const LONGITUD_MINIMA = 8;
+import {
+  Button,
+  Checkbox,
+  CampoContrasena,
+  Aviso,
+  PasosAuth,
+  GlifoAuth,
+  MarcoAuth,
+  EncabezadoAuth,
+  useAccesoEscritorio,
+} from '../../components/ui';
+import { actualizarContrasena, cerrarSesionEnOtrosDispositivos, ErrorAuth } from '../services/authService';
+import { LONGITUD_MINIMA_CONTRASENA } from '../utils/fortalezaContrasena';
 
 /** Mismo patrón que en las demás pantallas: solo se confía en el mensaje de nuestros propios errores tipados. */
 function mensajeError(err: unknown, porDefecto: string): string {
@@ -15,149 +23,115 @@ function mensajeError(err: unknown, porDefecto: string): string {
 }
 
 interface Props {
-  /** Se llama tras guardar la contraseña con éxito. `App.tsx` ya tiene sesión
+  /** Se llama al pulsar "Continuar" en la confirmación. `App.tsx` ya tiene sesión
       activa (la de recuperación) en ese momento, así que no navega a mano:
       deja que el árbol raíz reaccione y entre a la app igual que un login normal. */
   onCompletado: () => void;
 }
 
 /**
- * Pantalla fuera de los stacks de navegación normales (ver `App.tsx`): se
- * muestra como overrride de toda la app mientras hay una sesión de
- * recuperación de contraseña pendiente, tanto si el usuario venía del stack
- * de auth como si venía ya logueado (el enlace de email puede llegar con la
- * app en cualquier estado).
+ * Pasos 3 (contraseña nueva) y 4 (confirmación) de la recuperación. Fuera de
+ * los stacks de navegación normales (ver `App.tsx`): se muestra como override
+ * de toda la app mientras hay una sesión de recuperación pendiente, tanto si
+ * el usuario venía del stack de auth como si venía ya logueado (el enlace del
+ * email puede llegar con la app en cualquier estado).
  */
 export function NuevaContrasenaScreen({ onCompletado }: Props) {
   const t = useTheme();
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const esEscritorio = width >= t.size.bpTablet;
+  const esEscritorio = useAccesoEscritorio();
 
   const [password, setPassword] = useState('');
   const [confirmacion, setConfirmacion] = useState('');
-  const [verPassword, setVerPassword] = useState(false);
+  const [cerrarOtras, setCerrarOtras] = useState(true);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // `null` mientras no se ha guardado; luego, si la sesión de otros dispositivos se cerró (o no se pidió).
+  const [resultado, setResultado] = useState<{ otrasCerradas: boolean | 'fallo' } | null>(null);
 
-  const errorValidacion = useMemo(() => {
-    if (!password) return null;
-    if (password.length < LONGITUD_MINIMA) return `La contraseña debe tener al menos ${LONGITUD_MINIMA} caracteres.`;
-    if (confirmacion && password !== confirmacion) return 'Las contraseñas no coinciden.';
-    return null;
-  }, [password, confirmacion]);
-
-  const puedeEnviar = password.length >= LONGITUD_MINIMA && password === confirmacion;
+  const puedeEnviar = Array.from(password).length >= LONGITUD_MINIMA_CONTRASENA && password === confirmacion;
+  const tamano = esEscritorio ? 'lg' : 'xl';
 
   const enviar = useCallback(async () => {
     setError(null);
     setCargando(true);
     try {
       await actualizarContrasena(password);
-      onCompletado();
     } catch (err) {
       setError(mensajeError(err, 'Algo ha ido mal. Inténtalo de nuevo.'));
-    } finally {
       setCargando(false);
+      return;
     }
-  }, [password, onCompletado]);
 
-  const formulario = (
-    <View style={{ width: '100%', maxWidth: 380, gap: t.spacing[4] }}>
-      <View style={{ alignItems: esEscritorio ? 'flex-start' : 'center', gap: t.spacing[3] }}>
-        <AppIcon size={esEscritorio ? 28 : 64} />
-        <Text
-          variant="heading"
-          style={{
-            fontSize: 28,
-            lineHeight: 34,
-            letterSpacing: -0.84,
-            textAlign: esEscritorio ? 'left' : 'center',
-          }}
-        >
-          Crea una nueva contraseña
-        </Text>
-        <Text variant="caption" color="text2" style={{ textAlign: esEscritorio ? 'left' : 'center', marginTop: -t.spacing[1] }}>
-          Escribe tu nueva contraseña para continuar
-        </Text>
-      </View>
+    // La contraseña ya está cambiada: un fallo aquí no puede mandar al usuario de vuelta al formulario.
+    let otrasCerradas: boolean | 'fallo' = false;
+    if (cerrarOtras) {
+      try {
+        await cerrarSesionEnOtrosDispositivos();
+        otrasCerradas = true;
+      } catch {
+        otrasCerradas = 'fallo';
+      }
+    }
+    setResultado({ otrasCerradas });
+    setCargando(false);
+  }, [password, cerrarOtras]);
 
-      {(error || errorValidacion) && <Aviso tono="error" mensaje={error ?? errorValidacion ?? ''} onCerrar={() => setError(null)} />}
-
-      <View style={{ gap: t.spacing[4] }}>
-        <Input
-          label="Nueva contraseña"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={!verPassword}
-          placeholder="••••••••"
-          icon={(c) => <Lock size={18} color={c} />}
-          right={
-            <Pressable
-              onPress={() => setVerPassword((v) => !v)}
-              hitSlop={8}
-              accessibilityLabel={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-            >
-              {verPassword ? <EyeOff size={18} color={t.colors.text2} /> : <Eye size={18} color={t.colors.text2} />}
-            </Pressable>
-          }
-        />
-        <Input
-          label="Confirma la contraseña"
-          value={confirmacion}
-          onChangeText={setConfirmacion}
-          secureTextEntry={!verPassword}
-          placeholder="••••••••"
-          icon={(c) => <Lock size={18} color={c} />}
-        />
-      </View>
-
-      <Button
-        label={cargando ? 'Guardando…' : 'Guardar contraseña'}
-        size="xl"
-        fullWidth
-        loading={cargando}
-        disabled={!puedeEnviar}
-        onPress={enviar}
-      />
-    </View>
-  );
+  if (resultado) {
+    const { otrasCerradas } = resultado;
+    return (
+      <MarcoAuth>
+        <PasosAuth total={4} actual={4} etiqueta="Listo" />
+        <GlifoAuth tono="success" icono={(c) => <Check size={24} color={c} strokeWidth={1.6} />} />
+        <EncabezadoAuth titulo="Contraseña actualizada">
+          Tu contraseña nueva ya está activa.
+          {otrasCerradas === true && ' Hemos cerrado la sesión en tus otros dispositivos.'}
+          {otrasCerradas === 'fallo' && ' No hemos podido cerrar la sesión en tus otros dispositivos.'}
+        </EncabezadoAuth>
+        <View style={{ marginTop: esEscritorio ? t.spacing[2] : 'auto' }}>
+          <Button label="Continuar" size={tamano} fullWidth onPress={onCompletado} />
+        </View>
+      </MarcoAuth>
+    );
+  }
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {esEscritorio ? (
-          <View style={{ flex: 1, flexDirection: 'row' }}>
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{
-                flexGrow: 1,
-                alignItems: 'center',
-                justifyContent: 'center',
-                paddingHorizontal: t.spacing[12],
-              }}
-              keyboardShouldPersistTaps="handled"
-            >
-              {formulario}
-            </ScrollView>
-            <PanelProductoAuth />
-          </View>
-        ) : (
-          <ScrollView
-            contentContainerStyle={{
-              flexGrow: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingHorizontal: t.spacing[6],
-              paddingTop: insets.top + t.spacing[10],
-              paddingBottom: insets.bottom + t.spacing[8],
-            }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {formulario}
-          </ScrollView>
-        )}
-      </KeyboardAvoidingView>
-    </View>
+    <MarcoAuth>
+      <PasosAuth total={4} actual={3} etiqueta="Contraseña nueva" />
+      <EncabezadoAuth titulo="Crea una contraseña nueva">
+        Usa al menos {LONGITUD_MINIMA_CONTRASENA} caracteres. No puede ser igual a la anterior.
+      </EncabezadoAuth>
+
+      {error && <Aviso tono="error" mensaje={error} onCerrar={() => setError(null)} />}
+
+      <CampoContrasena
+        label="Nueva contraseña"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="••••••••••"
+        nueva
+        medidor
+      />
+      <CampoContrasena
+        label="Repite la contraseña"
+        value={confirmacion}
+        onChangeText={setConfirmacion}
+        placeholder="••••••••••"
+        confirmaA={password}
+        onSubmitEditing={puedeEnviar ? enviar : undefined}
+      />
+
+      <Checkbox checked={cerrarOtras} onChange={setCerrarOtras} label="Cerrar la sesión en el resto de dispositivos" />
+
+      <View style={{ marginTop: esEscritorio ? t.spacing[2] : 'auto' }}>
+        <Button
+          label={cargando ? 'Guardando…' : 'Guardar contraseña'}
+          size={tamano}
+          fullWidth
+          loading={cargando}
+          disabled={!puedeEnviar}
+          onPress={enviar}
+        />
+      </View>
+    </MarcoAuth>
   );
 }

@@ -10,7 +10,7 @@ describe('BadgeEstado', () => {
   // EN_PROCESO queda fuera de la tabla: monta un Animated.loop infinito que
   // no aporta nada a lo que se comprueba aquí (etiqueta y tono).
   const casos: ReadonlyArray<[Exclude<EstadoTranscripcion, 'EN_PROCESO'>, string, string]> = [
-    ['COMPLETADA', 'Procesado por IA', lightColors.success],
+    ['COMPLETADA', 'Procesado', lightColors.success],
     ['FALLIDA', 'Error', lightColors.danger],
     ['PENDIENTE', 'En cola', lightColors.text2],
   ];
