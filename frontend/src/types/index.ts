@@ -16,6 +16,22 @@ export interface Reunion {
   participantes?: string[];
 }
 
+/**
+ * Reunión convocada y todavía sin grabar (ADR-008). Llega de
+ * `GET /api/reuniones/programadas`; cuando se graba y finaliza pasa a ser
+ * un `ActaResumen` como cualquier otra y desaparece de esta lista.
+ */
+export interface ReunionProgramada {
+  id: string;
+  titulo: string;
+  /** ISO `yyyy-MM-dd`: la fecha convocada, no la de grabación. */
+  fechaIso: string;
+  /** `"HH:mm"` o `null` si no se fijó. */
+  hora: string | null;
+  lugar: string | null;
+  participantes: string[];
+}
+
 export interface ClipAudio {
   id: string;
   reunionId: string;

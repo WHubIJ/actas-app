@@ -1,6 +1,13 @@
 import { supabase } from './supabaseClient';
 import { formatearFecha } from '../utils/formato';
-import type { ActaDetalle, ActaResumen, EstadoTranscripcion, FormatoArchivo, PlantillaResumen } from '../types';
+import type {
+  ActaDetalle,
+  ActaResumen,
+  EstadoTranscripcion,
+  FormatoArchivo,
+  PlantillaResumen,
+  ReunionProgramada,
+} from '../types';
 
 /**
  * Base de la API del backend (Spring Boot). Sin barra final.
@@ -155,10 +162,66 @@ interface ReunionResumenBackend {
   id: string;
   /** ISO `yyyy-MM-dd`, tal cual lo serializa Jackson para un `LocalDate`. */
   fecha: string;
+  /** `"HH:mm:ss"` (Jackson para un `LocalTime`) o `null`. Solo tiene sentido en las programadas. */
+  hora: string | null;
+  lugar: string | null;
   finalizada: boolean;
+  programada: boolean;
   duracionMinutos: number;
   titulo: string;
   participantes: string[];
+}
+
+/** Lo que el usuario fija al programar o reprogramar (ADR-008). `titulo` vacío deja el placeholder del backend. */
+export interface DatosReunionProgramada {
+  fechaIso: string;
+  /** `"HH:mm"` o `null`. */
+  hora: string | null;
+  lugar: string | null;
+  titulo: string | null;
+  participantes: string[];
+}
+
+/** Jackson escribe `LocalTime` con segundos ("19:30:00"); la UI solo enseña y edita "19:30". */
+function horaCorta(hora: string | null): string | null {
+  return hora ? hora.slice(0, 5) : null;
+}
+
+function aProgramada(r: ReunionResumenBackend): ReunionProgramada {
+  return { id: r.id, titulo: r.titulo, fechaIso: r.fecha, hora: horaCorta(r.hora), lugar: r.lugar, participantes: r.participantes };
+}
+
+/** Corresponde a `GET /api/reuniones/programadas`: las convocadas y aún sin grabar, de la más próxima a la más lejana. */
+export async function obtenerReunionesProgramadas(): Promise<ReunionProgramada[]> {
+  const reuniones = await peticion<ReunionResumenBackend[]>('/api/reuniones/programadas');
+  return reuniones.map(aProgramada);
+}
+
+function cuerpoProgramada(datos: DatosReunionProgramada): RequestInit {
+  return {
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fecha: datos.fechaIso,
+      hora: datos.hora,
+      lugar: datos.lugar,
+      titulo: datos.titulo,
+      participantes: datos.participantes,
+    }),
+  };
+}
+
+/** Corresponde a `POST /api/reuniones/programadas`. Devuelve el id de la reunión convocada. */
+export async function programarReunion(datos: DatosReunionProgramada): Promise<string> {
+  const { reunionId } = await peticion<{ reunionId: string }>('/api/reuniones/programadas', {
+    method: 'POST',
+    ...cuerpoProgramada(datos),
+  });
+  return reunionId;
+}
+
+/** Corresponde a `PUT /api/reuniones/programadas/{id}` (204; `ESTADO_INVALIDO` si ya se grabó). */
+export async function reprogramarReunion(reunionId: string, datos: DatosReunionProgramada): Promise<void> {
+  await peticion<void>(`/api/reuniones/programadas/${reunionId}`, { method: 'PUT', ...cuerpoProgramada(datos) });
 }
 
 /** Corresponde a `GET /api/reuniones` (solo reuniones finalizadas, ver GrabacionController). */

@@ -1,7 +1,8 @@
 # Modelo de dominio
 
 Definido durante el "grooming" del Sprint 1 y actualizado con ADR-003 (multi-tenant),
-ADR-005 (identidad en Supabase Auth) y las migraciones Flyway `V1`–`V12`
+ADR-005 (identidad en Supabase Auth), ADR-008 (reuniones programadas) y las migraciones
+Flyway `V1`–`V14`
 (`backend/src/main/resources/db/migration/`).
 
 Los objetos de dominio viven en `backend/src/main/java/com/actasapp/backend/<modulo>/domain/`
@@ -39,15 +40,24 @@ organizacion → membresia (usuario + rol OWNER/ADMIN/MIEMBRO)
 
 ## Reunión (`grabacion`)
 
-Una reunión de junta directiva grabada.
+Una reunión de junta directiva, grabada o convocada para grabarse (ADR-008).
 
 - `organizacionId` — obligatorio (FK a `organizacion`)
 - `equipoId` — opcional; la FK compuesta (`equipo_id`, `organizacion_id`) garantiza que
   el equipo es de la misma organización
-- `fecha`
-- `titulo` — opcional, capturado a mano antes de grabar
+- `fecha` — la convocada por el usuario; grabar otro día no la cambia
+- `hora`, `lugar` — opcionales (V14); solo los fija quien programa
+- `titulo` — opcional, capturado a mano antes de grabar o al programar
 - `participantes` — lista opcional de nombres (tabla `participante_reunion`)
+- `programada` — `true` si nació convocada (`Reunion.programar`); `false` si nació para
+  grabarse en el momento (V14, por defecto `false`)
 - `finalizada` — marcado manualmente por el usuario; dispara la transcripción
+
+El estado se deriva, no se guarda: `finalizada` → grabada (es un acta);
+`programada && !finalizada` → programada (sale en el calendario, se puede reprogramar o
+cancelar); `!programada && !finalizada` → en preparación (grabación en curso o
+abandonada; no se lista). Programar o reprogramar exige una fecha no anterior a hoy;
+reprogramar solo mientras esté programada.
 
 ## Clip de audio (`grabacion`)
 
@@ -111,6 +121,8 @@ se protege con un token aleatorio y su caducidad, no con JWT.
 
 ## Reglas de negocio clave
 
+- Una reunión programada no puede convocarse en el pasado y solo se edita o cancela
+  mientras no se haya grabado; grabarla no cambia su fecha (ADR-008)
 - La transcripción de una reunión solo se dispara cuando el usuario la marca como finalizada
 - Los clips se transcriben secuencialmente, en el orden en que se grabaron
 - Los textos de varios clips se combinan con IA (no concatenación simple), preservando continuidad

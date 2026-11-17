@@ -21,7 +21,7 @@ const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 's
  * `"2026-10-08"` → fecha local a medianoche. `new Date(iso)` la interpretaría
  * en UTC y, al oeste de Greenwich, caería en el día anterior.
  */
-function fechaLocal(fechaIso: string): Date | null {
+export function fechaLocal(fechaIso: string): Date | null {
   const [anio, mes, dia] = fechaIso.split('-').map(Number);
   if (!anio || !mes || !dia) return null;
   return new Date(anio, mes - 1, dia);

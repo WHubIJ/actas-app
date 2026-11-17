@@ -4,15 +4,18 @@ import com.actasapp.backend.grabacion.domain.Reunion;
 import com.actasapp.backend.grabacion.puertos.entrada.ConsultarReunionesUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.FinalizarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.IniciarReunionUseCase;
+import com.actasapp.backend.grabacion.puertos.entrada.ProgramarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.RegistrarClipUseCase;
 import com.actasapp.backend.shared.identidad.ResolverOrganizacionUsuario;
 import com.actasapp.backend.shared.identidad.VerificarAccesoReunion;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +32,7 @@ public class GrabacionController {
     private static final DateTimeFormatter FORMATO_FECHA_TITULO_PROVISIONAL = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final IniciarReunionUseCase iniciarReunion;
+    private final ProgramarReunionUseCase programarReunion;
     private final RegistrarClipUseCase registrarClip;
     private final FinalizarReunionUseCase finalizarReunion;
     private final ConsultarReunionesUseCase consultarReuniones;
@@ -39,6 +43,7 @@ public class GrabacionController {
     private final UUID organizacionPorDefectoId;
 
     public GrabacionController(IniciarReunionUseCase iniciarReunion,
+                                ProgramarReunionUseCase programarReunion,
                                 RegistrarClipUseCase registrarClip,
                                 FinalizarReunionUseCase finalizarReunion,
                                 ConsultarReunionesUseCase consultarReuniones,
@@ -46,6 +51,7 @@ public class GrabacionController {
                                 VerificarAccesoReunion verificarAcceso,
                                 @Value("${actas-app.organizacion-por-defecto-id}") UUID organizacionPorDefectoId) {
         this.iniciarReunion = iniciarReunion;
+        this.programarReunion = programarReunion;
         this.registrarClip = registrarClip;
         this.finalizarReunion = finalizarReunion;
         this.consultarReuniones = consultarReuniones;
@@ -58,6 +64,16 @@ public class GrabacionController {
     public record NuevoClipRequest(int orden, String urlStorage, int duracionSegundos) {}
 
     /**
+     * Convocatoria de una reunión programada (ADR-008). `fecha` es obligatoria
+     * (`yyyy-MM-dd`); `hora` opcional (`HH:mm`); el resto como en
+     * {@link NuevaReunionRequest}. La organización se resuelve siempre del
+     * usuario autenticado: una reunión futura no tiene por qué saber de
+     * organizaciones por defecto.
+     */
+    public record ReunionProgramadaRequest(UUID equipoId, LocalDate fecha, LocalTime hora, String lugar,
+                                           String titulo, List<String> participantes) {}
+
+    /**
      * `titulo` y `participantes` los captura el usuario a mano en NuevaGrabacionScreen
      * antes de grabar (opcionales); si faltan, se usa el placeholder de fecha / lista
      * vacía. La IA de las épicas de transcripción/resumen los sobrescribirá más
@@ -66,8 +82,8 @@ public class GrabacionController {
      * estado que pertenece a `transcripcion`.
      */
     public record ReunionResumenResponse(
-            UUID id, LocalDate fecha, boolean finalizada, int duracionMinutos,
-            String titulo, List<String> participantes) {}
+            UUID id, LocalDate fecha, LocalTime hora, String lugar, boolean finalizada, boolean programada,
+            int duracionMinutos, String titulo, List<String> participantes) {}
 
     /**
      * Crea una reunión. El body es opcional: al pulsar "Iniciar grabación" la app
@@ -95,6 +111,31 @@ public class GrabacionController {
         return Map.of("reunionId", id);
     }
 
+    @PostMapping("/programadas")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, UUID> programar(@RequestBody ReunionProgramadaRequest req, @AuthenticationPrincipal Jwt jwt) {
+        UUID organizacionId = organizacionDe(jwt);
+        UUID id = programarReunion.programarReunion(organizacionId, req.equipoId(), req.fecha(), req.hora(), req.lugar(),
+                req.titulo(), participantesDe(req));
+        return Map.of("reunionId", id);
+    }
+
+    @PutMapping("/programadas/{reunionId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reprogramar(@PathVariable UUID reunionId, @RequestBody ReunionProgramadaRequest req,
+                            @AuthenticationPrincipal Jwt jwt) {
+        verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject()));
+        programarReunion.reprogramarReunion(reunionId, req.fecha(), req.hora(), req.lugar(), req.titulo(), participantesDe(req));
+    }
+
+    /** Solo las convocadas y aún sin grabar; las grabadas salen en {@link #listar}. */
+    @GetMapping("/programadas")
+    public List<ReunionResumenResponse> listarProgramadas(@AuthenticationPrincipal Jwt jwt) {
+        return consultarReuniones.listarProgramadasPorOrganizacion(organizacionDe(jwt)).stream()
+                .map(this::aResumen)
+                .toList();
+    }
+
     @PostMapping("/{reunionId}/clips")
     public Map<String, UUID> registrarClip(@PathVariable UUID reunionId, @RequestBody NuevoClipRequest req,
                                             @AuthenticationPrincipal Jwt jwt) {
@@ -112,9 +153,7 @@ public class GrabacionController {
     /** Solo reuniones finalizadas: mientras se graba no hay acta que listar todavía. */
     @GetMapping
     public List<ReunionResumenResponse> listar(@AuthenticationPrincipal Jwt jwt) {
-        UUID organizacionId = resolverOrganizacion.organizacionPrincipalDe(UUID.fromString(jwt.getSubject()))
-                .orElse(organizacionPorDefectoId);
-        return consultarReuniones.listarFinalizadasPorOrganizacion(organizacionId).stream()
+        return consultarReuniones.listarFinalizadasPorOrganizacion(organizacionDe(jwt)).stream()
                 .map(this::aResumen)
                 .toList();
     }
@@ -122,6 +161,15 @@ public class GrabacionController {
     @GetMapping("/{reunionId}")
     public ReunionResumenResponse detalle(@PathVariable UUID reunionId, @AuthenticationPrincipal Jwt jwt) {
         return aResumen(verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject())));
+    }
+
+    private UUID organizacionDe(Jwt jwt) {
+        return resolverOrganizacion.organizacionPrincipalDe(UUID.fromString(jwt.getSubject()))
+                .orElse(organizacionPorDefectoId);
+    }
+
+    private static List<String> participantesDe(ReunionProgramadaRequest req) {
+        return req.participantes() != null ? req.participantes() : List.of();
     }
 
     private ReunionResumenResponse aResumen(Reunion reunion) {
@@ -132,7 +180,8 @@ public class GrabacionController {
                 ? reunion.getTitulo()
                 : "Reunión del " + reunion.getFecha().format(FORMATO_FECHA_TITULO_PROVISIONAL);
         return new ReunionResumenResponse(
-                reunion.getId(), reunion.getFecha(), reunion.isFinalizada(), duracionMinutos,
+                reunion.getId(), reunion.getFecha(), reunion.getHora(), reunion.getLugar(),
+                reunion.isFinalizada(), reunion.estaProgramada(), duracionMinutos,
                 titulo, reunion.getParticipantes());
     }
 }

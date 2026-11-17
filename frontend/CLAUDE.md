@@ -44,8 +44,15 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
     El flujo sigue siendo por enlace de email, no por código de 6 dígitos.
   - `MisActasScreen` — pestaña `Inicio`: en móvil la lista del kit (`ActasMobile`), en
     escritorio la vista agrupada por periodo.
-  - `ReunionesScreen` / `ActasScreen` — tabla web de reuniones (todas / solo con
-    transcripción completada) con buscador, chips, esqueleto y vacíos propios.
+  - `ReunionesScreen` — pestaña `Reuniones` (ADR-008): el calendario mensual como
+    vista principal (`CalendarioMensual`), con las reuniones grabadas en su día y las
+    programadas pendientes; el día elegido se ve en el panel derecho (`EventosDelDia`:
+    grabar ahora, editar, cancelar, abrir el acta, "Próximas") o, en móvil, debajo del
+    calendario. El conmutador "Calendario | Lista" (`SelectorSegmentos`) conserva la
+    tabla de siempre en "Lista" (`ContenidoTablaReuniones`). Programar y editar van en
+    `HojaProgramarReunion`; el estado del calendario vive en `useCalendarioReuniones`.
+  - `ActasScreen` — tabla web de las reuniones con transcripción completada
+    (`PaginaTablaReuniones`) con buscador, chips, esqueleto y vacío propio.
   - `TareasScreen` / `EquiposScreen` — solo el marco y un vacío honesto: el backend aún
     no extrae tareas ni gestiona equipos. Cuando exista la entidad, se implementan aquí.
   - `MiCuentaScreen` — pestaña `Cuenta` ("Ajustes" en el sidebar): perfil, estadísticas
@@ -66,9 +73,11 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
   - `compartirService.ts` — descarga el archivo del acta y abre el share sheet (`ErrorCompartir`).
   - `useCuenta.ts` — carga `obtenerCuenta()` una vez (solo con `hayBackend`); lo usan el
     sidebar y las cabeceras móviles.
-  - `useListaReuniones.tsx` — `ProveedorReuniones`, `useListaReuniones()` (datos, búsqueda,
-    filtros y borrado compartidos) y `useContadoresReuniones()`; la lógica pura de filtros
-    está en `src/utils/filtrosReuniones.ts`.
+  - `useListaReuniones.tsx` — `ProveedorReuniones` (carga a la vez `GET /api/reuniones` y
+    `GET /api/reuniones/programadas`), `useListaReuniones()` (datos, búsqueda, filtros y
+    borrado compartidos), `useReunionesProgramadas()` (programar, reprogramar, cancelar) y
+    `useContadoresReuniones()`; la lógica pura de filtros está en
+    `src/utils/filtrosReuniones.ts` y la del calendario en `src/utils/calendario.ts`.
 - `src/notificaciones/` — aviso de transcripción terminada sin push remoto:
   - `SeguimientoTranscripciones.tsx` — provider montado en `App.tsx` (solo con sesión)
     que sondea `GET /api/transcripcion/estados` mientras haya reuniones en curso (en
@@ -79,12 +88,16 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
     (`expo-notifications`, cargado bajo demanda); si no se puede, el provider cae al
     `Aviso` en app.
   - `transiciones.ts` — detección pura de `EN_PROCESO`/`PENDIENTE` → `COMPLETADA`/`FALLIDA`.
-- `src/mocks/actas.ts` — `ACTAS_EJEMPLO`, datos de ejemplo cuando no hay backend (`hayBackend` falso).
+- `src/mocks/actas.ts` — `ACTAS_EJEMPLO`, datos de ejemplo cuando no hay backend (`hayBackend` falso);
+  `src/mocks/programadas.ts` — `PROGRAMADAS_EJEMPLO`, relativas a hoy para que el calendario
+  enseñe algo en el mes en curso.
 - `src/utils/` — lógica pura con tests junto al archivo (`formato`, `markdownActa`,
-  `filtrosReuniones`, `detalleActa`, `procesadoActa`, `fortalezaContrasena`...).
+  `filtrosReuniones`, `calendario` (rejilla mensual, eventos por día, parseo de fecha y
+  hora del formulario), `detalleActa`, `procesadoActa`, `fortalezaContrasena`...).
 - `src/types/index.ts` — espejo manual de los enums y entidades del backend
-  (`EstadoSubida`, `EstadoTranscripcion`, `FormatoArchivo`, `PlantillaResumen`) y de las
-  proyecciones que usa la UI. **Si cambia el dominio del backend, actualizar este archivo a mano.**
+  (`EstadoSubida`, `EstadoTranscripcion`, `FormatoArchivo`, `PlantillaResumen`), de las
+  proyecciones que usa la UI y de `ReunionProgramada` (ADR-008). **Si cambia el dominio
+  del backend, actualizar este archivo a mano.**
 
 ### Reglas no negociables al escribir frontend
 

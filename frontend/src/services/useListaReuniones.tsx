@@ -1,7 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { obtenerActas, eliminarReunion, hayBackend, ErrorApi } from './api';
+import {
+  obtenerActas,
+  obtenerReunionesProgramadas,
+  programarReunion,
+  reprogramarReunion,
+  eliminarReunion,
+  hayBackend,
+  ErrorApi,
+  type DatosReunionProgramada,
+} from './api';
 import { ACTAS_EJEMPLO } from '../mocks/actas';
+import { PROGRAMADAS_EJEMPLO } from '../mocks/programadas';
 import { useSeguimientoTranscripciones } from '../notificaciones/SeguimientoTranscripciones';
 import {
   filtrarReuniones,
@@ -10,16 +20,21 @@ import {
   type SinResultados,
   type Sustantivo,
 } from '../utils/filtrosReuniones';
-import type { ActaResumen } from '../types';
+import type { ActaResumen, ReunionProgramada } from '../types';
 
 interface ValorReuniones {
   /** `null` mientras no ha llegado la primera respuesta. */
   actas: ActaResumen[] | null;
+  /** Convocadas y aún sin grabar (ADR-008). Se cargan a la vez que `actas`. */
+  programadas: ReunionProgramada[] | null;
   errorCarga: string | null;
   cargar: () => void;
   reintentar: () => void;
   /** Lanza `ErrorApi` si el backend no la borra; si la borra, desaparece de todas las listas a la vez. */
   eliminar: (reunionId: string) => Promise<void>;
+  /** Convoca una reunión nueva; devuelve su id. Lanza `ErrorApi`. */
+  programar: (datos: DatosReunionProgramada) => Promise<string>;
+  reprogramar: (reunionId: string, datos: DatosReunionProgramada) => Promise<void>;
 }
 
 const ContextoReuniones = createContext<ValorReuniones | null>(null);
@@ -38,6 +53,7 @@ export function ProveedorReuniones({ children }: { children: ReactNode }) {
   // Sin backend configurado, mismo patrón que el resto de la app: mock
   // directo, sin carga ni error de por medio (ver `hayBackend`).
   const [actas, setActas] = useState<ActaResumen[] | null>(hayBackend ? null : ACTAS_EJEMPLO);
+  const [programadas, setProgramadas] = useState<ReunionProgramada[] | null>(hayBackend ? null : PROGRAMADAS_EJEMPLO);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   // Cada pestaña recarga al recibir el foco: si dos peticiones se cruzan,
   // solo la última puede escribir, para que una respuesta lenta y vieja no
@@ -47,10 +63,13 @@ export function ProveedorReuniones({ children }: { children: ReactNode }) {
   const cargar = useCallback(() => {
     if (!hayBackend) return;
     const peticion = ++ultimaPeticion.current;
-    obtenerActas()
-      .then((nuevas) => {
+    // Las dos listas van juntas: el calendario las pinta a la vez y un
+    // esqueleto que se resuelve en dos tiempos parpadea.
+    Promise.all([obtenerActas(), obtenerReunionesProgramadas()])
+      .then(([nuevas, nuevasProgramadas]) => {
         if (peticion !== ultimaPeticion.current) return;
         setActas(nuevas);
+        setProgramadas(nuevasProgramadas);
         setErrorCarga(null);
         seguir(
           nuevas
@@ -75,8 +94,33 @@ export function ProveedorReuniones({ children }: { children: ReactNode }) {
       await eliminarReunion(reunionId);
       dejarDeSeguir(reunionId);
       setActas((previas) => previas?.filter((a) => a.id !== reunionId) ?? previas);
+      setProgramadas((previas) => previas?.filter((p) => p.id !== reunionId) ?? previas);
     },
     [dejarDeSeguir],
+  );
+
+  // Tras programar o reprogramar se vuelve a pedir la lista en vez de
+  // insertar a mano: el título placeholder ("Reunión del dd/MM/yyyy") y el
+  // orden los decide el backend, y copiarlos aquí sería duplicar esa regla.
+  const recargarProgramadas = useCallback(async () => {
+    setProgramadas(await obtenerReunionesProgramadas());
+  }, []);
+
+  const programar = useCallback(
+    async (datos: DatosReunionProgramada) => {
+      const id = await programarReunion(datos);
+      await recargarProgramadas();
+      return id;
+    },
+    [recargarProgramadas],
+  );
+
+  const reprogramar = useCallback(
+    async (reunionId: string, datos: DatosReunionProgramada) => {
+      await reprogramarReunion(reunionId, datos);
+      await recargarProgramadas();
+    },
+    [recargarProgramadas],
   );
 
   // Quitar el error antes de pedir de nuevo devuelve el esqueleto (o deja la
@@ -87,8 +131,8 @@ export function ProveedorReuniones({ children }: { children: ReactNode }) {
   }, [cargar]);
 
   const valor = useMemo(
-    () => ({ actas, errorCarga, cargar, reintentar, eliminar }),
-    [actas, errorCarga, cargar, reintentar, eliminar],
+    () => ({ actas, programadas, errorCarga, cargar, reintentar, eliminar, programar, reprogramar }),
+    [actas, programadas, errorCarga, cargar, reintentar, eliminar, programar, reprogramar],
   );
   return <ContextoReuniones.Provider value={valor}>{children}</ContextoReuniones.Provider>;
 }
@@ -104,13 +148,35 @@ function useReuniones(): ValorReuniones {
  * lista ha cargado: el sidebar no pinta un número que todavía no sabe.
  */
 export function useContadoresReuniones(): Partial<Record<string, number>> | undefined {
-  const { actas } = useReuniones();
+  const { actas, programadas } = useReuniones();
   return useMemo(
     () =>
       actas === null
         ? undefined
-        : { Reuniones: actas.length, Actas: actas.filter((a) => a.estadoTranscripcion === 'COMPLETADA').length },
-    [actas],
+        : {
+            // Reuniones enseña grabadas y programadas: el número cuenta las dos.
+            Reuniones: actas.length + (programadas?.length ?? 0),
+            Actas: actas.filter((a) => a.estadoTranscripcion === 'COMPLETADA').length,
+          },
+    [actas, programadas],
+  );
+}
+
+export interface ReunionesProgramadas {
+  /** `null` mientras carga. */
+  programadas: ReunionProgramada[] | null;
+  programar: (datos: DatosReunionProgramada) => Promise<string>;
+  reprogramar: (reunionId: string, datos: DatosReunionProgramada) => Promise<void>;
+  /** Cancelar una programada es borrarla (ADR-008). Lanza `ErrorApi`. */
+  cancelar: (reunionId: string) => Promise<void>;
+}
+
+/** Las reuniones convocadas, con sus operaciones, para el calendario de Reuniones. */
+export function useReunionesProgramadas(): ReunionesProgramadas {
+  const { programadas, programar, reprogramar, eliminar } = useReuniones();
+  return useMemo(
+    () => ({ programadas, programar, reprogramar, cancelar: eliminar }),
+    [programadas, programar, reprogramar, eliminar],
   );
 }
 

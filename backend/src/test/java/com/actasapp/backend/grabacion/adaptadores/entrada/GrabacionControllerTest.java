@@ -4,6 +4,7 @@ import com.actasapp.backend.grabacion.domain.Reunion;
 import com.actasapp.backend.grabacion.puertos.entrada.ConsultarReunionesUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.FinalizarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.IniciarReunionUseCase;
+import com.actasapp.backend.grabacion.puertos.entrada.ProgramarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.RegistrarClipUseCase;
 import com.actasapp.backend.shared.identidad.ResolverOrganizacionUsuario;
 import com.actasapp.backend.shared.identidad.VerificarAccesoReunion;
@@ -11,8 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -33,6 +37,7 @@ import static org.mockito.Mockito.when;
 class GrabacionControllerTest {
 
     private final IniciarReunionUseCase iniciarReunion = mock(IniciarReunionUseCase.class);
+    private final ProgramarReunionUseCase programarReunion = mock(ProgramarReunionUseCase.class);
     private final RegistrarClipUseCase registrarClip = mock(RegistrarClipUseCase.class);
     private final FinalizarReunionUseCase finalizarReunion = mock(FinalizarReunionUseCase.class);
     private final ConsultarReunionesUseCase consultarReuniones = mock(ConsultarReunionesUseCase.class);
@@ -41,7 +46,7 @@ class GrabacionControllerTest {
     private final UUID organizacionPorDefectoId = UUID.randomUUID();
 
     private final GrabacionController controller = new GrabacionController(
-            iniciarReunion, registrarClip, finalizarReunion, consultarReuniones,
+            iniciarReunion, programarReunion, registrarClip, finalizarReunion, consultarReuniones,
             resolverOrganizacion, verificarAcceso, organizacionPorDefectoId);
 
     private Jwt jwtDe(UUID usuarioId) {
@@ -107,5 +112,37 @@ class GrabacionControllerTest {
 
         verify(verificarAcceso).verificar(reunionId, usuarioId);
         verify(finalizarReunion).finalizarReunion(reunionId);
+    }
+
+    // --- Reuniones programadas (ADR-008): mismo aislamiento por organización ---
+
+    @Test
+    void reprogramarRechazaUnaReunionQueNoPerteneceAlUsuario() {
+        UUID reunionDeOtraOrganizacion = UUID.randomUUID();
+        UUID usuarioId = UUID.randomUUID();
+        when(verificarAcceso.verificar(eq(reunionDeOtraOrganizacion), eq(usuarioId)))
+                .thenThrow(new IllegalArgumentException("Reunión no encontrada: " + reunionDeOtraOrganizacion));
+        GrabacionController.ReunionProgramadaRequest req = new GrabacionController.ReunionProgramadaRequest(
+                null, LocalDate.now().plusDays(1), null, null, "Junta", List.of());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.reprogramar(reunionDeOtraOrganizacion, req, jwtDe(usuarioId)));
+
+        verify(programarReunion, never()).reprogramarReunion(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void programarUsaLaOrganizacionDelUsuarioAutenticadoYRellenaLosParticipantes() {
+        UUID usuarioId = UUID.randomUUID();
+        UUID organizacionId = UUID.randomUUID();
+        UUID reunionId = UUID.randomUUID();
+        LocalDate fecha = LocalDate.now().plusDays(2);
+        when(resolverOrganizacion.organizacionPrincipalDe(usuarioId)).thenReturn(Optional.of(organizacionId));
+        when(programarReunion.programarReunion(eq(organizacionId), eq(null), eq(fecha), eq(null), eq(null), eq("Junta"), eq(List.of())))
+                .thenReturn(reunionId);
+        GrabacionController.ReunionProgramadaRequest req = new GrabacionController.ReunionProgramadaRequest(
+                null, fecha, null, null, "Junta", null);
+
+        assertEquals(reunionId, controller.programar(req, jwtDe(usuarioId)).get("reunionId"));
     }
 }

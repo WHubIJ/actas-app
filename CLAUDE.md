@@ -125,6 +125,8 @@ Detalle completo en `docs/01-Domain/modelo.md`. Las entidades reales viven en
 
 Reglas de negocio clave:
 
+- Una reunión puede programarse antes de grabarse (ADR-008): fecha no anterior a hoy,
+  editable y cancelable solo mientras no se haya grabado; grabarla no cambia su fecha
 - La transcripción solo se dispara cuando el usuario marca la reunión como finalizada
 - Los clips se transcriben secuencialmente por su campo `orden`
 - Los textos de varios clips se combinan **con IA**, no por concatenación simple
@@ -146,6 +148,7 @@ Las decisiones técnicas se documentan en `docs/ADRs/`.
 - **ADR-005**: Autenticación vía Supabase Auth (sustituye la de ADR-001); el backend valida el JWT, no lo emite
 - **ADR-006**: Mistral (Voxtral + resumen) para transcripción y resumen (sustituye Whisper/OpenAI de ADR-001)
 - **ADR-007**: Aviso de transcripción terminada solo en el frontend, sin push remoto (sustituye FCM de la tabla de stack)
+- **ADR-008**: Reuniones programadas (hora y lugar opcionales, estado derivado) y la pestaña Reuniones con el calendario como vista principal
 
 **Directiva del Asistente de IA:** al discutir arquitectura o tomar decisiones técnicas,
 siempre haz referencia a los ADRs relevantes. Si se toma una nueva decisión arquitectónica
@@ -198,7 +201,7 @@ Las pantallas del frontend están recreadas a partir de esas previews (13-11-202
 |---|---|
 | Login, registro, recuperar | `LoginScreen`, `RegisterScreen`, `AuthMobile`, `AuthFields`, `RecoverWeb`, `RecoverMobile` |
 | Shell web (sidebar, topbar) | `Sidebar`, `EmptyWeb`, `LoadingWeb` |
-| Inicio / Reuniones / Actas | `MobileScreens` (1ª), `ActasMobile`, `EstadosMobile`, `LoadingWeb`, `EmptyWeb`, `Card`, `Badge` |
+| Inicio / Reuniones / Actas | `MobileScreens` (1ª), `ActasMobile`, `EstadosMobile`, `LoadingWeb`, `EmptyWeb`, `Card`, `Badge`; el calendario de Reuniones sigue el conmutador de `Tabs` y la tarjeta "Programada" de `Card` (ADR-008), el kit no dibuja la rejilla |
 | Antes de grabar, Grabando, Procesando | `AntesDeGrabarMobile`, `MobileScreens` (2ª), `RecordingScreen`, `ProcessingWeb`, `EstadosMobile` |
 | Detalle y compartir | `ReviewScreen`, `MinutesScreen`, `Transcript`, `AIActions`, `MobileScreens` (3ª), `MobilePatterns` |
 | Mi cuenta | `CuentaMobile` |

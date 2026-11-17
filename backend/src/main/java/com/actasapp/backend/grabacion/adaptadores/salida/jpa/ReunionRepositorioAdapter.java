@@ -28,7 +28,8 @@ public class ReunionRepositorioAdapter implements ReunionRepositorioPuerto {
     public Reunion guardar(Reunion reunion) {
         ReunionJpaEntity entity = new ReunionJpaEntity(
                 reunion.getId(), reunion.getOrganizacionId(), reunion.getEquipoId(),
-                reunion.getFecha(), reunion.isFinalizada(), reunion.getTitulo());
+                reunion.getFecha(), reunion.getHora(), reunion.getLugar(),
+                reunion.isProgramada(), reunion.isFinalizada(), reunion.getTitulo());
 
         List<ClipAudioJpaEntity> clipsEntity = reunion.getClips().stream()
                 .map(c -> new ClipAudioJpaEntity(c.getId(), entity, c.getOrden(),
@@ -67,7 +68,8 @@ public class ReunionRepositorioAdapter implements ReunionRepositorioPuerto {
                 .map(ParticipanteReunionJpaEntity::getNombre)
                 .toList();
         Reunion reunion = Reunion.reconstruir(entity.getId(), entity.getOrganizacionId(), entity.getEquipoId(),
-                entity.getFecha(), entity.isFinalizada(), entity.getTitulo(), participantes);
+                entity.getFecha(), entity.getHora(), entity.getLugar(), entity.isProgramada(), entity.isFinalizada(),
+                entity.getTitulo(), participantes);
         for (ClipAudioJpaEntity c : entity.getClips()) {
             ClipAudio clip = ClipAudio.reconstruir(c.getId(), entity.getId(), c.getOrden(),
                     c.getUrlStorage(), c.getDuracionSegundos(), c.getEstadoSubida());

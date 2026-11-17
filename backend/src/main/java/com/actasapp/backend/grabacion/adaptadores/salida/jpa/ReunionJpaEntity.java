@@ -3,6 +3,7 @@ package com.actasapp.backend.grabacion.adaptadores.salida.jpa;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -27,7 +28,13 @@ public class ReunionJpaEntity {
     @Column(nullable = false)
     private LocalDate fecha;
 
+    private LocalTime hora;
+
+    private String lugar;
+
     private boolean finalizada;
+
+    private boolean programada;
 
     private String titulo;
 
@@ -39,11 +46,15 @@ public class ReunionJpaEntity {
 
     protected ReunionJpaEntity() {} // requerido por JPA
 
-    public ReunionJpaEntity(UUID id, UUID organizacionId, UUID equipoId, LocalDate fecha, boolean finalizada, String titulo) {
+    public ReunionJpaEntity(UUID id, UUID organizacionId, UUID equipoId, LocalDate fecha, LocalTime hora, String lugar,
+                            boolean programada, boolean finalizada, String titulo) {
         this.id = id;
         this.organizacionId = organizacionId;
         this.equipoId = equipoId;
         this.fecha = fecha;
+        this.hora = hora;
+        this.lugar = lugar;
+        this.programada = programada;
         this.finalizada = finalizada;
         this.titulo = titulo;
     }
@@ -52,7 +63,10 @@ public class ReunionJpaEntity {
     public UUID getOrganizacionId() { return organizacionId; }
     public UUID getEquipoId() { return equipoId; }
     public LocalDate getFecha() { return fecha; }
+    public LocalTime getHora() { return hora; }
+    public String getLugar() { return lugar; }
     public boolean isFinalizada() { return finalizada; }
+    public boolean isProgramada() { return programada; }
     public String getTitulo() { return titulo; }
     public List<ClipAudioJpaEntity> getClips() { return clips; }
     public void setClips(List<ClipAudioJpaEntity> clips) { this.clips = clips; }

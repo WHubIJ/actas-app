@@ -6,12 +6,17 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Solo devuelve reuniones finalizadas: mientras se está grabando no hay
- * todavía un acta que mostrar (ver regla de negocio en {@code Reunion.finalizar()}).
+ * Las listas separan los dos estados visibles de una reunión (ADR-008): las
+ * finalizadas, que ya son un acta, y las programadas, que aún no se han
+ * grabado. Una reunión en preparación (creada para grabar, sin finalizar) no
+ * sale en ninguna: todavía no hay nada que mostrar.
  */
 public interface ConsultarReunionesUseCase {
 
     List<Reunion> listarFinalizadasPorOrganizacion(UUID organizacionId);
+
+    /** De la más próxima a la más lejana. */
+    List<Reunion> listarProgramadasPorOrganizacion(UUID organizacionId);
 
     Reunion buscarPorId(UUID reunionId);
 }

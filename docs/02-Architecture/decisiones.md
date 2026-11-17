@@ -52,7 +52,7 @@ sin que `grabacion` necesite conocer la existencia de `transcripcion`.
 
 | Módulo | Estado |
 |---|---|
-| `grabacion` | Completo |
+| `grabacion` | Completo, incluidas las reuniones programadas (ADR-008) |
 | `transcripcion` | Completo (Mistral, ADR-006) |
 | `resumen` | Completo (Mistral, ADR-006); se persiste en Markdown y PDF/Word se generan al descargar |
 | `compartir` | Completo (enlace hosted con expiración de 24h) |
@@ -80,3 +80,12 @@ El esquema deja de generarse solo con `ddl-auto: update`. Se gestiona con
 migraciones versionadas en `backend/src/main/resources/db/migration/`
 (`V1__esquema_inicial.sql`, ...), y `ddl-auto` pasa a `validate`: Hibernate solo
 verifica que las entidades JPA coinciden con lo que Flyway ya aplicó.
+
+## Reuniones programadas y calendario (ADR-008)
+
+Una reunión puede convocarse antes de grabarse: `Reunion.programar` con fecha no
+anterior a hoy, hora y lugar opcionales; el estado (programada, grabada, en
+preparación) se deriva de `programada` y `finalizada`, no se persiste. Endpoints
+propios bajo `/api/reuniones/programadas`; cancelar es borrar y grabar es el
+flujo normal con el mismo `reunionId`. La pestaña Reuniones del frontend tiene el
+calendario mensual como vista principal, con la tabla anterior en "Lista".

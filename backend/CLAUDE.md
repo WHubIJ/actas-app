@@ -73,7 +73,7 @@ Cada módulo repite la misma estructura interna:
 
 | Módulo | Estado |
 |---|---|
-| `grabacion` | Completo de extremo a extremo, incluido el borrado (`EliminarReunionUseCase`: borra la fila — la cascada de `V13__borrado_en_cascada_reunion.sql` arrastra clips, participantes, transcripción y resúmenes — y después el audio). `SupabaseStorageAdapter` solo tiene real `eliminarAudios(reunionId)` (lista y borra los objetos bajo `{reunionId}/` con la service-role key; un fallo se registra con `log.warn` y no se propaga); `generarUrlFirmada`/`existeArchivo` siguen lanzando `UnsupportedOperationException` — no bloquea porque el frontend sube el audio directo a Supabase Storage sin pasar por el backend (ver tabla de stack en el `CLAUDE.md` raíz) |
+| `grabacion` | Completo de extremo a extremo, incluidas las reuniones programadas (ADR-008: `Reunion.programar`/`reprogramar`, estado derivado con `estaProgramada()`, `V14__reunion_programada.sql`) y el borrado (`EliminarReunionUseCase`: borra la fila — la cascada de `V13__borrado_en_cascada_reunion.sql` arrastra clips, participantes, transcripción y resúmenes — y después el audio). `SupabaseStorageAdapter` solo tiene real `eliminarAudios(reunionId)` (lista y borra los objetos bajo `{reunionId}/` con la service-role key; un fallo se registra con `log.warn` y no se propaga); `generarUrlFirmada`/`existeArchivo` siguen lanzando `UnsupportedOperationException` — no bloquea porque el frontend sube el audio directo a Supabase Storage sin pasar por el backend (ver tabla de stack en el `CLAUDE.md` raíz) |
 | `transcripcion` | Completo: `GestorTranscripcionService` escucha `ReunionFinalizadaEvent`, transcribe con `MistralTranscriptorAdapter` y combina los clips con `MistralCombinadorAdapter`; publica `TranscripcionCompletadaEvent` al terminar. `GeneradorPdfTranscripcionAdapter` (iText, propio del módulo — no reutiliza el de `resumen` porque los módulos no se llaman entre sí, y el texto aquí es plano, sin Markdown) renderiza el texto combinado a PDF para la descarga (`ObtenerTranscripcionUseCase.obtenerComoPdf`): título con la fecha de la reunión, una línea por párrafo y las etiquetas "Hablante N:" en negrita |
 | `resumen` | Completo: `MistralResumenAdapter` genera el texto con las 3 plantillas (RESUMEN_EJECUTIVO, ACTA_FORMAL, LISTA_ACUERDOS; una instrucción de sistema por plantilla, misma llamada HTTP, siempre Markdown con párrafos, "#"/"##" y bullets "-") y `GeneradorDocumentoAdapter` ya renderiza los 3 formatos — MARKDOWN tal cual, PDF (iText) y WORD (POI) línea a línea desde ese mismo Markdown (párrafos, encabezados "#"/"##" y bullets "-"; no es un parser de Markdown completo). El resumen en sí se genera y persiste **solo en MARKDOWN** (`POST /api/resumen` sigue rechazando otro formato ahí); PDF/WORD son una conversión al vuelo de ese contenido al descargarlo (`ObtenerResumenUseCase.obtenerUltimoComoArchivo`, usado por `ArchivosController`), no una llamada nueva a Mistral ni una fila nueva en `resumen` |
 | `compartir` | Completo: `GestorCompartirService` genera el token y valida expiración (24h), `EnlaceCompartidoRepositorioAdapter` persiste en JPA, `CompartirController` expone generar/descargar. `SecurityConfig` permite público solo el `GET /api/compartir/*`. `generarEnlaceTemporal` devuelve el `EnlaceCompartido` entero (no solo el token) para que `ArchivosController.generarEnlace` pueda responder con `expiraEn` |
@@ -88,7 +88,7 @@ como `listar()`) **debe** llamar a `VerificarAccesoReunion.verificar(reunionId, 
 autenticada podía leer o modificar una reunión de otra organización solo con su UUID
 (IDOR). Ya lo hacen `GrabacionController.detalle`, `GrabacionController.registrarClip`,
 `GrabacionController.finalizar`, `ResumenController.generar`,
-`TranscripcionController.detalle`, `ArchivosController.descargar`,
+`GrabacionController.reprogramar`, `TranscripcionController.detalle`, `ArchivosController.descargar`,
 `ArchivosController.generarEnlace` y `EliminarReunionController.eliminar`. `registrarClip` y
 `finalizar` no lo hacían hasta el fix del 2026-10-20 (ver `GrabacionControllerTest`):
 cualquier cuenta autenticada podía inyectar un clip o finalizar la reunión de otra
@@ -167,6 +167,28 @@ romper las comillas de `Content-Disposition`).
 - `POST /api/reuniones/{reunionId}/clips` → `{clipId}` — registra la *referencia* a
   un clip ya subido por el frontend (`orden`, `urlStorage`, `duracionSegundos`)
 - `POST /api/reuniones/{reunionId}/finalizar` — marca finalizada y dispara el evento
+- `GET /api/reuniones` → solo las finalizadas (la "lista de actas" del frontend);
+  `GET /api/reuniones/{reunionId}` → una, verificando pertenencia. La respuesta
+  (`ReunionResumenResponse`) lleva `fecha`, `hora`, `lugar`, `finalizada`,
+  `programada`, `duracionMinutos`, `titulo` (placeholder "Reunión del dd/MM/yyyy"
+  si no se puso) y `participantes`
+
+Reuniones programadas (ADR-008), mismo controller:
+
+- `POST /api/reuniones/programadas` → 201 `{reunionId}` — convoca una reunión
+  para grabarla más adelante: `fecha` obligatoria (`yyyy-MM-dd`, no anterior a
+  hoy → 400), `hora` (`HH:mm`), `lugar`, `titulo`, `participantes`, `equipoId`
+  opcionales. La organización es siempre la del usuario autenticado
+- `PUT /api/reuniones/programadas/{reunionId}` → 204 — sustituye la convocatoria
+  entera (mismo body). Verifica pertenencia; si la reunión ya se grabó o no nació
+  programada, 409 `ESTADO_INVALIDO`
+- `GET /api/reuniones/programadas` → las convocadas y aún sin grabar, de la más
+  próxima a la más lejana (fecha y, dentro del día, hora; sin hora al final)
+- Cancelar una programada es el `DELETE /api/reuniones/{reunionId}` de siempre.
+  Grabarla es el flujo normal con su `reunionId` (`POST /clips` + `POST /finalizar`);
+  al finalizar deja de listarse aquí y pasa a `GET /api/reuniones`. Una reunión
+  creada con `POST /api/reuniones` y nunca finalizada (grabación abandonada) no
+  sale en ninguna de las dos listas
 
 `GrabacionScreen` ya consume las tres llamadas de verdad
 (`frontend/src/services/api.ts`, función `peticion()` traduce los códigos de

@@ -16,26 +16,28 @@ import type { ActaResumen } from '../types';
 /** Ancho del buscador de escritorio en `LoadingWeb`. */
 const ANCHO_BUSCADOR = 340;
 
-interface Props {
+interface PropsContenido {
   lista: ListaReuniones;
-  /** Título de la página y única miga. */
-  titulo: string;
   filtros: ReadonlyArray<IdFiltroReuniones>;
   /** Vacío de primera vez, que cada pantalla cuenta a su manera. */
   vacio: ReactNode;
-  onGrabar: () => void;
   onAbrir: (acta: ActaResumen) => void;
+}
+
+interface Props extends PropsContenido {
+  /** Título de la página y única miga. */
+  titulo: string;
+  onGrabar: () => void;
 }
 
 /**
  * Página de escritorio y tablet con la tabla de reuniones (`LoadingWeb`,
- * `EmptyWeb`): topbar con "Grabar reunión", título, buscador con atajo,
- * chips y la tabla con sus estados. La usan Reuniones y Actas.
+ * `EmptyWeb`): topbar con "Grabar reunión", título y, debajo, el contenido
+ * de `ContenidoTablaReuniones`. La usa Actas; Reuniones monta ese contenido
+ * dentro de su propio marco, junto al calendario.
  */
 export function PaginaTablaReuniones({ lista, titulo, filtros, vacio, onGrabar, onAbrir }: Props) {
   const t = useTheme();
-  const buscadorRef = useRef<TextInput>(null);
-  useBuscadorGlobal(buscadorRef, !lista.vacia);
 
   // En el vacío la acción principal ya está en el centro de la página: un
   // segundo primario en la topbar competiría con ella (un primario por vista).
@@ -47,6 +49,20 @@ export function PaginaTablaReuniones({ lista, titulo, filtros, vacio, onGrabar, 
       onPress={onGrabar}
     />
   );
+
+  return (
+    <MarcoPagina migas={[{ etiqueta: titulo }]} acciones={acciones} scroll={!lista.vacia}>
+      <Text variant="heading">{titulo}</Text>
+      <ContenidoTablaReuniones lista={lista} filtros={filtros} vacio={vacio} onAbrir={onAbrir} />
+    </MarcoPagina>
+  );
+}
+
+/** Buscador con atajo, chips, avisos y la tabla con sus estados (o el vacío de primera vez). */
+export function ContenidoTablaReuniones({ lista, filtros, vacio, onAbrir }: PropsContenido) {
+  const t = useTheme();
+  const buscadorRef = useRef<TextInput>(null);
+  useBuscadorGlobal(buscadorRef, !lista.vacia);
 
   let contenido: ReactNode;
   if (lista.cargando) {
@@ -72,9 +88,7 @@ export function PaginaTablaReuniones({ lista, titulo, filtros, vacio, onGrabar, 
   }
 
   return (
-    <MarcoPagina migas={[{ etiqueta: titulo }]} acciones={acciones} scroll={!lista.vacia}>
-      <Text variant="heading">{titulo}</Text>
-
+    <>
       {lista.vacia ? (
         vacio
       ) : (
@@ -118,6 +132,6 @@ export function PaginaTablaReuniones({ lista, titulo, filtros, vacio, onGrabar, 
       )}
 
       <ConfirmarEliminarReunion lista={lista} />
-    </MarcoPagina>
+    </>
   );
 }

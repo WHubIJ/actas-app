@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
-import { View, FlatList, Animated, Easing, Pressable, type TextInput } from 'react-native';
+import { View, FlatList, Animated, Easing, type TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Search } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
-import { Text, Aviso, EstadoVacio, FilaEsqueleto } from '../../components/ui';
+import { Aviso, EstadoVacio, FilaEsqueleto } from '../../components/ui';
 import type { RootStackParamList } from '../../App';
 import { TarjetaNuevaGrabacion } from './TarjetaNuevaGrabacion';
 import { Buscador } from './Buscador';
@@ -13,20 +13,15 @@ import { ChipsFiltro } from './ChipsFiltro';
 import { TarjetaActa } from './TarjetaActa';
 import { TarjetaDeslizable } from './TarjetaDeslizable';
 import { ConfirmarEliminarReunion } from './ConfirmarEliminarReunion';
-import { AvatarIniciales } from './AvatarIniciales';
+import { CabeceraMovil } from './CabeceraMovil';
 import { ALTURA_FAB_SOBRESALIENTE } from './TabBar';
 import { useBuscadorGlobal } from './busquedaGlobal';
-import { useCuenta } from '../services/useCuenta';
 import type { ListaReuniones } from '../services/useListaReuniones';
 import { ETIQUETA_FILTRO, type IdFiltroReuniones } from '../utils/filtrosReuniones';
-import { iniciales } from '../utils/formato';
 import type { ActaResumen } from '../types';
 
 /** Ni tan pocas que se note el hueco debajo en pantallas altas, ni tantas que se note el coste de montarlas. */
 const FILAS_ESQUELETO = 4;
-
-/** `.ma-avatar` de la cabecera móvil, que el kit no expone como token. */
-const LADO_AVATAR = 28;
 
 interface Props {
   lista: ListaReuniones;
@@ -36,6 +31,8 @@ interface Props {
   conCta: boolean;
   /** Vacío de primera vez: qué falta, por qué y, si procede, qué hacer. */
   vacio: Pick<ComponentProps<typeof EstadoVacio>, 'icono' | 'titulo' | 'descripcion' | 'accion'>;
+  /** Entre el título y el buscador, p. ej. el conmutador Calendario | Lista de Reuniones. */
+  bajoTitulo?: ReactNode;
 }
 
 /**
@@ -44,16 +41,14 @@ interface Props {
  * Siempre es la misma `FlatList`, para que el buscador no se desmonte entre
  * estados y no pierda el foco mientras se escribe.
  */
-export function ListaReunionesMovil({ lista, titulo, filtros, conCta, vacio }: Props) {
+export function ListaReunionesMovil({ lista, titulo, filtros, conCta, vacio, bajoTitulo }: Props) {
   const t = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const { cuenta } = useCuenta();
   const buscadorRef = useRef<TextInput>(null);
   useBuscadorGlobal(buscadorRef, true);
 
   const sinDatos = lista.todas === null;
-  const letras = cuenta ? iniciales(cuenta.nombre || cuenta.email?.split('@')[0] || '') : '';
 
   // La lista que de verdad se renderiza va un paso por detrás de `visibles`:
   // si se sustituyera al instante, React ya habría pintado el contenido nuevo
@@ -95,19 +90,8 @@ export function ListaReunionesMovil({ lista, titulo, filtros, conCta, vacio }: P
 
   const cabecera = (
     <View style={{ gap: t.spacing[3], marginBottom: t.spacing[4] }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: t.spacing[1] }}>
-        <Text variant="heading">{titulo}</Text>
-        {letras !== '' && (
-          <Pressable
-            onPress={() => navigation.navigate('Tabs', { screen: 'Cuenta' })}
-            accessibilityRole="button"
-            accessibilityLabel="Tu cuenta"
-            hitSlop={8}
-          >
-            <AvatarIniciales iniciales={letras} tamano={LADO_AVATAR} />
-          </Pressable>
-        )}
-      </View>
+      <CabeceraMovil titulo={titulo} />
+      {bajoTitulo}
 
       {lista.errorCarga && lista.todas !== null && (
         <Aviso tono="error" mensaje={lista.errorCarga} accion={{ titulo: 'Reintentar', onPress: lista.reintentar }} />

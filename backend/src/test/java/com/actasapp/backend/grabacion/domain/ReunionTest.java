@@ -3,6 +3,7 @@ package com.actasapp.backend.grabacion.domain;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -127,5 +128,117 @@ class ReunionTest {
         Reunion reunion = new Reunion(UUID.randomUUID(), UUID.randomUUID(), null, LocalDate.now(), null, List.of("Ana"));
 
         assertThrows(UnsupportedOperationException.class, () -> reunion.getParticipantes().add("Pedro"));
+    }
+
+    // --- Reuniones programadas (ADR-008) ---
+
+    private Reunion programadaPara(LocalDate fecha) {
+        return Reunion.programar(UUID.randomUUID(), UUID.randomUUID(), null, fecha, LocalTime.of(19, 30),
+                "Salón anexo", "Reunión de diáconos", List.of("Ana"));
+    }
+
+    @Test
+    void unaReunionNormalNoEstaProgramada() {
+        assertFalse(nuevaReunion().estaProgramada());
+        assertFalse(nuevaReunion().isProgramada());
+    }
+
+    @Test
+    void programarCreaUnaReunionProgramadaSinFinalizar() {
+        Reunion reunion = programadaPara(LocalDate.now().plusDays(3));
+
+        assertTrue(reunion.estaProgramada());
+        assertFalse(reunion.isFinalizada());
+        assertEquals(LocalTime.of(19, 30), reunion.getHora());
+        assertEquals("Salón anexo", reunion.getLugar());
+        assertEquals("Reunión de diáconos", reunion.getTitulo());
+    }
+
+    @Test
+    void sePuedeProgramarParaHoy() {
+        assertTrue(programadaPara(LocalDate.now()).estaProgramada());
+    }
+
+    @Test
+    void noSePuedeProgramarEnElPasado() {
+        assertThrows(IllegalArgumentException.class, () -> programadaPara(LocalDate.now().minusDays(1)));
+    }
+
+    @Test
+    void noSePuedeProgramarSinFecha() {
+        assertThrows(IllegalArgumentException.class, () -> programadaPara(null));
+    }
+
+    @Test
+    void horaYLugarSonOpcionalesYElLugarEnBlancoSeNormalizaANulo() {
+        Reunion reunion = Reunion.programar(UUID.randomUUID(), UUID.randomUUID(), null, LocalDate.now().plusDays(1),
+                null, "   ", null, null);
+
+        assertNull(reunion.getHora());
+        assertNull(reunion.getLugar());
+        assertNull(reunion.getTitulo());
+        assertTrue(reunion.getParticipantes().isEmpty());
+    }
+
+    @Test
+    void reprogramarSustituyeLaConvocatoriaEntera() {
+        Reunion reunion = programadaPara(LocalDate.now().plusDays(3));
+        LocalDate nuevaFecha = LocalDate.now().plusDays(10);
+
+        reunion.reprogramar(nuevaFecha, null, " Sala 2 ", "  Junta  ", List.of("Pedro", " "));
+
+        assertEquals(nuevaFecha, reunion.getFecha());
+        assertNull(reunion.getHora());
+        assertEquals("Sala 2", reunion.getLugar());
+        assertEquals("Junta", reunion.getTitulo());
+        assertEquals(List.of("Pedro"), reunion.getParticipantes());
+        assertTrue(reunion.estaProgramada());
+    }
+
+    @Test
+    void reprogramarAlPasadoLanzaExcepcionYNoCambiaNada() {
+        Reunion reunion = programadaPara(LocalDate.now().plusDays(3));
+        LocalDate fechaOriginal = reunion.getFecha();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> reunion.reprogramar(LocalDate.now().minusDays(1), null, null, "Otro", List.of()));
+
+        assertEquals(fechaOriginal, reunion.getFecha());
+        assertEquals("Reunión de diáconos", reunion.getTitulo());
+    }
+
+    @Test
+    void unaReunionNormalNoSePuedeReprogramar() {
+        Reunion reunion = nuevaReunion();
+
+        assertThrows(IllegalStateException.class,
+                () -> reunion.reprogramar(LocalDate.now().plusDays(1), null, null, null, List.of()));
+    }
+
+    @Test
+    void unaProgramadaYaGrabadaDejaDeEstarProgramadaYNoSeReprograma() {
+        Reunion reunion = programadaPara(LocalDate.now());
+        ClipAudio clip = nuevoClip(reunion, 1);
+        clip.marcarSubidaCompletada(reunion.getId() + "/clip-1.m4a", 60);
+        reunion.agregarClip(clip);
+
+        reunion.finalizar();
+
+        assertTrue(reunion.isFinalizada());
+        assertTrue(reunion.isProgramada()); // dato histórico: nació convocada
+        assertFalse(reunion.estaProgramada());
+        assertThrows(IllegalStateException.class,
+                () -> reunion.reprogramar(LocalDate.now().plusDays(1), null, null, null, List.of()));
+    }
+
+    @Test
+    void reconstruirRespetaProgramadaHoraYLugarSinValidarLaFecha() {
+        // Una programada del mes pasado que nunca se grabó sigue en BD: leerla no puede fallar.
+        Reunion reunion = Reunion.reconstruir(UUID.randomUUID(), UUID.randomUUID(), null, LocalDate.now().minusMonths(1),
+                LocalTime.of(10, 0), "Sala 1", true, false, "Antigua", List.of());
+
+        assertTrue(reunion.estaProgramada());
+        assertEquals(LocalTime.of(10, 0), reunion.getHora());
+        assertEquals("Sala 1", reunion.getLugar());
     }
 }

@@ -33,7 +33,7 @@ export function ListaAgrupadaReuniones({ actas, onAbrir }: Props) {
             {grupo.titulo}
           </Text>
           {grupo.actas.map((acta) => (
-            <Fila key={acta.id} acta={acta} onPress={() => onAbrir(acta)} />
+            <FilaActa key={acta.id} acta={acta} onPress={() => onAbrir(acta)} />
           ))}
         </View>
       ))}
@@ -41,7 +41,8 @@ export function ListaAgrupadaReuniones({ actas, onAbrir }: Props) {
   );
 }
 
-function Fila({ acta, onPress }: { acta: ActaResumen; onPress: () => void }) {
+/** Una reunión ya grabada en una fila compacta: la usan Inicio (agrupada) y el día elegido del calendario. */
+export function FilaActa({ acta, onPress }: { acta: ActaResumen; onPress: () => void }) {
   const t = useTheme();
   const [hover, setHover] = useState(false);
   // La baldosa se tiñe solo mientras la IA trabaja, como el resto de acentos de marca.

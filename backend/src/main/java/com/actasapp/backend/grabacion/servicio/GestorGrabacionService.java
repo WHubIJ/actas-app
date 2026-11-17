@@ -7,6 +7,7 @@ import com.actasapp.backend.grabacion.puertos.entrada.ConsultarReunionesUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.EliminarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.FinalizarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.IniciarReunionUseCase;
+import com.actasapp.backend.grabacion.puertos.entrada.ProgramarReunionUseCase;
 import com.actasapp.backend.grabacion.puertos.entrada.RegistrarClipUseCase;
 import com.actasapp.backend.grabacion.puertos.salida.AlmacenamientoPuerto;
 import com.actasapp.backend.grabacion.puertos.salida.ReunionRepositorioPuerto;
@@ -17,6 +18,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -27,8 +29,13 @@ import java.util.UUID;
  * esos viven en los adaptadores.
  */
 @Service
-public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarClipUseCase, FinalizarReunionUseCase,
-        ConsultarReunionesUseCase, EliminarReunionUseCase {
+public class GestorGrabacionService implements IniciarReunionUseCase, ProgramarReunionUseCase, RegistrarClipUseCase,
+        FinalizarReunionUseCase, ConsultarReunionesUseCase, EliminarReunionUseCase {
+
+    /** Primero por fecha y, dentro del día, por hora; las sin hora cierran el día. */
+    private static final Comparator<Reunion> MAS_PROXIMA_PRIMERO = Comparator
+            .comparing(Reunion::getFecha)
+            .thenComparing(Reunion::getHora, Comparator.nullsLast(Comparator.naturalOrder()));
 
     private static final Logger log = LoggerFactory.getLogger(GestorGrabacionService.class);
 
@@ -47,6 +54,21 @@ public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarC
     public UUID iniciarReunion(UUID organizacionId, UUID equipoId, LocalDate fecha, String titulo, List<String> participantes) {
         Reunion reunion = new Reunion(UUID.randomUUID(), organizacionId, equipoId, fecha, titulo, participantes);
         return reunionRepositorio.guardar(reunion).getId();
+    }
+
+    @Override
+    public UUID programarReunion(UUID organizacionId, UUID equipoId, LocalDate fecha, LocalTime hora, String lugar,
+                                 String titulo, List<String> participantes) {
+        Reunion reunion = Reunion.programar(UUID.randomUUID(), organizacionId, equipoId, fecha, hora, lugar, titulo, participantes);
+        return reunionRepositorio.guardar(reunion).getId();
+    }
+
+    @Override
+    public void reprogramarReunion(UUID reunionId, LocalDate fecha, LocalTime hora, String lugar, String titulo,
+                                   List<String> participantes) {
+        Reunion reunion = buscarPorId(reunionId);
+        reunion.reprogramar(fecha, hora, lugar, titulo, participantes); // las reglas viven en el dominio
+        reunionRepositorio.guardar(reunion);
     }
 
     @Override
@@ -85,6 +107,14 @@ public class GestorGrabacionService implements IniciarReunionUseCase, RegistrarC
     public List<Reunion> listarFinalizadasPorOrganizacion(UUID organizacionId) {
         return reunionRepositorio.buscarPorOrganizacion(organizacionId).stream()
                 .filter(Reunion::isFinalizada)
+                .toList();
+    }
+
+    @Override
+    public List<Reunion> listarProgramadasPorOrganizacion(UUID organizacionId) {
+        return reunionRepositorio.buscarPorOrganizacion(organizacionId).stream()
+                .filter(Reunion::estaProgramada)
+                .sorted(MAS_PROXIMA_PRIMERO)
                 .toList();
     }
 
