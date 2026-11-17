@@ -1,25 +1,30 @@
 import { View } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { House, User, Mic, type LucideIcon } from 'lucide-react-native';
+import { House, CalendarDays, ListChecks, Menu, Mic, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Text } from '../../components/ui';
 import { PressableEscala } from './PressableEscala';
 
-/** Iconos por ruta. Una ruta sin entrada aquí cae a `House`. */
+/** Iconos por ruta, los mismos que el `Sidebar`. Una ruta sin entrada aquí cae a `House`. */
 const ICONOS: Record<string, LucideIcon> = {
   Inicio: House,
-  Cuenta: User,
+  Reuniones: CalendarDays,
+  Tareas: ListChecks,
+  Mas: Menu,
 };
 
-/** La barra inferior solo lleva estas pestañas; el resto de secciones (Reuniones, Actas...) viven en el `Sidebar` de tablet y escritorio. */
-const RUTAS_EN_BARRA: ReadonlyArray<string> = ['Inicio', 'Cuenta'];
+/**
+ * Barra de `MenuMobile`: dos pestañas a cada lado del FAB. Actas, Equipos y
+ * Cuenta no caben y se abren desde "Más", que repite el contenido del `Sidebar`.
+ */
+const RUTAS_EN_BARRA: ReadonlyArray<string> = ['Inicio', 'Reuniones', 'Tareas', 'Mas'];
 
 const TAMANO_FAB = 60;
 /** Cuánto sobresale el FAB por encima del propio borde superior de la barra (ver `top` más abajo). `useBottomTabBarHeight()` no lo cuenta: las pantallas con scroll deben sumarlo a su `paddingBottom` o el FAB tapa el último elemento. */
 export const ALTURA_FAB_SOBRESALIENTE = 26;
-/** Medio ancho del hueco central reservado para el FAB, a cada lado de la fila. */
-const MEDIO_HUECO_FAB = 48;
+/** Medio ancho del hueco central del FAB: la rejilla del kit es `1fr 1fr 76px 1fr 1fr`. */
+const MEDIO_HUECO_FAB = 38;
 
 interface Props extends BottomTabBarProps {
   /** Acción del botón central; no es una pestaña, es un atajo a la grabación. */
@@ -35,12 +40,18 @@ export function TabBar({ state, descriptors, navigation, onGrabar }: Props) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
 
+  // En una sección abierta desde "Más" (Actas, Equipos, Cuenta) se resalta
+  // "Más": es el camino de vuelta y la barra no se queda sin pestaña activa.
+  const rutaActual = state.routes[state.index].name;
+  const rutaResaltada = RUTAS_EN_BARRA.includes(rutaActual) ? rutaActual : 'Mas';
+
   const pestanas = state.routes
     .map((route, index) => ({ route, index }))
     .filter(({ route }) => RUTAS_EN_BARRA.includes(route.name))
     .map(({ route, index }) => {
       const { options } = descriptors[route.key];
       const etiqueta = options.title ?? route.name;
+      const resaltada = route.name === rutaResaltada;
       const activo = state.index === index;
       const Icono = ICONOS[route.name] ?? House;
 
@@ -52,35 +63,36 @@ export function TabBar({ state, descriptors, navigation, onGrabar }: Props) {
       };
 
       return (
-        <PressableEscala
-          key={route.key}
-          onPress={alPulsar}
-          escala={0.9}
-          style={{ alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: t.spacing[1], paddingHorizontal: t.spacing[2] }}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: activo }}
-          accessibilityLabel={etiqueta}
-        >
-          <Icono size={24} color={activo ? t.colors.brand : t.colors.text2} strokeWidth={1.8} />
-          <Text
-            style={{
-              fontFamily: 'Geist_500Medium',
-              fontSize: 10.5,
-              lineHeight: 12,
-              color: activo ? t.colors.text : t.colors.text2,
-            }}
+        // `PressableEscala` aplica `style` a su vista interior: el reparto en
+        // columnas iguales lo hace esta `View`, como pide su documentación.
+        <View key={route.key} style={{ flex: 1 }}>
+          <PressableEscala
+            onPress={alPulsar}
+            escala={0.9}
+            style={{ alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: t.spacing[1] }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: resaltada }}
+            accessibilityLabel={etiqueta}
           >
-            {etiqueta}
-          </Text>
-        </PressableEscala>
+            <Icono size={24} color={resaltada ? t.colors.brand : t.colors.text2} strokeWidth={1.8} />
+            <Text
+              style={{
+                fontFamily: 'Geist_500Medium',
+                fontSize: 10.5,
+                lineHeight: 12,
+                color: resaltada ? t.colors.text : t.colors.text2,
+              }}
+            >
+              {etiqueta}
+            </Text>
+          </PressableEscala>
+        </View>
       );
     });
 
-  // Dos mitades de ancho igual (50/50), cada una centrando sus propias
-  // pestañas. El hueco para el FAB se reserva con padding hacia el centro en
-  // cada mitad, no con un elemento de ancho fijo: así el espacio sobrante de
-  // la fila no se acumula a un lado (lo que antes dejaba una pestaña pegada
-  // al FAB y un hueco vacío en el extremo opuesto).
+  // Dos mitades de ancho igual y, dentro, pestañas de ancho igual: quedan
+  // simétricas respecto al FAB aunque las etiquetas midan distinto. El hueco
+  // del FAB es padding hacia el centro en cada mitad, no un elemento fijo.
   const mitad = Math.ceil(pestanas.length / 2);
   const izquierda = pestanas.slice(0, mitad);
   const derecha = pestanas.slice(mitad);
@@ -97,10 +109,10 @@ export function TabBar({ state, descriptors, navigation, onGrabar }: Props) {
       }}
     >
       <View style={{ flexDirection: 'row' }}>
-        <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-evenly', paddingRight: MEDIO_HUECO_FAB }}>
+        <View style={{ flex: 1, flexDirection: 'row', paddingRight: MEDIO_HUECO_FAB }}>
           {izquierda}
         </View>
-        <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-evenly', paddingLeft: MEDIO_HUECO_FAB }}>
+        <View style={{ flex: 1, flexDirection: 'row', paddingLeft: MEDIO_HUECO_FAB }}>
           {derecha}
         </View>
       </View>

@@ -21,6 +21,7 @@ import { ReunionesScreen } from './src/screens/ReunionesScreen';
 import { ActasScreen } from './src/screens/ActasScreen';
 import { TareasScreen } from './src/screens/TareasScreen';
 import { EquiposScreen } from './src/screens/EquiposScreen';
+import { MasScreen } from './src/screens/MasScreen';
 import { MiCuentaScreen } from './src/screens/MiCuentaScreen';
 import { NuevaGrabacionScreen } from './src/screens/NuevaGrabacionScreen';
 import { GrabacionScreen } from './src/screens/GrabacionScreen';
@@ -45,8 +46,9 @@ import { SeguimientoTranscripciones } from './src/notificaciones/SeguimientoTran
 // el auto-hide nativo, que puede disparar antes de que monte el primer componente.
 SplashScreen.preventAutoHideAsync();
 
-/** Pestañas de la app. La barra inferior (móvil) solo muestra `Inicio` y `Cuenta`;
-    el `Sidebar` (tablet y escritorio) las muestra todas. El FAB central NO es una pestaña. */
+/** Pestañas de la app. La barra inferior (móvil) muestra `Inicio`, `Reuniones`, `Tareas`
+    y `Mas`, que abre el resto; el `Sidebar` (tablet y escritorio) muestra todas menos
+    `Mas`, que solo existe para el móvil. El FAB central NO es una pestaña. */
 export type TabParamList = {
   Inicio: undefined;
   Reuniones: undefined;
@@ -54,6 +56,7 @@ export type TabParamList = {
   Tareas: undefined;
   Equipos: undefined;
   Cuenta: undefined;
+  Mas: undefined;
 };
 
 export type RootStackParamList = {
@@ -131,6 +134,7 @@ function Pestanas() {
         <Tab.Screen name="Tareas" component={TareasScreen} options={{ title: 'Tareas' }} />
         <Tab.Screen name="Equipos" component={EquiposScreen} options={{ title: 'Equipos' }} />
         <Tab.Screen name="Cuenta" component={MiCuentaScreen} options={{ title: 'Cuenta' }} />
+        <Tab.Screen name="Mas" component={MasScreen} options={{ title: 'Más' }} />
       </Tab.Navigator>
     </ProveedorReuniones>
   );

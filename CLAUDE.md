@@ -202,6 +202,7 @@ Las pantallas del frontend están recreadas a partir de esas previews (13-11-202
 | Antes de grabar, Grabando, Procesando | `AntesDeGrabarMobile`, `MobileScreens` (2ª), `RecordingScreen`, `ProcessingWeb`, `EstadosMobile` |
 | Detalle y compartir | `ReviewScreen`, `MinutesScreen`, `Transcript`, `AIActions`, `MobileScreens` (3ª), `MobilePatterns` |
 | Mi cuenta | `CuentaMobile` |
+| Barra móvil y menú "Más" | `MenuMobile` |
 
 Lo que el kit dibuja y el dominio actual no tiene (decisiones votadas, tareas con
 asignado, aprobación por miembros, cargos, equipos, "Enviar a aprobación", "Subir

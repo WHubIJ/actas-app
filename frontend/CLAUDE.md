@@ -12,9 +12,10 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
 - `App.tsx` — navegación y **fuente de verdad de `RootStackParamList`**
   (las pantallas importan ese tipo desde `../../App`). Sin sesión de Supabase muestra el
   stack de autenticación (`Login` → `Registro` / `RecuperarContrasena`); con sesión, un
-  stack con las pestañas `Inicio`, `Reuniones`, `Actas`, `Tareas`, `Equipos` y `Cuenta`
-  (en móvil la `TabBar` solo muestra `Inicio` y `Cuenta` más el FAB; en escritorio el
-  `Sidebar` v2 muestra las seis, con `Cuenta` etiquetada "Ajustes") y, por encima,
+  stack con las pestañas `Inicio`, `Reuniones`, `Actas`, `Tareas`, `Equipos`, `Cuenta` y `Mas`
+  (en móvil la `TabBar` de `MenuMobile` muestra `Inicio`, `Reuniones`, `Tareas` y `Mas`
+  alrededor del FAB, y "Más" abre el resto; en escritorio el `Sidebar` v2 muestra las
+  seis, con `Cuenta` etiquetada "Ajustes") y, por encima,
   `NuevaGrabacion`, `Grabacion` y `DetalleActa`. `ProveedorReuniones`
   (`src/services/useListaReuniones.tsx`) envuelve las pestañas: una sola copia de la
   lista para Inicio/Reuniones/Actas y los contadores del sidebar. `NuevaContrasena` se muestra por encima de todo cuando llega un enlace
@@ -49,6 +50,10 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
     no extrae tareas ni gestiona equipos. Cuando exista la entidad, se implementan aquí.
   - `MiCuentaScreen` — pestaña `Cuenta` ("Ajustes" en el sidebar): perfil, estadísticas
     derivadas de la lista, ajustes informativos y cierre de sesión.
+  - `MasScreen` — pestaña `Mas`, solo en la barra móvil (`MenuMobile`): organización,
+    búsqueda (salta al buscador de Inicio), las mismas secciones que el `Sidebar` con sus
+    contadores y "Mi cuenta". Sin selector de organización ni "Ayuda": no existen. Desde
+    Actas, Equipos o Cuenta la barra resalta "Más", que es el camino de vuelta.
   - `NuevaGrabacionScreen` — título y participantes opcionales; crea la reunión antes de grabar.
   - `GrabacionScreen` — graba con `expo-audio`, sube los clips a Storage y finaliza la reunión.
   - `DetalleActaScreen` — resumen y transcripción en pestañas, generar resumen y compartir.
