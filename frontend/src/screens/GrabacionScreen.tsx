@@ -3,7 +3,6 @@ import { View, Pressable, Animated, Easing, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
-import { File } from 'expo-file-system';
 import { ChevronLeft } from 'lucide-react-native';
 import type { RootStackParamList } from '../../App';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -20,6 +19,7 @@ import {
   iniciarGrabacion,
   detenerGrabacion,
   descartarGrabacion,
+  leerAudioGrabado,
   ErrorGrabacion,
   type ClipGrabado,
 } from '../services/grabacionAudio';
@@ -28,12 +28,6 @@ import { formatearDuracion } from '../utils/formato';
 import { desplazarNiveles, nivelDesdeDecibelios } from '../utils/nivelesAudio';
 import { fechaIsoLocal, metadatosReunion } from '../utils/procesadoActa';
 import { textoAviso } from '../notificaciones/transiciones';
-
-/** Extensión real del archivo grabado (el URI de expo-audio no siempre acaba en la extensión "de toda la vida"). */
-function extensionDe(uri: string): string {
-  const coincide = /\.([a-zA-Z0-9]+)(\?.*)?$/.exec(uri);
-  return coincide ? coincide[1] : 'm4a';
-}
 
 /** Mismo patrón que en DetalleActaScreen: solo se confía en el mensaje de nuestros propios errores tipados. */
 function mensajeError(err: unknown, porDefecto: string): string {
@@ -213,13 +207,9 @@ export function GrabacionScreen({ navigation, route }: Props) {
         setClipListo(clip);
       }
 
-      // fetch(uri).blob() no lee los bytes reales del archivo en React Native
-      // (produce un Blob vacío/con placeholder de texto, bug conocido del
-      // polyfill) — File.arrayBuffer() sí lee el archivo nativo tal cual.
-      const extension = extensionDe(clip.uri);
-      const archivo = await new File(clip.uri).arrayBuffer();
-      const ruta = `${reunionId}/clip-1.${extension}`;
-      const subida = await subirClipAudio(BUCKET_AUDIOS, ruta, archivo, `audio/${extension}`);
+      const audio = await leerAudioGrabado(clip);
+      const ruta = `${reunionId}/clip-1.${audio.extension}`;
+      const subida = await subirClipAudio(BUCKET_AUDIOS, ruta, audio.bytes, audio.contentType);
       await registrarClip(reunionId, 1, subida.path, clip.duracionSegundos);
       await finalizarReunion(reunionId);
       seguir([{ id: reunionId, titulo, estado: 'PENDIENTE' }]);

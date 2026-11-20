@@ -1,4 +1,6 @@
+import { Platform } from 'react-native';
 import { requestRecordingPermissionsAsync, setAudioModeAsync, type AudioRecorder } from 'expo-audio';
+import { File } from 'expo-file-system';
 
 export type CodigoErrorGrabacion = 'PERMISO_DENEGADO' | 'GRABACION_FALLIDA';
 
@@ -63,6 +65,49 @@ export async function detenerGrabacion(recorder: AudioRecorder): Promise<ClipGra
   }
   const { durationMillis } = recorder.getStatus();
   return { uri, duracionSegundos: Math.round(durationMillis / 1000) };
+}
+
+export interface AudioParaSubir {
+  bytes: ArrayBuffer;
+  /** Sin punto. El backend se la pasa a Mistral en el nombre del archivo, así que tiene que ser la real. */
+  extension: string;
+  contentType: string;
+}
+
+/** Extensión real del archivo grabado (el URI de expo-audio no siempre acaba en la extensión "de toda la vida"). */
+function extensionDeUri(uri: string): string {
+  const coincide = /\.([a-zA-Z0-9]+)(\?.*)?$/.exec(uri);
+  return coincide ? coincide[1] : 'm4a';
+}
+
+/**
+ * En web el URI es un `blob:` sin extensión y el formato depende del navegador
+ * (`audio/webm;codecs=opus` en Chrome de escritorio, `audio/mp4` en iOS), así
+ * que se deduce del tipo del propio Blob.
+ */
+function formatoDeTipoMime(tipo: string): { extension: string; contentType: string } {
+  const contentType = tipo.split(';')[0].trim() || 'audio/webm';
+  const subtipo = contentType.split('/')[1] ?? 'webm';
+  return { extension: subtipo === 'mp4' ? 'm4a' : subtipo, contentType };
+}
+
+/**
+ * Lee los bytes del clip grabado. Cada plataforma necesita una vía distinta:
+ * en nativo, `fetch(uri).blob()` no lee los bytes reales (bug conocido del
+ * polyfill) y hay que usar `File` de expo-file-system; en web, expo-file-system
+ * es solo un stub que no lee nada, y `fetch` sobre el `blob:` sí funciona.
+ */
+export async function leerAudioGrabado(clip: ClipGrabado): Promise<AudioParaSubir> {
+  try {
+    if (Platform.OS === 'web') {
+      const blob = await (await fetch(clip.uri)).blob();
+      return { bytes: await blob.arrayBuffer(), ...formatoDeTipoMime(blob.type) };
+    }
+    const extension = extensionDeUri(clip.uri);
+    return { bytes: await new File(clip.uri).arrayBuffer(), extension, contentType: `audio/${extension}` };
+  } catch {
+    throw new ErrorGrabacion('GRABACION_FALLIDA', 'No se pudo leer el audio grabado. Inténtalo de nuevo.');
+  }
 }
 
 /**
