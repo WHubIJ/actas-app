@@ -1,5 +1,7 @@
 package com.actasapp.backend.resumen.adaptadores.entrada;
 
+import com.actasapp.backend.grabacion.domain.Reunion;
+import com.actasapp.backend.resumen.domain.DatosReunion;
 import com.actasapp.backend.resumen.domain.FormatoArchivo;
 import com.actasapp.backend.resumen.domain.PlantillaResumen;
 import com.actasapp.backend.resumen.domain.Resumen;
@@ -42,7 +44,7 @@ public class ResumenController {
 
     @PostMapping
     public ResumenResponse generar(@RequestBody GenerarResumenRequest req, @AuthenticationPrincipal Jwt jwt) {
-        verificarAcceso.verificar(req.reunionId(), UUID.fromString(jwt.getSubject()));
+        Reunion reunion = verificarAcceso.verificar(req.reunionId(), UUID.fromString(jwt.getSubject()));
         // GeneradorDocumentoAdapter solo genera bytes reales para MARKDOWN; sin esta
         // comprobación, PDF/WORD llegaban hasta su UnsupportedOperationException y
         // caían en el catch-all de RuntimeException como 500, no como un 400 claro
@@ -51,7 +53,19 @@ public class ResumenController {
             throw new IllegalArgumentException(
                     "Todavía solo se puede generar el resumen en Markdown; PDF y Word están pendientes de implementar");
         }
-        Resumen resumen = generarResumen.generarResumen(req.reunionId(), req.transcripcion(), req.plantilla(), req.formato());
+        Resumen resumen = generarResumen.generarResumen(
+                req.reunionId(), req.transcripcion(), aDatosReunion(reunion), req.plantilla(), req.formato());
         return new ResumenResponse(resumen.getId(), new String(resumen.getContenido(), StandardCharsets.UTF_8));
+    }
+
+    /**
+     * La cabecera sale de la reunión guardada, no del body: es la misma que ya
+     * devolvió {@code verificar} (sin consulta extra) y el cliente no puede
+     * colar una fecha o unos asistentes distintos de los registrados. Misma
+     * vía que usa {@code ArchivosController} para la fecha del PDF.
+     */
+    static DatosReunion aDatosReunion(Reunion reunion) {
+        return new DatosReunion(reunion.getTitulo(), reunion.getFecha(), reunion.getHora(),
+                reunion.getLugar(), reunion.getParticipantes());
     }
 }

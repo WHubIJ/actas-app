@@ -1,5 +1,6 @@
 package com.actasapp.backend.resumen.puertos.entrada;
 
+import com.actasapp.backend.resumen.domain.DatosReunion;
 import com.actasapp.backend.resumen.domain.FormatoArchivo;
 import com.actasapp.backend.resumen.domain.PlantillaResumen;
 import com.actasapp.backend.resumen.domain.Resumen;
@@ -12,11 +13,14 @@ import java.util.UUID;
  * `transcripcion` la pasa quien llama (el adaptador de entrada), no la busca
  * este módulo: `resumen` no puede depender de `transcripcion` (los módulos
  * no se llaman entre sí), así que el texto viaja ya resuelto desde fuera.
+ * Lo mismo con {@code datos}: los resuelve el adaptador a partir de la reunión
+ * ya verificada.
  *
  * Devuelve el `Resumen` completo (no solo el id): el caso de uso principal
  * es generar y mostrar al momento, sin una segunda consulta aparte.
  */
 public interface GenerarResumenUseCase {
 
-    Resumen generarResumen(UUID reunionId, String transcripcion, PlantillaResumen plantilla, FormatoArchivo formato);
+    Resumen generarResumen(UUID reunionId, String transcripcion, DatosReunion datos,
+                           PlantillaResumen plantilla, FormatoArchivo formato);
 }

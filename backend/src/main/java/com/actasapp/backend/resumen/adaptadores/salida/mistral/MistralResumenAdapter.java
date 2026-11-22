@@ -1,5 +1,6 @@
 package com.actasapp.backend.resumen.adaptadores.salida.mistral;
 
+import com.actasapp.backend.resumen.domain.DatosReunion;
 import com.actasapp.backend.resumen.domain.PlantillaResumen;
 import com.actasapp.backend.resumen.puertos.salida.GenerarTextoResumenPuerto;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -17,12 +20,27 @@ import java.util.List;
  * plantillas comparten la llamada HTTP y solo cambia la instrucción de sistema.
  * Todas piden Markdown limitado a párrafos, "#"/"##" y bullets "-": es lo único
  * que entienden GeneradorDocumentoAdapter (PDF/Word) y el parser del frontend.
+ *
+ * Los datos de cabecera registrados en la app viajan en el mensaje de usuario,
+ * en un bloque aparte antes de la transcripción, y la instrucción de sistema
+ * les da prioridad: son lo que el usuario escribió, no lo que el modelo cree oír.
  */
 @Component
 public class MistralResumenAdapter implements GenerarTextoResumenPuerto {
 
     private static final String ENDPOINT_CHAT = "https://api.mistral.ai/v1/chat/completions";
     private static final Duration TIMEOUT = Duration.ofSeconds(60);
+    private static final DateTimeFormatter FORMATO_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter FORMATO_HORA = DateTimeFormatter.ofPattern("HH:mm");
+
+    static final String CABECERA_DATOS = "Datos de la reunión registrados en la app:";
+    static final String CABECERA_TRANSCRIPCION = "Transcripción:";
+
+    private static final String INSTRUCCION_DATOS_REUNION = """
+
+            Si el mensaje empieza con "Datos de la reunión registrados en la app", esos datos
+            (título, fecha, hora, lugar, participantes) son fiables y prevalecen sobre lo que se
+            deduzca de la transcripción: úsalos tal cual cuando el formato los necesite.""";
 
     private static final String INSTRUCCION_RESUMEN_EJECUTIVO = """
             Eres un asistente que redacta el resumen ejecutivo de una reunión a partir de su
@@ -38,8 +56,12 @@ public class MistralResumenAdapter implements GenerarTextoResumenPuerto {
             con "#", secciones con "##" y listas con bullets "-"; no uses tablas, negritas ni
             encabezados de más niveles. Estructura el acta exactamente así:
             # Acta de la reunión
-            seguido de un párrafo con la fecha de la reunión y el lugar solo si se mencionan en la
-            transcripción; si no, escribe "Fecha: no indicada en la grabación".
+            seguido de un párrafo con el título, la fecha, la hora y el lugar de la reunión que
+            consten en los datos registrados o, si faltan, en la transcripción; si la fecha no
+            consta en ninguno de los dos, escribe "Fecha: no indicada".
+            ## Asistentes
+            (bullets con los participantes registrados y quienes se identifiquen en la
+            transcripción; si no consta ninguno, omite esta sección)
             ## Orden del día
             (bullets con los temas tratados, en el orden en que se discutieron)
             ## Desarrollo
@@ -78,8 +100,8 @@ public class MistralResumenAdapter implements GenerarTextoResumenPuerto {
     }
 
     @Override
-    public String generarTexto(String transcripcion, PlantillaResumen plantilla) {
-        PeticionChat peticion = new PeticionChat(modelo, construirMensajes(transcripcion, plantilla));
+    public String generarTexto(String transcripcion, DatosReunion datos, PlantillaResumen plantilla) {
+        PeticionChat peticion = new PeticionChat(modelo, construirMensajes(transcripcion, datos, plantilla));
 
         RespuestaChat respuesta = restClient.post()
                 .uri(ENDPOINT_CHAT)
@@ -96,17 +118,40 @@ public class MistralResumenAdapter implements GenerarTextoResumenPuerto {
     }
 
     static String instruccionPara(PlantillaResumen plantilla) {
-        return switch (plantilla) {
+        String instruccion = switch (plantilla) {
             case RESUMEN_EJECUTIVO -> INSTRUCCION_RESUMEN_EJECUTIVO;
             case ACTA_FORMAL -> INSTRUCCION_ACTA_FORMAL;
             case LISTA_ACUERDOS -> INSTRUCCION_LISTA_ACUERDOS;
         };
+        return instruccion + INSTRUCCION_DATOS_REUNION;
     }
 
-    static List<Mensaje> construirMensajes(String transcripcion, PlantillaResumen plantilla) {
+    static List<Mensaje> construirMensajes(String transcripcion, DatosReunion datos, PlantillaResumen plantilla) {
         return List.of(
                 new Mensaje("system", instruccionPara(plantilla)),
-                new Mensaje("user", transcripcion));
+                new Mensaje("user", construirMensajeUsuario(transcripcion, datos)));
+    }
+
+    /** Sin ningún dato registrado se manda la transcripción sola, como antes. */
+    static String construirMensajeUsuario(String transcripcion, DatosReunion datos) {
+        List<String> lineas = lineasDeDatos(datos == null ? DatosReunion.vacios() : datos);
+        if (lineas.isEmpty()) {
+            return transcripcion;
+        }
+        return CABECERA_DATOS + "\n" + String.join("\n", lineas)
+                + "\n\n" + CABECERA_TRANSCRIPCION + "\n" + transcripcion;
+    }
+
+    private static List<String> lineasDeDatos(DatosReunion datos) {
+        List<String> lineas = new ArrayList<>();
+        if (datos.titulo() != null) lineas.add("- Título: " + datos.titulo());
+        if (datos.fecha() != null) lineas.add("- Fecha: " + datos.fecha().format(FORMATO_FECHA));
+        if (datos.hora() != null) lineas.add("- Hora: " + datos.hora().format(FORMATO_HORA));
+        if (datos.lugar() != null) lineas.add("- Lugar: " + datos.lugar());
+        if (!datos.participantes().isEmpty()) {
+            lineas.add("- Participantes: " + String.join(", ", datos.participantes()));
+        }
+        return lineas;
     }
 
     record Mensaje(String role, String content) {

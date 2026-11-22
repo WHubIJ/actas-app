@@ -239,7 +239,11 @@ excepción documentada arriba) bajo `/api/reuniones`:
 - `POST /api/resumen` → `{resumenId, contenido}` — genera el resumen a partir
   de `reunionId`, `transcripcion` (el frontend la pasa directo porque los
   módulos no se llaman entre sí), `plantilla` (acepta las 3: `RESUMEN_EJECUTIVO`,
-  `ACTA_FORMAL`, `LISTA_ACUERDOS`) y `formato`. `contenido` viaja como texto. El
+  `ACTA_FORMAL`, `LISTA_ACUERDOS`) y `formato`. La cabecera de la reunión (título,
+  fecha, hora, lugar, participantes) no viaja en el body: el controller la saca
+  del `Reunion` que ya devuelve `VerificarAccesoReunion`, la traduce a
+  `resumen/domain/DatosReunion` y `MistralResumenAdapter` la antepone a la
+  transcripción con prioridad sobre lo que se oiga. `contenido` viaja como texto. El
   resumen se genera y persiste solo en MARKDOWN: otro `formato` se rechaza a
   propósito (400). PDF/WORD se obtienen al descargar con
   `GET /api/reuniones/{reunionId}/archivos` (`ArchivosController`), que convierte

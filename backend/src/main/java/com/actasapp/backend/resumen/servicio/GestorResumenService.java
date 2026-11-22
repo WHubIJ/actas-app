@@ -1,5 +1,6 @@
 package com.actasapp.backend.resumen.servicio;
 
+import com.actasapp.backend.resumen.domain.DatosReunion;
 import com.actasapp.backend.resumen.domain.FormatoArchivo;
 import com.actasapp.backend.resumen.domain.PlantillaResumen;
 import com.actasapp.backend.resumen.domain.Resumen;
@@ -38,12 +39,13 @@ public class GestorResumenService implements GenerarResumenUseCase, ObtenerResum
     }
 
     @Override
-    public Resumen generarResumen(UUID reunionId, String transcripcion, PlantillaResumen plantilla, FormatoArchivo formato) {
+    public Resumen generarResumen(UUID reunionId, String transcripcion, DatosReunion datos,
+                                  PlantillaResumen plantilla, FormatoArchivo formato) {
         if (transcripcion == null || transcripcion.isBlank()) {
             throw new IllegalStateException("No hay transcripción disponible para generar el resumen");
         }
 
-        String texto = generadorTexto.generarTexto(transcripcion, plantilla);
+        String texto = generadorTexto.generarTexto(transcripcion, datos, plantilla);
         byte[] contenido = generadorDocumento.generar(texto, formato);
         Resumen resumen = new Resumen(UUID.randomUUID(), reunionId, plantilla, formato, contenido);
         return resumenRepositorio.guardar(resumen);

@@ -1,8 +1,11 @@
 package com.actasapp.backend.resumen.adaptadores.salida.mistral;
 
+import com.actasapp.backend.resumen.domain.DatosReunion;
 import com.actasapp.backend.resumen.domain.PlantillaResumen;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -52,12 +55,61 @@ class MistralResumenAdapterTest {
     void elMensajeDeSistemaVaPrimeroYElDeUsuarioLlevaLaTranscripcion() {
         for (PlantillaResumen plantilla : PlantillaResumen.values()) {
             List<MistralResumenAdapter.Mensaje> mensajes =
-                    MistralResumenAdapter.construirMensajes("Texto de la reunión", plantilla);
+                    MistralResumenAdapter.construirMensajes("Texto de la reunión", DatosReunion.vacios(), plantilla);
             assertEquals(2, mensajes.size());
             assertEquals("system", mensajes.get(0).role());
             assertEquals(MistralResumenAdapter.instruccionPara(plantilla), mensajes.get(0).content());
             assertEquals("user", mensajes.get(1).role());
             assertEquals("Texto de la reunión", mensajes.get(1).content());
         }
+    }
+
+    @Test
+    void conDatosRegistradosElMensajeDeUsuarioLosAnteponeALaTranscripcion() {
+        DatosReunion datos = new DatosReunion("Junta mensual", LocalDate.of(2026, 11, 20), LocalTime.of(19, 30),
+                "Salón anexo", List.of("Ana Pérez", "Luis Gómez"));
+
+        String mensaje = MistralResumenAdapter.construirMensajeUsuario("Texto de la reunión", datos);
+
+        assertEquals("""
+                Datos de la reunión registrados en la app:
+                - Título: Junta mensual
+                - Fecha: 20/11/2026
+                - Hora: 19:30
+                - Lugar: Salón anexo
+                - Participantes: Ana Pérez, Luis Gómez
+
+                Transcripción:
+                Texto de la reunión""", mensaje);
+    }
+
+    @Test
+    void soloIncluyeLosDatosQueExisten() {
+        DatosReunion datos = new DatosReunion(null, LocalDate.of(2026, 11, 20), null, null, List.of());
+
+        String mensaje = MistralResumenAdapter.construirMensajeUsuario("Texto", datos);
+
+        assertTrue(mensaje.contains("- Fecha: 20/11/2026"));
+        assertFalse(mensaje.contains("Título"));
+        assertFalse(mensaje.contains("Hora"));
+        assertFalse(mensaje.contains("Lugar"));
+        assertFalse(mensaje.contains("Participantes"));
+    }
+
+    @Test
+    void sinDatosRegistradosSeMandaSoloLaTranscripcion() {
+        assertEquals("Texto", MistralResumenAdapter.construirMensajeUsuario("Texto", DatosReunion.vacios()));
+    }
+
+    @Test
+    void todasLasPlantillasDanPrioridadALosDatosRegistrados() {
+        for (PlantillaResumen plantilla : PlantillaResumen.values()) {
+            assertTrue(MistralResumenAdapter.instruccionPara(plantilla).contains("prevalecen sobre"));
+        }
+    }
+
+    @Test
+    void actaFormalIncluyeAsistentes() {
+        assertTrue(MistralResumenAdapter.instruccionPara(PlantillaResumen.ACTA_FORMAL).contains("## Asistentes"));
     }
 }
