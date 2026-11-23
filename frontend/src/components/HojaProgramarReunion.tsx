@@ -64,6 +64,18 @@ function Formulario({ reunion, fechaIsoInicial, hoyIso, nombreUsuario, onGuardar
     setNuevoParticipante('');
   }, [nuevoParticipante]);
 
+  // El error de un campo se refiere a lo que había escrito al pulsar Guardar:
+  // en cuanto se corrige deja de ser cierto, así que se quita al escribir.
+  const cambiarFecha = useCallback((valor: string) => {
+    setFecha(valor);
+    setErrorFecha(undefined);
+  }, []);
+
+  const cambiarHora = useCallback((valor: string) => {
+    setHora(valor);
+    setErrorHora(undefined);
+  }, []);
+
   const quitarParticipante = useCallback((nombre: string) => {
     setParticipantes((actuales) => actuales.filter((p) => p !== nombre));
   }, []);
@@ -123,22 +135,28 @@ function Formulario({ reunion, fechaIsoInicial, hoyIso, nombreUsuario, onGuardar
             <Input
               label="Fecha"
               value={fecha}
-              onChangeText={setFecha}
+              onChangeText={cambiarFecha}
               placeholder="dd/mm/aaaa"
               error={errorFecha}
               keyboardType="numbers-and-punctuation"
               autoCorrect={false}
+              // Viene rellenada con el día elegido: al entrar se selecciona entera
+              // para que escribir la sustituya en vez de añadirse detrás.
+              selectTextOnFocus
+              maxLength={10}
             />
           </View>
           <View style={{ flex: 1 }}>
             <Input
               label="Hora"
               value={hora}
-              onChangeText={setHora}
+              onChangeText={cambiarHora}
               placeholder="hh:mm"
               error={errorHora}
               keyboardType="numbers-and-punctuation"
               autoCorrect={false}
+              selectTextOnFocus
+              maxLength={5}
               icon={(c) => <Clock size={20} color={c} strokeWidth={1.6} />}
             />
           </View>

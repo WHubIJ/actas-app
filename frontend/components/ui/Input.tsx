@@ -59,8 +59,10 @@ export function Input({ label, help, helpTone = 'neutral', error, icon, right, h
             onBlur?.(e);
           }}
           // El anillo de foco lo dibuja el contenedor (borde + halo); sin esto
-          // el navegador añade su propio contorno azul encima en web.
-          style={[t.typography.body, { flex: 1, color: c.text, fontSize: 15, paddingVertical: 0, outlineStyle: 'none' } as never, style]}
+          // el navegador añade su propio contorno azul encima en web. `minWidth: 0`
+          // porque en web el <input> tiene un ancho mínimo propio y, en una fila
+          // de dos campos, un texto largo lo ensanchaba y descuadraba el formulario.
+          style={[t.typography.body, { flex: 1, minWidth: 0, color: c.text, fontSize: 15, paddingVertical: 0, outlineStyle: 'none' } as never, style]}
         />
         {right}
       </View>

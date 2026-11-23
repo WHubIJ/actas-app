@@ -243,6 +243,11 @@ export function GrabacionScreen({ navigation, route }: Props) {
     transform: [{ translateY: aparicion.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
   };
 
+  // Desde una reunión programada ("Grabar ahora") se llega sin pasar por
+  // NuevaGrabacion: el enlace de vuelta solo nombra esa pantalla si es la de detrás.
+  const rutas = navigation.getState().routes;
+  const vieneDeAntesDeGrabar = rutas[rutas.length - 2]?.name === 'NuevaGrabacion';
+
   const columna = { flexGrow: 1, width: '100%' as const, maxWidth: ANCHO_COLUMNA_ESCRITORIO, alignSelf: 'center' as const };
   const pausado = estado === 'pausado';
   const detenido = estado === 'detenido';
@@ -264,7 +269,7 @@ export function GrabacionScreen({ navigation, route }: Props) {
         >
           <ChevronLeft size={22} color={t.colors.brandStrong} strokeWidth={2} />
           <Text variant="body" color="brandStrong">
-            Antes de grabar
+            {vieneDeAntesDeGrabar ? 'Antes de grabar' : 'Volver'}
           </Text>
         </Pressable>
       )}
