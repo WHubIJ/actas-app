@@ -145,8 +145,13 @@ export async function registrarClip(
 }
 
 /** Marca la reunión como finalizada. Corresponde a `POST /api/reuniones/{id}/finalizar`. */
-export async function finalizarReunion(reunionId: string): Promise<void> {
-  await peticion<void>(`/api/reuniones/${reunionId}/finalizar`, { method: 'POST' });
+export async function finalizarReunion(reunionId: string, fechaIso: string): Promise<void> {
+  // El día del dispositivo, no el del servidor (UTC): una reunión programada pasa a tener esta fecha (ADR-008).
+  await peticion<void>(`/api/reuniones/${reunionId}/finalizar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fecha: fechaIso }),
+  });
 }
 
 /**

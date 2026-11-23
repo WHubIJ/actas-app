@@ -132,12 +132,27 @@ public class Reunion {
         this.participantes = normalizarParticipantes(participantes);
     }
 
-    /** Regla de negocio: solo se puede finalizar si tiene al menos un clip subido correctamente. */
-    public void finalizar() {
+    /**
+     * Reglas de negocio: solo se puede finalizar si tiene al menos un clip subido
+     * correctamente, y una reunión programada pasa a tener la fecha en que se
+     * grabó de verdad (ADR-008, revisado el 2026-11-23): el acta tiene que decir
+     * cuándo se celebró, no cuándo estaba prevista. Si cambia de día, la hora
+     * convocada se descarta, porque era la de otro día.
+     *
+     * @param fechaGrabacion el día en que se graba, en la zona del dispositivo.
+     */
+    public void finalizar(LocalDate fechaGrabacion) {
+        if (fechaGrabacion == null) {
+            throw new IllegalArgumentException("Hace falta la fecha de grabación para finalizar");
+        }
         boolean hayAlMenosUnClipCompleto = clips.stream()
                 .anyMatch(c -> c.getEstadoSubida() == EstadoSubida.COMPLETADO);
         if (!hayAlMenosUnClipCompleto) {
             throw new IllegalStateException("No se puede finalizar una reunión sin ningún clip subido");
+        }
+        if (estaProgramada() && !fechaGrabacion.equals(fecha)) {
+            this.fecha = fechaGrabacion;
+            this.hora = null;
         }
         this.finalizada = true;
     }

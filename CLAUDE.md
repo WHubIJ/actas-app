@@ -126,7 +126,7 @@ Detalle completo en `docs/01-Domain/modelo.md`. Las entidades reales viven en
 Reglas de negocio clave:
 
 - Una reunión puede programarse antes de grabarse (ADR-008): fecha no anterior a hoy,
-  editable y cancelable solo mientras no se haya grabado; grabarla no cambia su fecha
+  editable y cancelable solo mientras no se haya grabado; al grabarla, su fecha pasa a ser la del día de grabación
 - La transcripción solo se dispara cuando el usuario marca la reunión como finalizada
 - Los clips se transcriben secuencialmente por su campo `orden`
 - Los textos de varios clips se combinan **con IA**, no por concatenación simple

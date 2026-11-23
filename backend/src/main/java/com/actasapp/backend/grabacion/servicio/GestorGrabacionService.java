@@ -85,11 +85,11 @@ public class GestorGrabacionService implements IniciarReunionUseCase, ProgramarR
     }
 
     @Override
-    public void finalizarReunion(UUID reunionId) {
+    public void finalizarReunion(UUID reunionId, LocalDate fechaGrabacion) {
         Reunion reunion = reunionRepositorio.buscarPorId(reunionId)
                 .orElseThrow(() -> new IllegalArgumentException("Reunión no encontrada: " + reunionId));
 
-        reunion.finalizar(); // regla de negocio vive en el dominio, no aquí
+        reunion.finalizar(fechaGrabacion); // regla de negocio vive en el dominio, no aquí
         reunionRepositorio.guardar(reunion);
 
         // Desacopla grabación de transcripción: el módulo de transcripción escucha este

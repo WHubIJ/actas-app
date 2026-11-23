@@ -216,10 +216,11 @@ export function GrabacionScreen({ navigation, route }: Props) {
       const ruta = `${reunionId}/clip-1.${audio.extension}`;
       const subida = await subirClipAudio(BUCKET_AUDIOS, ruta, audio.bytes, audio.contentType);
       await registrarClip(reunionId, 1, subida.path, clip.duracionSegundos);
-      await finalizarReunion(reunionId);
+      const fechaIso = fechaIsoLocal(new Date());
+      await finalizarReunion(reunionId, fechaIso);
       seguir([{ id: reunionId, titulo, estado: 'PENDIENTE' }]);
 
-      setResumenGrabado({ fechaIso: fechaIsoLocal(new Date()), duracionSegundos: clip.duracionSegundos });
+      setResumenGrabado({ fechaIso, duracionSegundos: clip.duracionSegundos });
       setClipListo(null);
       setEstado('procesando');
     } catch (err) {

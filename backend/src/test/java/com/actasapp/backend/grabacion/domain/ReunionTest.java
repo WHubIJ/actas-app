@@ -41,7 +41,7 @@ class ReunionTest {
     void finalizarSinClipsLanzaExcepcion() {
         Reunion reunion = nuevaReunion();
 
-        assertThrows(IllegalStateException.class, reunion::finalizar);
+        assertThrows(IllegalStateException.class, () -> reunion.finalizar(LocalDate.now()));
         assertFalse(reunion.isFinalizada());
     }
 
@@ -52,7 +52,7 @@ class ReunionTest {
         clip.marcarError();
         reunion.agregarClip(clip);
 
-        assertThrows(IllegalStateException.class, reunion::finalizar);
+        assertThrows(IllegalStateException.class, () -> reunion.finalizar(LocalDate.now()));
         assertFalse(reunion.isFinalizada());
     }
 
@@ -63,7 +63,7 @@ class ReunionTest {
         clip.marcarSubidaCompletada(reunion.getId() + "/clip-1.mp3", 120);
         reunion.agregarClip(clip);
 
-        reunion.finalizar();
+        reunion.finalizar(LocalDate.now());
 
         assertTrue(reunion.isFinalizada());
     }
@@ -222,13 +222,66 @@ class ReunionTest {
         clip.marcarSubidaCompletada(reunion.getId() + "/clip-1.m4a", 60);
         reunion.agregarClip(clip);
 
-        reunion.finalizar();
+        reunion.finalizar(LocalDate.now());
 
         assertTrue(reunion.isFinalizada());
         assertTrue(reunion.isProgramada()); // dato histórico: nació convocada
         assertFalse(reunion.estaProgramada());
         assertThrows(IllegalStateException.class,
                 () -> reunion.reprogramar(LocalDate.now().plusDays(1), null, null, null, List.of()));
+    }
+
+    @Test
+    void grabarUnaProgramadaOtroDiaLeDaLaFechaDeGrabacionYQuitaLaHora() {
+        Reunion reunion = programadaConClipPara(LocalDate.now().plusDays(1));
+        LocalDate hoy = LocalDate.now();
+
+        reunion.finalizar(hoy);
+
+        assertEquals(hoy, reunion.getFecha());
+        assertNull(reunion.getHora());
+        assertEquals("Sala 1", reunion.getLugar());
+    }
+
+    @Test
+    void grabarUnaProgramadaEnSuDiaConservaFechaYHora() {
+        LocalDate hoy = LocalDate.now();
+        Reunion reunion = programadaConClipPara(hoy);
+
+        reunion.finalizar(hoy);
+
+        assertEquals(hoy, reunion.getFecha());
+        assertEquals(LocalTime.of(10, 0), reunion.getHora());
+    }
+
+    @Test
+    void finalizarUnaReunionNormalNoTocaSuFecha() {
+        Reunion reunion = nuevaReunion();
+        LocalDate fechaOriginal = reunion.getFecha();
+        ClipAudio clip = nuevoClip(reunion, 1);
+        clip.marcarSubidaCompletada(reunion.getId() + "/clip-1.m4a", 60);
+        reunion.agregarClip(clip);
+
+        reunion.finalizar(fechaOriginal.plusDays(1));
+
+        assertEquals(fechaOriginal, reunion.getFecha());
+    }
+
+    @Test
+    void finalizarSinFechaDeGrabacionLanzaExcepcion() {
+        Reunion reunion = programadaConClipPara(LocalDate.now());
+
+        assertThrows(IllegalArgumentException.class, () -> reunion.finalizar(null));
+        assertFalse(reunion.isFinalizada());
+    }
+
+    private Reunion programadaConClipPara(LocalDate fecha) {
+        Reunion reunion = Reunion.programar(UUID.randomUUID(), UUID.randomUUID(), null, fecha, LocalTime.of(10, 0),
+                "Sala 1", "Junta", List.of());
+        ClipAudio clip = nuevoClip(reunion, 1);
+        clip.marcarSubidaCompletada(reunion.getId() + "/clip-1.m4a", 60);
+        reunion.agregarClip(clip);
+        return reunion;
     }
 
     @Test

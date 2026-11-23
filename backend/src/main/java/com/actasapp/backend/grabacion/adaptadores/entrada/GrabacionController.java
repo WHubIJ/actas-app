@@ -62,6 +62,8 @@ public class GrabacionController {
 
     public record NuevaReunionRequest(UUID organizacionId, UUID equipoId, LocalDate fecha, String titulo, List<String> participantes) {}
     public record NuevoClipRequest(int orden, String urlStorage, int duracionSegundos) {}
+    /** `fecha` es el día en la zona del dispositivo; el servidor (UTC) puede ir un día por detrás o por delante. */
+    public record FinalizarRequest(LocalDate fecha) {}
 
     /**
      * Convocatoria de una reunión programada (ADR-008). `fecha` es obligatoria
@@ -145,9 +147,12 @@ public class GrabacionController {
     }
 
     @PostMapping("/{reunionId}/finalizar")
-    public void finalizar(@PathVariable UUID reunionId, @AuthenticationPrincipal Jwt jwt) {
+    public void finalizar(@PathVariable UUID reunionId, @RequestBody(required = false) FinalizarRequest req,
+                          @AuthenticationPrincipal Jwt jwt) {
         verificarAcceso.verificar(reunionId, UUID.fromString(jwt.getSubject()));
-        finalizarReunion.finalizarReunion(reunionId);
+        // Sin body (clientes anteriores a este cambio) se usa el día del servidor, igual que en iniciar.
+        LocalDate fechaGrabacion = (req != null && req.fecha() != null) ? req.fecha() : LocalDate.now();
+        finalizarReunion.finalizarReunion(reunionId, fechaGrabacion);
     }
 
     /** Solo reuniones finalizadas: mientras se graba no hay acta que listar todavía. */

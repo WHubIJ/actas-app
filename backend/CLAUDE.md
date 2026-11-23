@@ -166,7 +166,9 @@ romper las comillas de `Content-Disposition`).
   `equipoId` opcional, `fecha`)
 - `POST /api/reuniones/{reunionId}/clips` → `{clipId}` — registra la *referencia* a
   un clip ya subido por el frontend (`orden`, `urlStorage`, `duracionSegundos`)
-- `POST /api/reuniones/{reunionId}/finalizar` — marca finalizada y dispara el evento
+- `POST /api/reuniones/{reunionId}/finalizar` — marca finalizada y dispara el evento.
+  Body opcional `{fecha}` (día del dispositivo; sin él, el del servidor): una
+  programada pasa a tener esa fecha y, si cambia de día, pierde la hora (ADR-008)
 - `GET /api/reuniones` → solo las finalizadas (la "lista de actas" del frontend);
   `GET /api/reuniones/{reunionId}` → una, verificando pertenencia. La respuesta
   (`ReunionResumenResponse`) lleva `fecha`, `hora`, `lugar`, `finalizada`,

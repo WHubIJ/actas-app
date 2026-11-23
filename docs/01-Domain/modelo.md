@@ -122,7 +122,8 @@ se protege con un token aleatorio y su caducidad, no con JWT.
 ## Reglas de negocio clave
 
 - Una reunión programada no puede convocarse en el pasado y solo se edita o cancela
-  mientras no se haya grabado; grabarla no cambia su fecha (ADR-008)
+  mientras no se haya grabado; al grabarla, su fecha pasa a ser la del día de grabación
+  y, si cambia de día, pierde la hora convocada (ADR-008, revisado el 2026-11-23)
 - La transcripción de una reunión solo se dispara cuando el usuario la marca como finalizada
 - Los clips se transcriben secuencialmente, en el orden en que se grabaron
 - Los textos de varios clips se combinan con IA (no concatenación simple), preservando continuidad

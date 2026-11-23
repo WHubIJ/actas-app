@@ -3,7 +3,7 @@
 **Sprint**: 1 (Épica 1, grabación) — ampliación del dominio de `grabacion`
 **Estado**: Aceptado
 **Propietario**: Wisdom Imade Isibor
-**Fecha**: 2026-11-14
+**Fecha**: 2026-11-14 (revisado el 2026-11-23: fecha de una programada al grabarla)
 
 ---
 
@@ -46,9 +46,17 @@ decisiones, equipos) sigue fuera de alcance y no se toca aquí.
   - `programada && !finalizada` → programada.
   - `!programada && !finalizada` → en preparación (una grabación en curso o
     abandonada); sigue sin listarse, como hasta ahora.
-- Grabar una reunión programada **no cambia su fecha**: la fecha es la que fijó
-  el usuario y puede editarla antes de grabar. Al finalizar, `programada` queda
-  a `true` como dato histórico sin efecto.
+- Al grabar una reunión programada, **su fecha pasa a ser la del día en que se
+  graba** (revisado el 2026-11-23; la versión original la dejaba intacta). El
+  acta tiene que decir cuándo se celebró la reunión, no cuándo estaba prevista,
+  y esa fecha llega a la IA al generar el resumen. Si el día cambia, la hora
+  convocada se descarta porque era la de otro día; el lugar se conserva. La
+  fecha la envía el frontend en `POST /finalizar` (`{fecha}`, día del
+  dispositivo), porque el servidor va en UTC y cerca de medianoche daría otro
+  día; sin body se usa el día del servidor. Se pierde la fecha prevista
+  original: si un día interesa ("prevista el 24, celebrada el 23"), irá en un
+  campo aparte con su migración. Al finalizar, `programada` queda a `true` como
+  dato histórico sin efecto.
 - Cancelar una programada es borrarla (`DELETE /api/reuniones/{id}`, que ya
   existe): no hay nada que conservar.
 

@@ -1,5 +1,6 @@
 package com.actasapp.backend.grabacion.puertos.entrada;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 /**
@@ -9,5 +10,6 @@ import java.util.UUID;
  */
 public interface FinalizarReunionUseCase {
 
-    void finalizarReunion(UUID reunionId);
+    /** @param fechaGrabacion día en que se grabó; una reunión programada pasa a tener esa fecha (ADR-008). */
+    void finalizarReunion(UUID reunionId, LocalDate fechaGrabacion);
 }

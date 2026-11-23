@@ -79,9 +79,9 @@ class GrabacionControllerTest {
                 .thenThrow(new IllegalArgumentException("Reunión no encontrada: " + reunionDeOtraOrganizacion));
 
         assertThrows(IllegalArgumentException.class,
-                () -> controller.finalizar(reunionDeOtraOrganizacion, jwtDe(usuarioId)));
+                () -> controller.finalizar(reunionDeOtraOrganizacion, null, jwtDe(usuarioId)));
 
-        verify(finalizarReunion, never()).finalizarReunion(any());
+        verify(finalizarReunion, never()).finalizarReunion(any(), any());
     }
 
     @Test
@@ -108,10 +108,22 @@ class GrabacionControllerTest {
         Reunion reunion = new Reunion(reunionId, UUID.randomUUID(), null, LocalDate.now());
         when(verificarAcceso.verificar(eq(reunionId), eq(usuarioId))).thenReturn(reunion);
 
-        controller.finalizar(reunionId, jwtDe(usuarioId));
+        controller.finalizar(reunionId, new GrabacionController.FinalizarRequest(LocalDate.of(2026, 11, 23)), jwtDe(usuarioId));
 
         verify(verificarAcceso).verificar(reunionId, usuarioId);
-        verify(finalizarReunion).finalizarReunion(reunionId);
+        verify(finalizarReunion).finalizarReunion(reunionId, LocalDate.of(2026, 11, 23));
+    }
+
+    @Test
+    void finalizarSinBodyUsaElDiaDelServidor() {
+        UUID reunionId = UUID.randomUUID();
+        UUID usuarioId = UUID.randomUUID();
+        Reunion reunion = new Reunion(reunionId, UUID.randomUUID(), null, LocalDate.now());
+        when(verificarAcceso.verificar(eq(reunionId), eq(usuarioId))).thenReturn(reunion);
+
+        controller.finalizar(reunionId, null, jwtDe(usuarioId));
+
+        verify(finalizarReunion).finalizarReunion(reunionId, LocalDate.now());
     }
 
     // --- Reuniones programadas (ADR-008): mismo aislamiento por organización ---
