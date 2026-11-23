@@ -40,11 +40,12 @@ function mensajeError(err: unknown, porDefecto: string): string {
 type Props = NativeStackScreenProps<RootStackParamList, 'Grabacion'>;
 
 /**
- * Estados de la pantalla. Coinciden con el ciclo de vida real: mientras
- * `procesando`, el backend ya ha recibido el `POST /finalizar` y está
+ * Estados de la pantalla. Coinciden con el ciclo de vida real: `detenido` es
+ * el micrófono ya cerrado pero el clip aún sin subir o con la subida fallida;
+ * mientras `procesando`, el backend ya ha recibido el `POST /finalizar` y está
  * corriendo la Épica 2.
  */
-type Estado = 'inactivo' | 'grabando' | 'pausado' | 'procesando';
+type Estado = 'inactivo' | 'grabando' | 'pausado' | 'detenido' | 'procesando';
 
 const BARRAS_ONDA = 48;
 const NIVELES_REPOSO = Array.from({ length: BARRAS_ONDA }, () => 0);
@@ -88,8 +89,8 @@ export function GrabacionScreen({ navigation, route }: Props) {
   // cambiado de rama en el mismo render en que cambia el estado, y el fundido
   // que viene después solo haría parpadear el contenido ya cambiado.
   const [estadoVisible, setEstadoVisible] = useState<Estado>('inactivo');
-  // Pausar y reanudar no cambian de contenido: solo el indicador y los controles, sin fundido de pantalla.
-  const fase: Estado = estado === 'pausado' ? 'grabando' : estado;
+  // Pausar, reanudar y detener no cambian de contenido: solo el indicador y los controles, sin fundido de pantalla.
+  const fase: Estado = estado === 'pausado' || estado === 'detenido' ? 'grabando' : estado;
   const montada = useRef(false);
 
   // Fundido entre estados: sin esto el salto de "grabando" a "procesando" es
@@ -205,6 +206,10 @@ export function GrabacionScreen({ navigation, route }: Props) {
       if (!clip) {
         clip = await detenerGrabacion(recorder);
         setClipListo(clip);
+        // El micrófono ya está cerrado: el cronómetro y la onda se paran aquí,
+        // no cuando termine la subida, que puede tardar o fallar.
+        setSegundos(clip.duracionSegundos);
+        setEstado('detenido');
       }
 
       const audio = await leerAudioGrabado(clip);
@@ -240,6 +245,7 @@ export function GrabacionScreen({ navigation, route }: Props) {
 
   const columna = { flexGrow: 1, width: '100%' as const, maxWidth: ANCHO_COLUMNA_ESCRITORIO, alignSelf: 'center' as const };
   const pausado = estado === 'pausado';
+  const detenido = estado === 'detenido';
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
@@ -294,7 +300,10 @@ export function GrabacionScreen({ navigation, route }: Props) {
                   <Text variant="titleSm" numberOfLines={2} style={{ textAlign: 'center' }}>
                     {titulo?.trim() || 'Reunión sin título'}
                   </Text>
-                  <LiveIndicator label={pausado ? 'En pausa' : 'Grabando'} tone={pausado ? 'off' : 'soft'} />
+                  <LiveIndicator
+                    label={detenido ? 'Grabación detenida' : pausado ? 'En pausa' : 'Grabando'}
+                    tone={pausado || detenido ? 'off' : 'soft'}
+                  />
                   <Text
                     variant="metadataStrong"
                     accessibilityRole="timer"
@@ -303,15 +312,15 @@ export function GrabacionScreen({ navigation, route }: Props) {
                       fontSize: t.typography.display.fontSize,
                       lineHeight: t.typography.display.lineHeight,
                       letterSpacing: t.typography.display.letterSpacing,
-                      color: pausado ? t.colors.text2 : t.colors.text,
+                      color: pausado || detenido ? t.colors.text2 : t.colors.text,
                     }}
                   >
                     {formatearDuracion(segundos)}
                   </Text>
-                  <Waveform levels={niveles} height={ALTO_ONDA} idle={pausado} />
+                  <Waveform levels={niveles} height={ALTO_ONDA} idle={pausado || detenido} />
                   {escritorio && (
                     <View style={{ alignSelf: 'stretch', marginTop: t.spacing[4] }}>
-                      <ResumenClips detenido={clipListo !== null} />
+                      <ResumenClips detenido={detenido && !cargando} />
                     </View>
                   )}
                 </View>
@@ -319,6 +328,7 @@ export function GrabacionScreen({ navigation, route }: Props) {
                 <RecorderControls
                   grabando={!pausado}
                   ocupado={cargando}
+                  detenido={detenido}
                   onAlternar={alternarPausa}
                   onFinalizar={finalizar}
                 />
@@ -349,7 +359,7 @@ export function GrabacionScreen({ navigation, route }: Props) {
               />
             )}
 
-            {(estado === 'grabando' || estado === 'pausado') && (
+            {(estado === 'grabando' || estado === 'pausado' || detenido) && (
               <Button label="Descartar grabación" variant="ghost" size="lg" fullWidth disabled={cargando} onPress={descartar} />
             )}
 

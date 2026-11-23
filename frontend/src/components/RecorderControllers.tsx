@@ -9,6 +9,8 @@ interface Props {
   grabando: boolean;
   /** Mientras se sube y finaliza: los dos controles dejan de responder y el segundo avisa. */
   ocupado?: boolean;
+  /** Micrófono ya cerrado: no hay nada que pausar o reanudar, solo reintentar Finalizar. */
+  detenido?: boolean;
   onAlternar: () => void;
   onFinalizar: () => void;
 }
@@ -24,7 +26,7 @@ const HALO = 6;
  * Sin "Marcar momento": no existe esa función. Grabar es violeta, nunca rojo;
  * el cuadrado de Finalizar es el de "parar" de cualquier grabadora.
  */
-export function RecorderControls({ grabando, ocupado, onAlternar, onFinalizar }: Props) {
+export function RecorderControls({ grabando, ocupado, detenido, onAlternar, onFinalizar }: Props) {
   const t = useTheme();
 
   return (
@@ -34,7 +36,7 @@ export function RecorderControls({ grabando, ocupado, onAlternar, onFinalizar }:
         <View style={{ height: TAMANO_FINALIZAR, justifyContent: 'center' }}>
           <PressableEscala
             onPress={onAlternar}
-            disabled={ocupado}
+            disabled={ocupado || detenido}
             escala={0.94}
             accessibilityLabel={grabando ? 'Pausar grabación' : 'Reanudar grabación'}
             style={{
