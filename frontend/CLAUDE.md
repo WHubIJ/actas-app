@@ -71,6 +71,9 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
   - `supabaseClient.ts` — cliente Supabase (`haySupabase`) y `subirClipAudio()`.
   - `authService.ts` — login, registro, OAuth con Google y recuperación de contraseña (`ErrorAuth`).
   - `grabacionAudio.ts` — permiso de micrófono y control del grabador de `expo-audio` (`ErrorGrabacion`).
+    Graba con la pantalla bloqueada solo en un build nativo (`enableBackgroundRecording`
+    en `app.json`; en Android pide además permiso de notificaciones). En Expo Go no se
+    activa: iOS pausa al salir de la app y sigue al volver, y en Android fallaría `record()`.
   - `compartirService.ts` — descarga el archivo del acta y abre el share sheet (`ErrorCompartir`).
   - `preferencias.ts` — ajustes del dispositivo (tema y avisos): `localStorage` en web,
     un JSON en `Paths.document` con expo-file-system en nativo. Lectura síncrona para
@@ -134,4 +137,4 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
   explícito en vez de simular un éxito con datos mock.
 
 Permisos de micrófono ya declarados en `app.json` (iOS `NSMicrophoneUsageDescription`,
-Android `RECORD_AUDIO`, plugin `expo-audio`).
+Android `RECORD_AUDIO`, plugin `expo-audio` con `enableBackgroundRecording`).

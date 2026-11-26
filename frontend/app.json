@@ -24,7 +24,8 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "La app necesita el micrófono para grabar las reuniones."
+          "microphonePermission": "La app necesita el micrófono para grabar las reuniones.",
+          "enableBackgroundRecording": true
         }
       ],
       "expo-sharing",

@@ -115,12 +115,15 @@ export function GrabacionScreen({ navigation, route }: Props) {
     });
   }, [fase, aparicion, t.duration.base, t.duration.fast, easing]);
 
-  // Cronómetro: solo corre mientras se graba de verdad.
+  // Cronómetro: solo corre mientras se graba de verdad. Lee la duración del
+  // propio recorder en vez de sumar 1 por tick: con la app en segundo plano
+  // los intervalos de JS se paran pero la grabación sigue, y al volver el
+  // tiempo tiene que ser el real.
   useEffect(() => {
     if (estado !== 'grabando') return;
-    const id = setInterval(() => setSegundos((s) => s + 1), 1000);
+    const id = setInterval(() => setSegundos(Math.floor(recorder.getStatus().durationMillis / 1000)), 1000);
     return () => clearInterval(id);
-  }, [estado]);
+  }, [estado, recorder]);
 
   // Onda con el nivel real del micrófono. Solo se muestrea mientras se graba:
   // en pausa la onda se queda congelada y en gris.

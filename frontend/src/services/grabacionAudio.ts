@@ -1,6 +1,12 @@
 import { Platform } from 'react-native';
-import { requestRecordingPermissionsAsync, setAudioModeAsync, type AudioRecorder } from 'expo-audio';
+import {
+  requestNotificationPermissionsAsync,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  type AudioRecorder,
+} from 'expo-audio';
 import { File } from 'expo-file-system';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 
 export type CodigoErrorGrabacion = 'PERMISO_DENEGADO' | 'GRABACION_FALLIDA';
 
@@ -27,6 +33,29 @@ export async function pedirPermisoMicrofono(): Promise<void> {
 }
 
 /**
+ * Grabar con la pantalla bloqueada exige lo que añade el plugin de expo-audio
+ * en `app.json` (`enableBackgroundRecording`): el modo de fondo `audio` en iOS
+ * y el servicio en primer plano en Android. Eso solo existe en un build nativo
+ * propio. En Expo Go el servicio de Android no está y `record()` fallaría, y
+ * en iOS dependeríamos de una configuración que no controlamos; allí se queda
+ * el comportamiento por defecto: pausa al salir de la app y sigue al volver.
+ */
+const hayBuildNativo =
+  Platform.OS !== 'web' && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
+
+/**
+ * Android 13+ exige permiso de notificaciones para el servicio que mantiene
+ * viva la grabación. Si el usuario lo niega, se graba igual, pero solo con la
+ * app abierta: mejor eso que no poder grabar la reunión.
+ */
+async function puedeGrabarEnSegundoPlano(): Promise<boolean> {
+  if (!hayBuildNativo) return false;
+  if (Platform.OS !== 'android') return true;
+  const { granted } = await requestNotificationPermissionsAsync();
+  return granted;
+}
+
+/**
  * Prepara y arranca el `recorder` recibido (creado con `useAudioRecorder` en
  * el componente — expo-audio no expone forma de crear uno fuera de un hook).
  * `allowsRecording` hay que activarlo en el modo de audio antes de grabar o
@@ -34,7 +63,11 @@ export async function pedirPermisoMicrofono(): Promise<void> {
  * de silencio del dispositivo corte la grabación a medias.
  */
 export async function iniciarGrabacion(recorder: AudioRecorder): Promise<void> {
-  await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+  await setAudioModeAsync({
+    allowsRecording: true,
+    playsInSilentMode: true,
+    allowsBackgroundRecording: await puedeGrabarEnSegundoPlano(),
+  });
   try {
     await recorder.prepareToRecordAsync();
     recorder.record();
