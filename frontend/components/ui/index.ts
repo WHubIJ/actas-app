@@ -2,6 +2,7 @@ export { Text } from './Text';
 export { Button } from './Button';
 export { Input } from './Input';
 export { Checkbox } from './Checkbox';
+export { Interruptor } from './Interruptor';
 export { Badge, Card, AIMark, LiveIndicator, Waveform } from './misc';
 export { AppIcon } from './AppIcon';
 export { PanelProductoAuth } from './PanelProductoAuth';

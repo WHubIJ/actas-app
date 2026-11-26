@@ -50,9 +50,20 @@ export function SelectorSegmentos<T extends string>({ segmentos, activo, onSelec
   const anchoContenido = Math.max(0, anchoPista - MARGEN * 2);
   const anchoSegmento = anchoContenido > 0 ? anchoContenido / segmentos.length : 0;
 
+  // Solo se anima al cambiar de segmento. Al medir el ancho (o al cambiar)
+  // el indicador se coloca sin animación: si no, al montar con un segmento
+  // distinto del primero (el tema guardado en Ajustes) arrancaba un muelle
+  // desde 0 que en web podía quedarse a medio camino.
+  const indiceAnterior = useRef(indice);
   useEffect(() => {
+    const destino = indice * anchoSegmento;
+    if (indiceAnterior.current === indice) {
+      posicion.setValue(destino);
+      return;
+    }
+    indiceAnterior.current = indice;
     Animated.spring(posicion, {
-      toValue: indice * anchoSegmento,
+      toValue: destino,
       useNativeDriver: true,
       speed: 20,
       bounciness: 6,
