@@ -28,6 +28,7 @@
 - [ADR-006: Mistral para transcripción y resumen](ADRs/ADR-006-mistral-transcripcion-resumen.md): proveedor Mistral para transcripción y resumen, que sustituye a Whisper/OpenAI de ADR-001.
 - [ADR-007: Aviso de transcripción terminada sin push remoto](ADRs/ADR-007-notificaciones-sin-push.md): el aviso se resuelve en el frontend con sondeo y notificaciones locales o del navegador; el push remoto (FCM / Expo Push) queda pospuesto.
 - [ADR-008: Reuniones programadas y vista de calendario](ADRs/ADR-008-reuniones-programadas.md): una reunión puede convocarse antes de grabarse (hora y lugar opcionales, estado derivado, endpoints propios) y la pestaña Reuniones pasa a tener el calendario como vista principal.
+- [ADR-009: Build nativo de Android en local](ADRs/ADR-009-build-nativo-android.md): APK release autónomo generado con `expo prebuild` y Gradle, sin EAS, para probar la grabación con la pantalla bloqueada; `android/` no se versiona.
 
 ## Capturas
 

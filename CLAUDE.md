@@ -149,6 +149,7 @@ Las decisiones técnicas se documentan en `docs/ADRs/`.
 - **ADR-006**: Mistral (Voxtral + resumen) para transcripción y resumen (sustituye Whisper/OpenAI de ADR-001)
 - **ADR-007**: Aviso de transcripción terminada solo en el frontend, sin push remoto (sustituye FCM de la tabla de stack)
 - **ADR-008**: Reuniones programadas (hora y lugar opcionales, estado derivado) y la pestaña Reuniones con el calendario como vista principal
+- **ADR-009**: Build nativo de Android en local (APK release autónomo, `android/` generado y sin versionar), además de Expo Go
 
 **Directiva del Asistente de IA:** al discutir arquitectura o tomar decisiones técnicas,
 siempre haz referencia a los ADRs relevantes. Si se toma una nueva decisión arquitectónica
