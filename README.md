@@ -34,7 +34,7 @@ periódicas.
 ## Qué hace
 
 1. **Programa** — convoca la reunión con fecha, hora y lugar, y consúltala en el calendario de Reuniones ([ADR-008](docs/ADRs/ADR-008-reuniones-programadas.md)).
-2. **Graba** — desde el móvil, el escritorio o la web, con hasta 2 horas de audio por sesión.
+2. **Graba** — desde el móvil, el escritorio o la web, con hasta 2 horas de audio por sesión. En la app nativa de Android la grabación sigue con la pantalla bloqueada ([ADR-009](docs/ADRs/ADR-009-build-nativo-android.md)).
 3. **Transcribe** — el backend combina los clips y llama a Mistral (Voxtral) para transcribir, con diarización de interlocutores. La app avisa cuando termina, aunque estés en otra pantalla ([ADR-007](docs/ADRs/ADR-007-notificaciones-sin-push.md)).
 4. **Resume** — a partir de la transcripción, la IA redacta un acta con decisiones y tareas, con timecode de referencia.
 5. **Comparte** — se descarga en PDF, Word o Markdown, o se envía por un enlace temporal (24h) sin que el destinatario necesite cuenta.
@@ -70,6 +70,7 @@ roles), no un campo de texto libre — ver [ADR-003](docs/ADRs/ADR-003-modelo-mu
 - **Web:** [actas-app-frontend.vercel.app](https://actas-app-frontend.vercel.app)
 - **API:** `https://actas-app.onrender.com` (plan gratuito de Render: el primer
   arranque tras inactividad puede tardar 20-40s)
+- **Android:** APK de prueba generado en local (ADR-009), todavía sin distribución pública
 
 ## Stack
 
@@ -83,7 +84,7 @@ roles), no un campo de texto libre — ver [ADR-003](docs/ADRs/ADR-003-modelo-mu
 | IA | Mistral AI — Voxtral (transcripción + diarización), modelos de combinación y resumen |
 | Documentos | iText 7 (PDF) y Apache POI (Word) |
 | Avisos | Notificación del navegador o local (`expo-notifications`), sin push remoto |
-| Deploy | Backend en Render (Docker), frontend web en Vercel |
+| Deploy | Backend en Render (Docker), frontend web en Vercel, app Android como APK compilado en local (ADR-009) |
 
 ## Estructura del repositorio
 
@@ -124,17 +125,39 @@ Necesita `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL` y
 explícito en vez de simular datos. Comprobaciones: `npx tsc --noEmit`,
 `npm run lint` y `npm test`.
 
+### Build de Android (APK)
+
+La grabación con la pantalla bloqueada solo funciona en un build nativo, no en
+Expo Go. El APK se genera en local con el Android SDK y JDK 17, sin EAS
+([ADR-009](docs/ADRs/ADR-009-build-nativo-android.md)):
+
+```bash
+cd frontend
+npx expo prebuild --platform android --clean --no-install
+cd android
+EXPO_PUBLIC_API_URL=https://actas-app.onrender.com ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64
+```
+
+El APK queda en `frontend/android/app/build/outputs/apk/release/app-release.apk`
+y se instala con `adb install -r`. `android/` se genera desde `app.json` y no se
+versiona. Las variables `EXPO_PUBLIC_*` se fijan al compilar, así que cambiarlas
+obliga a recompilar. `prebuild` cambia los scripts `android`/`ios` de
+`package.json` a `expo run:*`: hay que revertirlo para seguir usando Expo Go.
+
 ## Estado del proyecto
 
 MVP en desarrollo activo (Sprint 1) — no un producto terminado.
 
 - **Hecho:** grabación, transcripción, resumen, exportación en PDF/Word/Markdown,
   compartir con enlace de 24h, autenticación con Supabase Auth (ADR-005),
-  reuniones programadas con calendario (ADR-008) e interfaz recreada con el kit de
-  diseño v2 en móvil y web.
+  reuniones programadas con calendario (ADR-008), interfaz recreada con el kit de
+  diseño v2 en móvil y web, tema claro/oscuro y avisos configurables en Ajustes, y
+  build nativo de Android con grabación en segundo plano (ADR-009).
 - **Pendiente:** aplicar los permisos por rol en el backend (el modelo de datos ya
   los tiene, ADR-003), y las secciones Tareas y Equipos, que hoy muestran un vacío
-  honesto porque el dominio aún no las cubre.
+  honesto porque el dominio aún no las cubre. Probar la grabación con la pantalla
+  bloqueada en un móvil real, subir el audio por fragmentos durante la reunión y el
+  build de iOS (requiere EAS y Apple Developer).
 
 El contexto completo, con el estado módulo a módulo, vive en [`CLAUDE.md`](CLAUDE.md),
 [`backend/CLAUDE.md`](backend/CLAUDE.md) y [`frontend/CLAUDE.md`](frontend/CLAUDE.md).
