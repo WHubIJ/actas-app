@@ -13,6 +13,7 @@ import {
   mostrarNotificacion,
   pedirPermisoNotificaciones,
 } from './notificacionSistema';
+import { guardarPreferencias, leerPreferencias } from '../services/preferencias';
 
 /** Cada cuánto se consulta el estado mientras haya alguna transcripción en curso. */
 const MS_ENTRE_SONDEOS = 2500;
@@ -50,6 +51,13 @@ interface ValorSeguimiento {
   observar: (reunionId: string) => () => void;
   /** Sube cada vez que alguna reunión termina, para que las listas recarguen. */
   versionTerminadas: number;
+  /** Ajuste del usuario (pantalla Ajustes). Apagados, se sigue sondeando, pero no se avisa. */
+  avisosActivos: boolean;
+  /**
+   * Cambia y guarda el ajuste. Al encenderlo pide permiso al sistema (llamarlo
+   * dentro del gesto del usuario) y devuelve si lo hay; apagado devuelve `null`.
+   */
+  cambiarAvisos: (activos: boolean) => Promise<boolean | null>;
 }
 
 const ContextoSeguimiento = createContext<ValorSeguimiento | null>(null);
@@ -72,15 +80,22 @@ export function SeguimientoTranscripciones({ children, onAbrirActa }: Props) {
   const [versionTerminadas, setVersionTerminadas] = useState(0);
   const [aviso, setAviso] = useState<AvisoEnApp | null>(null);
   const [appActiva, setAppActiva] = useState(AppState.currentState === 'active');
+  const [avisosActivos, setAvisosActivos] = useState(() => leerPreferencias().avisos);
 
   const reunionesRef = useRef(reuniones);
   const avisadas = useRef(new Set<string>());
   const enPantalla = useRef(new Set<string>());
   const permisoPedido = useRef(false);
+  // `avisar` se llama desde el sondeo, que no se reinicia al cambiar el ajuste.
+  const avisosActivosRef = useRef(avisosActivos);
 
   useEffect(() => {
     reunionesRef.current = reuniones;
   }, [reuniones]);
+
+  useEffect(() => {
+    avisosActivosRef.current = avisosActivos;
+  }, [avisosActivos]);
 
   useEffect(() => {
     const suscripcion = AppState.addEventListener('change', (estado) => setAppActiva(estado === 'active'));
@@ -98,6 +113,7 @@ export function SeguimientoTranscripciones({ children, onAbrirActa }: Props) {
   useEffect(() => alTocarNotificacion(abrirActa), [abrirActa]);
 
   const avisar = useCallback(async (transicion: Transicion, tituloReunion?: string) => {
+    if (!avisosActivosRef.current) return;
     const { titulo, cuerpo } = textoAviso(transicion, tituloReunion);
     if (appEnSegundoPlano() && (await mostrarNotificacion({ titulo, cuerpo, reunionId: transicion.reunionId }))) {
       return;
@@ -228,9 +244,20 @@ export function SeguimientoTranscripciones({ children, onAbrirActa }: Props) {
   }, []);
 
   const pedirPermisoAvisos = useCallback(() => {
-    if (!hayBackend || permisoPedido.current) return;
+    if (!hayBackend || !avisosActivosRef.current || permisoPedido.current) return;
     permisoPedido.current = true;
     pedirPermisoNotificaciones();
+  }, []);
+
+  const cambiarAvisos = useCallback(async (activos: boolean) => {
+    setAvisosActivos(activos);
+    guardarPreferencias({ avisos: activos });
+    if (!activos) {
+      setAviso(null);
+      return null;
+    }
+    permisoPedido.current = true;
+    return pedirPermisoNotificaciones();
   }, []);
 
   const estadoDe = useCallback((reunionId: string) => reuniones[reunionId]?.estado, [reuniones]);
@@ -243,8 +270,8 @@ export function SeguimientoTranscripciones({ children, onAbrirActa }: Props) {
   }, []);
 
   const valor = useMemo<ValorSeguimiento>(
-    () => ({ seguir, dejarDeSeguir, pedirPermisoAvisos, estadoDe, observar, versionTerminadas }),
-    [seguir, dejarDeSeguir, pedirPermisoAvisos, estadoDe, observar, versionTerminadas],
+    () => ({ seguir, dejarDeSeguir, pedirPermisoAvisos, estadoDe, observar, versionTerminadas, avisosActivos, cambiarAvisos }),
+    [seguir, dejarDeSeguir, pedirPermisoAvisos, estadoDe, observar, versionTerminadas, avisosActivos, cambiarAvisos],
   );
 
   return (

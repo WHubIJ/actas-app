@@ -56,7 +56,8 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
   - `TareasScreen` / `EquiposScreen` — solo el marco y un vacío honesto: el backend aún
     no extrae tareas ni gestiona equipos. Cuando exista la entidad, se implementan aquí.
   - `MiCuentaScreen` — pestaña `Cuenta` ("Ajustes" en el sidebar): perfil, estadísticas
-    derivadas de la lista, ajustes informativos y cierre de sesión.
+    derivadas de la lista, tema (Sistema / Claro / Oscuro), interruptor de
+    notificaciones, idioma (informativo) y cierre de sesión.
   - `MasScreen` — pestaña `Mas`, solo en la barra móvil (`MenuMobile`): organización,
     búsqueda (salta al buscador de Inicio), las mismas secciones que el `Sidebar` con sus
     contadores y "Mi cuenta". Sin selector de organización ni "Ayuda": no existen. Desde
@@ -70,7 +71,13 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
   - `supabaseClient.ts` — cliente Supabase (`haySupabase`) y `subirClipAudio()`.
   - `authService.ts` — login, registro, OAuth con Google y recuperación de contraseña (`ErrorAuth`).
   - `grabacionAudio.ts` — permiso de micrófono y control del grabador de `expo-audio` (`ErrorGrabacion`).
+    Graba con la pantalla bloqueada solo en un build nativo (`enableBackgroundRecording`
+    en `app.json`; en Android pide además permiso de notificaciones). En Expo Go no se
+    activa: iOS pausa al salir de la app y sigue al volver, y en Android fallaría `record()`.
   - `compartirService.ts` — descarga el archivo del acta y abre el share sheet (`ErrorCompartir`).
+  - `preferencias.ts` — ajustes del dispositivo (tema y avisos): `localStorage` en web,
+    un JSON en `Paths.document` con expo-file-system en nativo. Lectura síncrona para
+    fijar el tema antes del primer render (`App.tsx`).
   - `useCuenta.ts` — carga `obtenerCuenta()` una vez (solo con `hayBackend`); lo usan el
     sidebar y las cabeceras móviles.
   - `useListaReuniones.tsx` — `ProveedorReuniones` (carga a la vez `GET /api/reuniones` y
@@ -82,7 +89,9 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
   - `SeguimientoTranscripciones.tsx` — provider montado en `App.tsx` (solo con sesión)
     que sondea `GET /api/transcripcion/estados` mientras haya reuniones en curso (en
     nativo solo con la app activa), avisa una vez por reunión y expone
-    `useSeguimientoTranscripciones()` (`seguir`, `estadoDe`, `versionTerminadas`...).
+    `useSeguimientoTranscripciones()` (`seguir`, `estadoDe`, `versionTerminadas`,
+    `avisosActivos`/`cambiarAvisos` del interruptor de Ajustes...). Con los avisos
+    apagados sigue sondeando, pero no notifica.
     `GrabacionScreen` lee de aquí el progreso en vez de sondear por su cuenta.
   - `notificacionSistema.ts` — notificación del navegador (`Notification`) o local
     (`expo-notifications`, cargado bajo demanda); si no se puede, el provider cae al
@@ -128,4 +137,4 @@ el `CLAUDE.md` raíz); las referencias visuales están en `design/` en la raíz 
   explícito en vez de simular un éxito con datos mock.
 
 Permisos de micrófono ya declarados en `app.json` (iOS `NSMicrophoneUsageDescription`,
-Android `RECORD_AUDIO`, plugin `expo-audio`).
+Android `RECORD_AUDIO`, plugin `expo-audio` con `enableBackgroundRecording`).

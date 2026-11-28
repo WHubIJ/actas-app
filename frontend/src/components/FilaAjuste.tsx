@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { ChevronRight, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -18,10 +19,12 @@ interface Props {
   avatar?: string;
   /** Sin `onPress` la fila es informativa: ni se pulsa ni lleva chevron, para no prometer una pantalla que no existe. */
   onPress?: () => void;
+  /** Control a la derecha (un interruptor). La fila no se agrupa para el lector de pantalla: el control lleva su propia etiqueta. */
+  accesorio?: ReactNode;
 }
 
 /** Fila de un bloque de ajustes (ver MiCuentaScreen): sin borde propio, el contenedor ya lo pone. */
-export function FilaAjuste({ icono: Icono, titulo, descripcion, contador, avatar, onPress }: Props) {
+export function FilaAjuste({ icono: Icono, titulo, descripcion, contador, avatar, onPress, accesorio }: Props) {
   const t = useTheme();
   const contenido = (
     <>
@@ -59,6 +62,8 @@ export function FilaAjuste({ icono: Icono, titulo, descripcion, contador, avatar
         </Text>
       )}
 
+      {accesorio}
+
       {onPress && <ChevronRight size={18} color={t.colors.text2} strokeWidth={1.6} />}
     </>
   );
@@ -68,7 +73,7 @@ export function FilaAjuste({ icono: Icono, titulo, descripcion, contador, avatar
 
   if (!onPress) {
     return (
-      <View accessible accessibilityLabel={etiqueta} style={estilo}>
+      <View accessible={!accesorio} accessibilityLabel={accesorio ? undefined : etiqueta} style={estilo}>
         {contenido}
       </View>
     );

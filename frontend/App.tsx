@@ -38,6 +38,7 @@ import { ProveedorReuniones, useContadoresReuniones } from './src/services/useLi
 import { supabase, haySupabase } from './src/services/supabaseClient';
 import { procesarUrlRecuperacion } from './src/services/authService';
 import { ThemeProvider, useAppFonts, useTheme } from './theme/ThemeProvider';
+import { leerPreferencias } from './src/services/preferencias';
 import { useBreakpoint } from './theme/useBreakpoint';
 import { SeguimientoTranscripciones } from './src/notificaciones/SeguimientoTranscripciones';
 
@@ -230,6 +231,8 @@ export default function App() {
   // undefined = todavía comprobando con Supabase; null = sin sesión.
   const [sesion, setSesion] = useState<Session | null | undefined>(undefined);
   const [recuperacionPendiente, setRecuperacionPendiente] = useState(false);
+  // Se lee una vez al arrancar; desde ahí manda el estado del ThemeProvider (ver Ajustes).
+  const [temaInicial] = useState(() => leerPreferencias().tema);
 
   useEffect(() => {
     if (!haySupabase || !supabase) {
@@ -286,7 +289,7 @@ export default function App() {
   }
 
   return (
-    <ThemeProvider>
+    <ThemeProvider initialPreference={temaInicial}>
       <Raiz
         sesion={sesion}
         recuperacionPendiente={recuperacionPendiente}

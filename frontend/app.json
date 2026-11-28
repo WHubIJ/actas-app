@@ -5,6 +5,7 @@
     "version": "0.1.0",
     "scheme": "actasapp",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": [
       "**/*"
@@ -16,6 +17,11 @@
       }
     },
     "android": {
+      "package": "com.actasapp.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#6959D0"
+      },
       "permissions": [
         "RECORD_AUDIO"
       ]
@@ -24,7 +30,8 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "La app necesita el micrófono para grabar las reuniones."
+          "microphonePermission": "La app necesita el micrófono para grabar las reuniones.",
+          "enableBackgroundRecording": true
         }
       ],
       "expo-sharing",
@@ -33,6 +40,8 @@
       [
         "expo-splash-screen",
         {
+          "image": "./assets/icon.png",
+          "imageWidth": 160,
           "backgroundColor": "#F8F8F6",
           "dark": {
             "backgroundColor": "#0B0B0D"

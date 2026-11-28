@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
-import { Bell, Globe, LogOut, SunMoon, type LucideIcon } from 'lucide-react-native';
-import { useTheme } from '../../theme/ThemeProvider';
+import { Bell, Globe, LogOut, SunMoon } from 'lucide-react-native';
+import { useTheme, type ThemePreference } from '../../theme/ThemeProvider';
 import { useBreakpoint } from '../../theme/useBreakpoint';
-import { Text, Button, Aviso } from '../../components/ui';
+import { Text, Button, Aviso, Interruptor } from '../../components/ui';
 import { TarjetaPerfil } from '../components/TarjetaPerfil';
 import { TarjetaEstadistica } from '../components/TarjetaEstadistica';
 import { FilaAjuste } from '../components/FilaAjuste';
+import { SelectorSegmentos, type Segmento } from '../components/SelectorSegmentos';
 import { EsqueletoPerfil, EsqueletoEstadisticas } from '../components/EsqueletoCuenta';
 import { ALTURA_FAB_SOBRESALIENTE } from '../components/TabBar';
 import { MarcoPagina } from '../components/MarcoPagina';
@@ -16,25 +17,33 @@ import { cerrarSesion, ErrorAuth } from '../services/authService';
 import { hayBackend, obtenerCuenta, obtenerActas, ErrorApi, type Cuenta } from '../services/api';
 import { calcularEstadisticas, formatearHorasGrabadas, type EstadisticasCuenta } from '../utils/estadisticasCuenta';
 import { capitalizar } from '../utils/formato';
+import { guardarPreferencias } from '../services/preferencias';
+import { useSeguimientoTranscripciones } from '../notificaciones/SeguimientoTranscripciones';
 
-interface Ajuste {
-  id: string;
-  icono: LucideIcon;
-  titulo: string;
-  descripcion: string;
-}
-
-/**
+/*
  * Solo ajustes con algo real detrás. Preferencias, Configuración de IA,
  * Almacenamiento y Privacidad del diseño no existen todavía (ni pantalla ni
- * dato en la API): se añaden aquí cuando existan, no antes. Ninguna fila
- * navega a ningún sitio, por eso `FilaAjuste` va sin `onPress`.
+ * dato en la API): se añaden aquí cuando existan, no antes. Tema y
+ * notificaciones se guardan en el dispositivo (`preferencias.ts`); el idioma
+ * es informativo hasta que haya más de uno.
  */
-const AJUSTES_CUENTA: ReadonlyArray<Ajuste> = [
-  { id: 'tema', icono: SunMoon, titulo: 'Tema', descripcion: 'Sigue al sistema' },
-  { id: 'notificaciones', icono: Bell, titulo: 'Notificaciones', descripcion: 'Aviso al terminar la transcripción' },
-  { id: 'idioma', icono: Globe, titulo: 'Idioma', descripcion: 'Español (España)' },
+const SEGMENTOS_TEMA: ReadonlyArray<Segmento<ThemePreference>> = [
+  { id: 'system', etiqueta: 'Sistema' },
+  { id: 'light', etiqueta: 'Claro' },
+  { id: 'dark', etiqueta: 'Oscuro' },
 ];
+
+const DESCRIPCION_TEMA: Record<ThemePreference, string> = {
+  system: 'Sigue al dispositivo',
+  light: 'Siempre claro',
+  dark: 'Siempre oscuro',
+};
+
+function descripcionAvisos(activos: boolean, permisoSistema: boolean | null): string {
+  if (!activos) return 'Desactivadas';
+  if (permisoSistema === false) return 'Solo dentro de la app: el sistema las tiene bloqueadas';
+  return 'Aviso al terminar la transcripción';
+}
 
 /** Ancho de lectura en escritorio: los bloques del diseño móvil no ganan nada estirándose. */
 const ANCHO_MAXIMO_CONTENIDO = 720;
@@ -51,6 +60,24 @@ export function MiCuentaScreen() {
   const [errorCuenta, setErrorCuenta] = useState<string | null>(null);
   const [estadisticas, setEstadisticas] = useState<EstadisticasCuenta | null>(null);
   const [cargandoEstadisticas, setCargandoEstadisticas] = useState(hayBackend);
+  const { avisosActivos, cambiarAvisos } = useSeguimientoTranscripciones();
+  // Solo se sabe tras pedirlo: hasta que el usuario toca el interruptor, no se consulta.
+  const [permisoSistema, setPermisoSistema] = useState<boolean | null>(null);
+
+  const cambiarTema = useCallback(
+    (tema: ThemePreference) => {
+      t.setPreference(tema);
+      guardarPreferencias({ tema });
+    },
+    [t],
+  );
+
+  const alternarAvisos = useCallback(
+    async (activos: boolean) => {
+      setPermisoSistema(await cambiarAvisos(activos));
+    },
+    [cambiarAvisos],
+  );
 
   // Sin backend no hay perfil ni estadísticas que mostrar: se omiten esos
   // bloques en vez de pintar datos de ejemplo (el resto de la pantalla,
@@ -156,11 +183,23 @@ export function MiCuentaScreen() {
             overflow: 'hidden',
           }}
         >
-          {AJUSTES_CUENTA.map((ajuste, i) => (
-            <View key={ajuste.id} style={i > 0 ? { borderTopWidth: 1, borderTopColor: t.colors.border } : undefined}>
-              <FilaAjuste icono={ajuste.icono} titulo={ajuste.titulo} descripcion={ajuste.descripcion} />
+          <View style={{ paddingBottom: t.spacing[3] }}>
+            <FilaAjuste icono={SunMoon} titulo="Tema" descripcion={DESCRIPCION_TEMA[t.preference]} />
+            <View style={{ paddingHorizontal: 14 }}>
+              <SelectorSegmentos segmentos={SEGMENTOS_TEMA} activo={t.preference} onSeleccionar={cambiarTema} />
             </View>
-          ))}
+          </View>
+          <View style={{ borderTopWidth: 1, borderTopColor: t.colors.border }}>
+            <FilaAjuste
+              icono={Bell}
+              titulo="Notificaciones"
+              descripcion={descripcionAvisos(avisosActivos, permisoSistema)}
+              accesorio={<Interruptor activo={avisosActivos} onCambiar={alternarAvisos} etiqueta="Notificaciones" />}
+            />
+          </View>
+          <View style={{ borderTopWidth: 1, borderTopColor: t.colors.border }}>
+            <FilaAjuste icono={Globe} titulo="Idioma" descripcion="Español (España)" />
+          </View>
         </View>
 
         <View style={{ gap: t.spacing[3], marginTop: t.spacing[5] }}>

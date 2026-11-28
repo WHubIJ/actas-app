@@ -1,0 +1,328 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-28T10:30:34.027556+00:00",
+  "title": "Design System: MeetingAI",
+  "extensions": {
+    "colorMeta": {
+      "violeta-tinta": {
+        "role": "primary",
+        "displayName": "Violeta tinta",
+        "canonical": "#6857D9",
+        "tonalRamp": [
+          "#1E1840",
+          "#2E2566",
+          "#493BA8",
+          "#5A4ACB",
+          "#6857D9",
+          "#8B7CFF",
+          "#B2A8FF",
+          "#EEEAFE"
+        ]
+      },
+      "violeta-tinta-fuerte": {
+        "role": "primary",
+        "displayName": "Violeta tinta fuerte",
+        "canonical": "#493BA8"
+      },
+      "violeta-tinta-suave": {
+        "role": "primary",
+        "displayName": "Violeta tinta suave",
+        "canonical": "#EEEAFE"
+      },
+      "papel": {
+        "role": "neutral",
+        "displayName": "Papel",
+        "canonical": "#F8F8F6",
+        "tonalRamp": [
+          "#0B0B0D",
+          "#151518",
+          "#1D1D21",
+          "#2A2A2E",
+          "#6F6F6B",
+          "#D4D4CE",
+          "#E5E5E0",
+          "#F8F8F6"
+        ]
+      },
+      "hoja": {
+        "role": "neutral",
+        "displayName": "Hoja",
+        "canonical": "#FFFFFF"
+      },
+      "hoja-hundida": {
+        "role": "neutral",
+        "displayName": "Hoja hundida",
+        "canonical": "#F3F3F0"
+      },
+      "tinta-negra": {
+        "role": "neutral",
+        "displayName": "Tinta negra",
+        "canonical": "#171716"
+      },
+      "grafito": {
+        "role": "neutral",
+        "displayName": "Grafito",
+        "canonical": "#6F6F6B"
+      },
+      "lapiz": {
+        "role": "neutral",
+        "displayName": "Lápiz",
+        "canonical": "#9A9A95"
+      },
+      "exito": {
+        "role": "status",
+        "displayName": "Éxito",
+        "canonical": "#2A7444"
+      },
+      "aviso": {
+        "role": "status",
+        "displayName": "Aviso",
+        "canonical": "#9A5B00"
+      },
+      "peligro": {
+        "role": "status",
+        "displayName": "Peligro",
+        "canonical": "#C8352B"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Hero de onboarding y vacíos grandes."
+      },
+      "heading": {
+        "displayName": "Heading",
+        "purpose": "Título de página, una por pantalla."
+      },
+      "body-lg": {
+        "displayName": "Lectura",
+        "purpose": "Transcripción, resumen y acta."
+      },
+      "metadata": {
+        "displayName": "Metadata mono",
+        "purpose": "Timecodes, duraciones y contadores con cifras tabulares."
+      }
+    },
+    "shadows": [
+      {
+        "name": "sm",
+        "value": "0 1px 2px rgba(23,23,22,0.06)",
+        "purpose": "Botón secundario."
+      },
+      {
+        "name": "md",
+        "value": "0 1px 2px rgba(23,23,22,0.04), 0 8px 24px rgba(23,23,22,0.08)",
+        "purpose": "Popovers y botón de grabar flotante."
+      },
+      {
+        "name": "lg",
+        "value": "0 2px 4px rgba(23,23,22,0.04), 0 24px 64px rgba(23,23,22,0.14)",
+        "purpose": "Solo modales y hojas."
+      },
+      {
+        "name": "md-dark",
+        "value": "0 1px 2px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.05)",
+        "purpose": "Elevación en oscuro con hairline interior."
+      },
+      {
+        "name": "lg-dark",
+        "value": "0 2px 4px rgba(0,0,0,0.5), 0 24px 64px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.06)",
+        "purpose": "Modales en oscuro."
+      }
+    ],
+    "motion": [
+      {
+        "name": "dur-instant",
+        "value": "90ms",
+        "purpose": "Respuesta inmediata al pulsar."
+      },
+      {
+        "name": "dur-fast",
+        "value": "160ms",
+        "purpose": "Hover y cambios de estado."
+      },
+      {
+        "name": "dur-base",
+        "value": "240ms",
+        "purpose": "Entradas de paneles y hojas."
+      },
+      {
+        "name": "dur-slow",
+        "value": "400ms",
+        "purpose": "Transiciones de pantalla."
+      },
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.2, 0, 0, 1)",
+        "purpose": "Entrar."
+      },
+      {
+        "name": "ease-exit",
+        "value": "cubic-bezier(0.4, 0, 1, 1)",
+        "purpose": "Salir."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "movil",
+        "value": "<640px"
+      },
+      {
+        "name": "tablet",
+        "value": "640px–1023px"
+      },
+      {
+        "name": "escritorio",
+        "value": ">=1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón primario",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción principal, una por vista.",
+      "html": "<button class=\"ds-btn-primary\">Grabar reunión</button>",
+      "css": ".ds-btn-primary{font-family:Geist,system-ui,sans-serif;height:36px;padding:0 16px;border:0;border-radius:10px;background:#6857D9;color:#fff;font-size:14px;font-weight:500;cursor:pointer;transition:transform 160ms cubic-bezier(0.2,0,0,1),background 160ms}.ds-btn-primary:hover{background:#5a4acb}.ds-btn-primary:active{background:#493BA8;transform:scale(.98)}.ds-btn-primary:focus-visible{outline:2px solid #6857D9;outline-offset:2px}"
+    },
+    {
+      "name": "Botón secundario",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acciones de apoyo junto al primario.",
+      "html": "<button class=\"ds-btn-secondary\">Editar</button>",
+      "css": ".ds-btn-secondary{font-family:Geist,system-ui,sans-serif;height:36px;padding:0 16px;border:1px solid #D4D4CE;border-radius:10px;background:#fff;color:#171716;font-size:14px;font-weight:500;box-shadow:0 1px 2px rgba(23,23,22,0.06);cursor:pointer;transition:transform 160ms,background 160ms}.ds-btn-secondary:hover{background:#F3F3F0}.ds-btn-secondary:active{transform:scale(.98)}.ds-btn-secondary:focus-visible{outline:2px solid #6857D9;outline-offset:2px}"
+    },
+    {
+      "name": "Botón de IA",
+      "kind": "button",
+      "refersTo": "button-ai",
+      "description": "Lo que hace la IA a petición, con la marca de tres cápsulas.",
+      "html": "<button class=\"ds-btn-ai\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"><line x1=\"7\" y1=\"10\" x2=\"7\" y2=\"14\"/><line x1=\"12\" y1=\"6\" x2=\"12\" y2=\"18\"/><line x1=\"17\" y1=\"8.5\" x2=\"17\" y2=\"15.5\"/></svg>Generar resumen</button>",
+      "css": ".ds-btn-ai{font-family:Geist,system-ui,sans-serif;display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 16px;border:0;border-radius:10px;background:#EEEAFE;color:#493BA8;font-size:14px;font-weight:500;cursor:pointer;transition:transform 160ms,background 160ms}.ds-btn-ai:hover{background:#e4defd}.ds-btn-ai:active{transform:scale(.98)}.ds-btn-ai:focus-visible{outline:2px solid #6857D9;outline-offset:2px}"
+    },
+    {
+      "name": "Campo de texto",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Etiqueta encima; foco con borde violeta y halo suave.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Correo</span><input class=\"ds-input\" placeholder=\"nombre@organizacion.org\"></label>",
+      "css": ".ds-field{font-family:Geist,system-ui,sans-serif;display:flex;flex-direction:column;gap:6px}.ds-field-label{font-size:13px;font-weight:500;color:#171716}.ds-input{font-family:Geist,system-ui,sans-serif;height:44px;padding:0 12px;border:1px solid #D4D4CE;border-radius:10px;background:#fff;color:#171716;font-size:15px;outline:none;transition:border-color 160ms,box-shadow 160ms}.ds-input::placeholder{color:#9A9A95}.ds-input:focus-visible,.ds-input:focus{border-color:#6857D9;box-shadow:0 0 0 3px #EEEAFE}"
+    },
+    {
+      "name": "Chips de filtro",
+      "kind": "chip",
+      "refersTo": "chip-filter",
+      "description": "Filtros de lista; el seleccionado se invierte a tinta negra.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip ds-chip-on\">Todas</button><button class=\"ds-chip\">Procesado</button><button class=\"ds-chip\">Procesando</button></div>",
+      "css": ".ds-chips{display:flex;gap:8px}.ds-chip{font-family:Geist,system-ui,sans-serif;height:32px;padding:0 12px;border:1px solid #D4D4CE;border-radius:999px;background:#fff;color:#6F6F6B;font-size:13px;font-weight:500;cursor:pointer;transition:transform 160ms}.ds-chip:hover{background:#F3F3F0}.ds-chip:active{transform:scale(.94)}.ds-chip:focus-visible{outline:2px solid #6857D9;outline-offset:2px}.ds-chip-on{background:#171716;color:#F8F8F6;border-color:transparent}.ds-chip-on:hover{background:#171716}"
+    },
+    {
+      "name": "Badges de estado",
+      "kind": "chip",
+      "refersTo": "badge-success",
+      "description": "Estado de transcripción siempre con palabra e icono.",
+      "html": "<div class=\"ds-badges\"><span class=\"ds-badge ds-badge-ok\">✓ Procesado</span><span class=\"ds-badge ds-badge-brand\">Procesando</span><span class=\"ds-badge\">En cola</span><span class=\"ds-badge ds-badge-err\">Error</span></div>",
+      "css": ".ds-badges{display:flex;gap:8px}.ds-badge{font-family:Geist,system-ui,sans-serif;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:999px;background:#F3F3F0;color:#6F6F6B;font-size:12px;font-weight:500}.ds-badge-ok{background:#E6F4EB;color:#2A7444}.ds-badge-brand{background:#EEEAFE;color:#493BA8}.ds-badge-err{background:#FCEBE9;color:#C8352B}"
+    },
+    {
+      "name": "Tarjeta de reunión",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Solo para colecciones de reuniones.",
+      "html": "<article class=\"ds-card\"><span class=\"ds-card-meta\">12 NOV · 01:24:08</span><h3 class=\"ds-card-title\">Junta directiva de noviembre</h3><span class=\"ds-badge-ok-mini\">Procesado</span></article>",
+      "css": ".ds-card{font-family:Geist,system-ui,sans-serif;display:flex;flex-direction:column;gap:8px;max-width:340px;padding:20px;border:1px solid #E5E5E0;border-radius:14px;background:#fff;transition:border-color 160ms}.ds-card:hover{border-color:#D4D4CE}.ds-card-meta{font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:#6F6F6B;font-variant-numeric:tabular-nums}.ds-card-title{margin:0;font-size:17px;line-height:24px;font-weight:600;letter-spacing:-0.17px;color:#171716}.ds-badge-ok-mini{align-self:flex-start;height:22px;line-height:22px;padding:0 9px;border-radius:999px;background:#E6F4EB;color:#2A7444;font-size:12px;font-weight:500}"
+    },
+    {
+      "name": "Item de sidebar",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Navegación de escritorio; icono violeta solo en el activo.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-on\" href=\"#\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#6857D9\" stroke-width=\"1.6\" stroke-linecap=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"17\" rx=\"2\"/><path d=\"M3 9h18M8 2v4M16 2v4\"/></svg>Reuniones<span class=\"ds-nav-meta\">12</span></a><a class=\"ds-nav-item\" href=\"#\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#6F6F6B\" stroke-width=\"1.6\" stroke-linecap=\"round\"><path d=\"M6 3h9l4 4v14H6z\"/><path d=\"M9 12h6M9 16h6\"/></svg>Actas</a></nav>",
+      "css": ".ds-nav{font-family:Geist,system-ui,sans-serif;display:flex;flex-direction:column;gap:2px;width:228px;padding:8px;background:#F8F8F6}.ds-nav-item{display:flex;align-items:center;gap:10px;height:32px;padding:0 8px;border-radius:7px;color:#6F6F6B;font-size:13.5px;font-weight:500;text-decoration:none;transition:background 160ms}.ds-nav-item:hover{background:rgba(23,23,22,0.045)}.ds-nav-item:focus-visible{outline:2px solid #6857D9;outline-offset:2px}.ds-nav-on{background:rgba(23,23,22,0.08);color:#171716}.ds-nav-meta{margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9A9A95}"
+    },
+    {
+      "name": "Indicador de grabación",
+      "kind": "custom",
+      "refersTo": "live-indicator",
+      "description": "Cápsula con pulso; grabar es violeta, nunca rojo.",
+      "html": "<span class=\"ds-live\"><span class=\"ds-live-dot\"></span>GRABANDO<span class=\"ds-live-time\">00:42:17</span></span>",
+      "css": ".ds-live{font-family:Geist,system-ui,sans-serif;display:inline-flex;align-items:center;gap:8px;height:26px;padding:0 11px 0 9px;border-radius:999px;background:#EEEAFE;color:#493BA8;font-size:11px;font-weight:600;letter-spacing:0.77px}.ds-live-dot{position:relative;width:8px;height:8px;border-radius:4px;background:#6857D9}.ds-live-dot::after{content:'';position:absolute;inset:0;border-radius:4px;background:#6857D9;animation:ds-pulse 1.8s cubic-bezier(0.2,0,0,1) infinite}.ds-live-time{font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;font-weight:500;letter-spacing:0;font-variant-numeric:tabular-nums}@keyframes ds-pulse{0%{opacity:.55;transform:scale(1)}70%,100%{opacity:0;transform:scale(2.6)}}@media (prefers-reduced-motion:reduce){.ds-live-dot::after{animation:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "El cuaderno de actas",
+    "overview": "**Creative North Star: \"El cuaderno de actas\"**\n\nMeetingAI se diseña como un libro de actas bien llevado: papel cálido, tinta negra para lo que se lee y una sola tinta violeta para lo que está vivo. Cada línea tiene su hora y su fuente. Los timecodes, duraciones y contadores van en mono con cifras tabulares, como los márgenes numerados de un registro. Lo que redacta la IA queda marcado como borrador, igual que una nota a lápiz antes de pasarla a limpio.\n\nLa densidad es de oficina tranquila, no de panel de control. Se separa primero con espacio, después con un hairline y solo al final con superficie o sombra. La identidad vive en tres detalles: la gramática de cápsulas (waveform, badges, indicadores, la marca de la IA), la tinta violeta reservada y la tipografía Geist con titulares en peso 600 y tracking negativo. Claro y oscuro son el mismo cuaderno: de día papel crema y de noche una hoja grafito, con la tinta un punto más luminosa.\n\nRechazos confirmados: nada de app religiosa tradicional ni de estética \"AI startup\". Ni degradados (salvo el icono de app), ni glassmorphism, ni glows, ni bordes de color a la izquierda, ni robots, cerebros o chispas para representar la IA.",
+    "keyCharacteristics": [
+      "Neutros cálidos primero; violeta tinta en menos del 5% de la superficie.",
+      "Cápsulas como sello visual: waveform, badges, indicadores y marca de IA.",
+      "Geist para la interfaz y Geist Mono para todo lo que se mide en tiempo.",
+      "Separación por espacio y hairline; sombras casi invisibles.",
+      "Un único lenguaje en web y móvil; cambian navegación y disposición, no la identidad."
+    ],
+    "rules": [
+      {
+        "name": "The Una Tinta Rule",
+        "body": "El violeta tinta ocupa menos del 5% de cualquier pantalla. Si un fondo, un panel o una sección entera es violeta, está mal.",
+        "section": "colors"
+      },
+      {
+        "name": "The Grabar Es Violeta Rule",
+        "body": "Grabar es violeta, nunca rojo. El rojo de peligro es solo para errores y para eliminar.",
+        "section": "colors"
+      },
+      {
+        "name": "The Palabra Antes Que Color Rule",
+        "body": "Éxito, aviso y peligro llevan siempre una palabra o un icono; el color nunca es la única señal.",
+        "section": "colors"
+      },
+      {
+        "name": "The Seiscientos Rule",
+        "body": "Los títulos van en 600 con tracking negativo, nunca en 700 o más.",
+        "section": "typography"
+      },
+      {
+        "name": "The Margen Numerado Rule",
+        "body": "Todo lo que se mide en tiempo o se cuenta va en Geist Mono con cifras tabulares, para que no baile al cambiar.",
+        "section": "typography"
+      },
+      {
+        "name": "The Mayúsculas Contadas Rule",
+        "body": "Sentence case en toda la interfaz. Mayúsculas solo en overline e indicadores.",
+        "section": "typography"
+      },
+      {
+        "name": "The Marco Primero Rule",
+        "body": "La estructura de la app se mantiene siempre; el vacío y la carga viven dentro del contenido, no lo sustituyen.",
+        "section": "layout"
+      },
+      {
+        "name": "The Último Recurso Rule",
+        "body": "Separa con espacio, luego con hairline, luego con hoja hundida y solo al final con sombra.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do construir cada pantalla con papel, hoja y tinta negra, y reservar el violeta tinta para la acción primaria, lo activo, lo que graba y lo que hace la IA.",
+      "Do usar Geist Mono con cifras tabulares para timecodes, duraciones y contadores.",
+      "Do usar cápsulas para waveform, badges, indicadores, chips y la marca de IA.",
+      "Do separar con espacio y hairline antes de recurrir a hoja hundida o a sombra.",
+      "Do marcar lo generado como borrador y enlazar cada dato a su timecode.",
+      "Do mostrar un foco visible: anillo sólido de 2px en violeta tinta con 2px de separación (o borde violeta con halo suave en campos).",
+      "Do respetar `prefers-reduced-motion`, con movimientos de 8px como máximo, sin rebotes y una sola animación continua por pantalla."
+    ],
+    "donts": [
+      "Don't usar el violeta tinta como fondo de una pantalla o de un panel.",
+      "Don't usar rojo para grabar.",
+      "Don't usar degradados (salvo el icono de app), glassmorphism, glows ni bordes de color a la izquierda.",
+      "Don't representar la IA con robots, cerebros, estrellas o chispas; solo con las tres cápsulas.",
+      "Don't poner títulos en peso 700 o más, ni más de una heading por pantalla.",
+      "Don't usar lápiz para texto que haya que leer.",
+      "Don't usar cards fuera de las colecciones de reuniones.",
+      "Don't mostrar un spinner a pantalla completa mientras carga.",
+      "Don't simular en la UI funciones que el dominio no tiene, ni inventar testimonios o cifras.",
+      "Don't usar lenguaje de iglesia en la interfaz; solo en el contenido."
+    ]
+  }
+}
